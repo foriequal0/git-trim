@@ -3,7 +3,9 @@ import os
 import subprocess
 import tempfile
 import textwrap
+from pathlib import Path
 from unittest import TestCase
+import git_cleanup as cleanup
 
 
 @contextlib.contextmanager
@@ -14,6 +16,7 @@ def fixture_context(fixture_setup):
             os.chdir(tmpdir)
             input = fixture_setup.encode()
             subprocess.run(["/usr/bin/env", "bash", "-xe", "-"], input=input)
+            os.chdir(Path(tmpdir) / "local")
             yield
     finally:
         os.chdir(pwd)

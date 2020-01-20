@@ -111,21 +111,27 @@ class LocalBranch(typing.NamedTuple):
     push_track: str = "push:track"
 
 
-local_branches: List[LocalBranch] = branch(
+def get_local_branches() -> List[LocalBranch]:
+    return branch(
     format=":".join(f"%({atom})" for atom in LocalBranch._field_defaults.values()),
     fs=":",
     cls=LocalBranch)
 
-lose_trackings = [br for br in local_branches if br.push_track == "[gone]" or br.upstream_track == "[gone]"]
 
-print("Gone tracking branches:")
-for branch in lose_trackings:
-    x = ["", branch.refname]
-    if branch.push_track == "[gone]":
-        x.extend(["push=", branch.push_ref])
-    if branch.upstream_track == "[gone]":
-        x.extend(["fetch=", branch.upstream_ref])
-    print(*x)
+def get_gone_branches() -> List[LocalBranch]:
+    return [br for br in get_local_branches() if br.push_track == "[gone]" or br.upstream_track == "[gone]"]
 
-# push가 gone이면 upstream/master를 확인
-# upstream이 gone이면 upstream/master를 확인
+
+def main():
+    print("Gone tracking branches:")
+    for branch in get_gone_branches():
+        x = ["", branch.refname]
+        if branch.push_track == "[gone]":
+            x.extend(["push=", branch.push_ref])
+        if branch.upstream_track == "[gone]":
+            x.extend(["fetch=", branch.upstream_ref])
+        print(*x)
+
+
+if __name__ == "__main__":
+    main()
