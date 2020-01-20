@@ -10,28 +10,56 @@ from unittest import TestCase
 def fixture_context(fixture_setup):
     pwd = os.getcwd()
     try:
-        with tempfile.TemporaryDirectory() as tmpdir, \
-                tempfile.NamedTemporaryFile() as fixture_setup_tmpfile:
+        with tempfile.TemporaryDirectory() as tmpdir:
             os.chdir(tmpdir)
-            fixture_setup_tmpfile.write(fixture_setup.encode())
-            fixture_setup_tmpfile.flush()
-            subprocess.run(["/usr/bin/env", "bash", "-ve", fixture_setup_tmpfile.name]).check_returncode()
+            input = fixture_setup.encode()
+            subprocess.run(["/usr/bin/env", "bash", "-xe", "-"], input=input)
             yield
     finally:
         os.chdir(pwd)
 
+
 def with_fixture(fixture_setup):
+    # Set an triangular workflow
+    prelude = textwrap.dedent("""
+    within() {
+        pushd $1 > /dev/null;
+        source <(cat)
+        popd > /dev/null;
+    }
+    upstream() { within upstream; }
+    origin() { within origin; }
+    local() { within local; }
+
+    git init upstream;
+    upstream <<EOF
+        echo "Hello World!" > README.md;
+        git add README.md;
+        git commit -m "Initial commit"
+    EOF
+    git clone upstream origin
+    git clone origin local
+    local <<EOF
+        git config remote.pushdefault origin
+        git config push.default current
+        git remote add upstream ../upstream
+    EOF
+    """)
+
+    final_fixture = prelude + textwrap.dedent(fixture_setup)
+
     def decorator(func):
         def wrapper(*args):
-            with fixture_context(textwrap.dedent(fixture_setup)):
+            with fixture_context(final_fixture):
                 func(*args)
+
         return wrapper
+
     return decorator
 
 
 class TestStringMethods(TestCase):
     @with_fixture("""
-    git init origin
     """)
     def test_upper(self):
-         pass
+        pass
