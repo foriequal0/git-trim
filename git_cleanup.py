@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
-
+import argparse
 import logging
 import os
 import shlex
 import subprocess
 import sys
-import typing
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, NamedTuple
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "WARNING"))
 
 
-def get_labels(cls, default) -> Optional[List[str]]:
+def _get_labels(cls, default) -> Optional[List[str]]:
     if default is not None or cls is None:
         return default
 
-    if 'typing' in sys.modules and issubclass(cls, typing.NamedTuple):
+    if 'typing' in sys.modules and issubclass(cls, NamedTuple):
         return list(cls._field_types.keys())
 
     # collections.namedtuple
@@ -25,14 +24,14 @@ def get_labels(cls, default) -> Optional[List[str]]:
     return None
 
 
-def lines_to_records(lines, fs = None, labels = None, cls = None):
+def _lines_to_records(lines, fs=None, labels=None, cls=None):
     if fs is None:
         if cls is None:
             return lines  # type: List[str]
         return [cls(line) for line in lines]  # type: List[cls]
     rows: List[List[str]] = [line.split(fs) for line in lines]
 
-    labels = get_labels(cls, labels)
+    labels = _get_labels(cls, labels)
     if labels is None:
         if cls is None:
             return rows  # type: List[List[str]]
@@ -45,7 +44,7 @@ def lines_to_records(lines, fs = None, labels = None, cls = None):
     return [cls(**record) for record in records]  # type: List[cls]
 
 
-def git(cmd, *args, fs=None, labels=None, cls=None, check=True, **kwargs):
+def _git(cmd, *args, fs=None, labels=None, cls=None, check=True):
     quoted_args = " ".join(shlex.quote(arg) for arg in args)
     logging.info(f'> git {cmd} {quoted_args}')
     result = subprocess.run(["git", cmd, *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -56,7 +55,7 @@ def git(cmd, *args, fs=None, labels=None, cls=None, check=True, **kwargs):
         except:
             logging.warning(result.stderr)
     try:
-        stdout = result.stdout.decode()
+        stdout = result.stdout.decode().strip()
         logging.debug(stdout)
     except Exception as e:
         logging.error("Can't decode stdout")
@@ -70,68 +69,115 @@ def git(cmd, *args, fs=None, labels=None, cls=None, check=True, **kwargs):
 
     lines = stdout.splitlines()
 
-    return lines_to_records(lines, fs, labels, cls)
+    return _lines_to_records(lines, fs, labels, cls)
 
 
-def branch(*args, format=None, **kwargs):
+def _branch(*args, format=None, **kwargs):
     if format:
-        return git("branch", "--format", format, *args, **kwargs)
+        return _git("branch", "--format", format, *args, **kwargs)
     else:
-        return git("branch", *args, **kwargs)
+        return _git("branch", *args, **kwargs)
 
 
-def config(*args):
-    result = git("config", '--default', '', ".".join(args))
+def _config(*args):
+    result = _git("config", '--default', '', ".".join(args))
     if len(result) == 1:
         return result[0]
     else:
         return None
 
 
-def get_push(branch):
-    pushremote = config("branch", branch, "pushremote")
+def _get_push(branch):
+    pushremote = _config("branch", branch, "pushremote")
     if pushremote:
         return pushremote
 
-    pushdefault = config("remote", "pushdefault")
+    pushdefault = _config("remote", "pushdefault")
     if pushdefault:
         return pushdefault
 
-    remote = config("branch", branch, "remote")
+    remote = _config("branch", branch, "remote")
     return remote
 
 
-class LocalBranch(typing.NamedTuple):
+class LocalBranch(NamedTuple):
     refname: str = "refname:lstrip=2"
+
+    # refs/remotes/origin/feature/tests
+    #              ^----^ {upstream,push}
+    #              ^------------^ {upstream,push}_shortref
+    #              ^------------------^ {upstream,push}_ref
+    #                     ^-----------^ {upstream,push}_remoteref
     upstream: str = "upstream:remotename"
     upstream_ref: str = "upstream"
+    upstream_shortref: str = "upstream:short"
+    upstream_remoteref: str = "upstream:lstrip=3"
     upstream_track: str = "upstream:track"
     push: str = "push:remotename"
     push_ref: str = "push"
+    push_shortref: str = "push:short"
+    push_remoteref: str = "push:lstrip=3"
     push_track: str = "push:track"
 
 
-def get_local_branches() -> List[LocalBranch]:
-    return branch(
-    format=":".join(f"%({atom})" for atom in LocalBranch._field_defaults.values()),
-    fs=":",
-    cls=LocalBranch)
+def _get_local_branches() -> List[LocalBranch]:
+    return _branch(
+        format=":".join(f"%({atom})" for atom in LocalBranch._field_defaults.values()),
+        fs=":",
+        cls=LocalBranch)
 
 
-def get_gone_branches() -> List[LocalBranch]:
-    return [br for br in get_local_branches() if br.push_track == "[gone]" or br.upstream_track == "[gone]"]
+def _gone_branches(local_branches) -> List[LocalBranch]:
+    return [br for br in local_branches if br.push_track == "[gone]" or br.upstream_track == "[gone]"]
 
 
-def main():
-    print("Gone tracking branches:")
-    for branch in get_gone_branches():
-        x = ["", branch.refname]
+def _branches_to_remove(base, local_branches):
+    local = set()
+    remotes = dict()
+    for branch in local_branches:
+        if branch.upstream_shortref == base:
+            continue
+
+        merged = len(_git("cherry", base, branch.refname)) == 0
+        if merged:
+            local.add(branch.refname)
+
+        # push is gone
         if branch.push_track == "[gone]":
-            x.extend(["push=", branch.push_ref])
-        if branch.upstream_track == "[gone]":
-            x.extend(["fetch=", branch.upstream_ref])
-        print(*x)
+            local.add(branch.refname)
+
+        # upstream is gone
+        if branch.push_track != "[gone]" and (merged or (branch.upstream_track == "[gone]")):
+            remotes.setdefault(branch.push, set()).add(branch.push_remoteref)
+
+    return {
+        "local": local,
+        "remotes": remotes,
+    }
+
+
+def get_branches_to_remove(base):
+    local_branches = _get_local_branches()
+    return _branches_to_remove(base, local_branches)
+
+
+parser = argparse.ArgumentParser("cleanup gone tracking branches")
+parser.add_argument('--update', dest='update', action='store_true')
+parser.add_argument('--no-update', dest='update', action='store_false')
+parser.set_defaults(update=True)
+
+args = parser.parse_args()
+
+
+def _main():
+    if args.update:
+        _git("remote", "update", "--prune")
+
+    print("Gone tracking branches:")
+    to_remove = get_branches_to_remove("upstream/master")
+
+    # TODO: remove
 
 
 if __name__ == "__main__":
-    main()
+    _main()
