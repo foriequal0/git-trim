@@ -113,6 +113,25 @@ class TestSimplePullRequestWorkflow(TestCase):
     origin <<EOF
         git checkout master
         git merge feature
+        git branch -d feature
+    EOF
+    local <<EOF
+        touch another-patch
+        git add another-patch
+        git commit -m "Another patch"
+    EOF
+    """)
+    def test_accepted_but_edited(self):
+        to_remove = cleanup.get_branches_to_remove("origin/master")
+        self.assertEqual(to_remove, {
+            "local": set(),
+            "remotes": {},
+        })
+
+    @with_fixture("""
+    origin <<EOF
+        git checkout master
+        git merge feature
     EOF
     """)
     def test_accepted_but_forgot_to_delete(self):
@@ -122,6 +141,24 @@ class TestSimplePullRequestWorkflow(TestCase):
             "remotes": {
                 "origin": { "feature" }
             }
+        })
+
+    @with_fixture("""
+    origin <<EOF
+        git checkout master
+        git merge feature
+    EOF
+    local <<EOF
+        touch another-patch
+        git add another-patch
+        git commit -m "Another patch"
+    EOF
+    """)
+    def test_accepted_but_forgot_to_delete_and_edited(self):
+        to_remove = cleanup.get_branches_to_remove("origin/master")
+        self.assertEqual(to_remove, {
+            "local": set(),
+            "remotes": {}
         })
 
     @with_fixture("""
@@ -137,6 +174,23 @@ class TestSimplePullRequestWorkflow(TestCase):
         })
 
     @with_fixture("""
+    origin <<EOF
+        git branch -D feature
+    EOF
+    local <<EOF
+        touch another-patch
+        git add another-patch
+        git commit -m "Another patch"
+    EOF
+    """)
+    def test_rejected_but_edited(self):
+        to_remove = cleanup.get_branches_to_remove("origin/master")
+        self.assertEqual(to_remove, {
+            "local": set(),
+            "remotes": {},
+        })
+
+    @with_fixture("""
     """)
     def test_rejected_but_forgot_to_delete(self):
         to_remove = cleanup.get_branches_to_remove("origin/master")
@@ -145,6 +199,19 @@ class TestSimplePullRequestWorkflow(TestCase):
             "remotes": {},
         })
 
+    @with_fixture("""
+    local <<EOF
+        touch another-patch
+        git add another-patch
+        git commit -m "Another patch"
+    EOF
+    """)
+    def test_rejected_but_forgot_to_delete_and_edited(self):
+        to_remove = cleanup.get_branches_to_remove("origin/master")
+        self.assertEqual(to_remove, {
+            "local": set(),
+            "remotes": {},
+        })
 
 class TestSimpleTriangularPullRequestWorkflow(TestCase):
     fixture_init = """
@@ -209,6 +276,30 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
     upstream <<EOF
         git merge refs/pull/1/head
     EOF
+    # clicked delete branch button
+    origin <<EOF
+        git branch -D feature
+    EOF
+    local <<EOF
+        touch another-patch
+        git add another-patch
+        git commit -m "Another patch"
+    EOF
+    """)
+    def test_accepted_but_edited(self):
+        to_remove = cleanup.get_branches_to_remove("upstream/master")
+        self.assertEqual(to_remove, {
+            "local": set(),
+            "remotes": {},
+        })
+
+    @with_fixture("""
+    origin <<EOF
+        git push upstream feature:refs/pull/1/head
+    EOF
+    upstream <<EOF
+        git merge refs/pull/1/head
+    EOF
     """)
     def test_accepted_but_forgot_to_delete(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
@@ -217,6 +308,26 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
             "remotes": {
                 "origin": {"feature"}
             }
+        })
+
+    @with_fixture("""
+    origin <<EOF
+        git push upstream feature:refs/pull/1/head
+    EOF
+    upstream <<EOF
+        git merge refs/pull/1/head
+    EOF
+    local <<EOF
+        touch another-patch
+        git add another-patch
+        git commit -m "Another patch"
+    EOF
+    """)
+    def test_accepted_but_forgot_to_delete_and_edited(self):
+        to_remove = cleanup.get_branches_to_remove("upstream/master")
+        self.assertEqual(to_remove, {
+            "local": set(),
+            "remotes": {}
         })
 
     @with_fixture("""
@@ -236,9 +347,45 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
     @with_fixture("""
     origin <<EOF
         git push upstream feature:refs/pull/1/head
+
+        git branch -D feature
+    EOF
+    local <<EOF
+        touch another-patch
+        git add another-patch
+        git commit -m "Another patch"
+    EOF
+    """)
+    def test_rejected_but_edited(self):
+        to_remove = cleanup.get_branches_to_remove("upstream/master")
+        self.assertEqual(to_remove, {
+            "local": set(),
+            "remotes": {}
+        })
+
+    @with_fixture("""
+    origin <<EOF
+        git push upstream feature:refs/pull/1/head
     EOF
     """)
     def test_rejected_but_forgot_to_delete(self):
+        to_remove = cleanup.get_branches_to_remove("upstream/master")
+        self.assertEqual(to_remove, {
+            "local": set(),
+            "remotes": {}
+        })
+
+    @with_fixture("""
+    origin <<EOF
+        git push upstream feature:refs/pull/1/head
+    EOF
+    local <<EOF
+        touch another-patch
+        git add another-patch
+        git commit -m "Another patch"
+    EOF
+    """)
+    def test_rejected_but_forgot_to_delete_and_edited(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
         self.assertEqual(to_remove, {
             "local": set(),
