@@ -89,7 +89,7 @@ class TestSimplePullRequestWorkflow(TestCase):
 
     @with_fixture("""
     local <<EOF
-        git checkout -b feature 
+        git checkout -b feature
         touch awesome-patch
         git add awesome-patch
         git commit -m "Awesome patch"
@@ -109,18 +109,18 @@ class TestSimplePullRequestWorkflow(TestCase):
         })
 
     @with_fixture("""
-        local <<EOF
-            git checkout -b feature 
-            touch awesome-patch
-            git add awesome-patch
-            git commit -m "Awesome patch"
-            git push -u origin
-        EOF
-        origin <<EOF
-            git checkout master
-            git merge feature
-        EOF
-        """)
+    local <<EOF
+        git checkout -b feature
+        touch awesome-patch
+        git add awesome-patch
+        git commit -m "Awesome patch"
+        git push -u origin
+    EOF
+    origin <<EOF
+        git checkout master
+        git merge feature
+    EOF
+    """)
     def test_accepted_but_forgot_to_delete(self):
         to_remove = cleanup.get_branches_to_remove("origin/master")
         self.assertEqual(to_remove, {
@@ -131,17 +131,17 @@ class TestSimplePullRequestWorkflow(TestCase):
         })
 
     @with_fixture("""
-        local <<EOF
-            git checkout -b feature 
-            touch awesome-patch
-            git add awesome-patch
-            git commit -m "Awesome patch"
-            git push -u origin
-        EOF
-        origin <<EOF
-            git branch -D feature
-        EOF
-        """)
+    local <<EOF
+        git checkout -b feature
+        touch awesome-patch
+        git add awesome-patch
+        git commit -m "Awesome patch"
+        git push -u origin
+    EOF
+    origin <<EOF
+        git branch -D feature
+    EOF
+    """)
     def test_rejected(self):
         to_remove = cleanup.get_branches_to_remove("origin/master")
         self.assertEqual(to_remove, {
@@ -150,14 +150,14 @@ class TestSimplePullRequestWorkflow(TestCase):
         })
 
     @with_fixture("""
-        local <<EOF
-            git checkout -b feature 
-            touch awesome-patch
-            git add awesome-patch
-            git commit -m "Awesome patch"
-            git push -u origin
-        EOF
-        """)
+    local <<EOF
+        git checkout -b feature
+        touch awesome-patch
+        git add awesome-patch
+        git commit -m "Awesome patch"
+        git push -u origin
+    EOF
+    """)
     def test_rejected_but_forgot_to_delete(self):
         to_remove = cleanup.get_branches_to_remove("origin/master")
         self.assertEqual(to_remove, {
@@ -196,24 +196,24 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
     """
 
     @with_fixture("""
-        local <<EOF
-            git checkout -b feature 
-            touch awesome-patch
-            git add awesome-patch
-            git commit -m "Awesome patch"
-            git push -u origin
-        EOF
-        origin <<EOF
-            git push upstream feature:refs/pull/1/head
-        EOF
-        upstream <<EOF
-            git merge refs/pull/1/head
-        EOF
-        # clicked delete branch button 
-        origin <<EOF
-            git branch -D feature
-        EOF
-        """)
+    local <<EOF
+        git checkout -b feature
+        touch awesome-patch
+        git add awesome-patch
+        git commit -m "Awesome patch"
+        git push -u origin
+    EOF
+    origin <<EOF
+        git push upstream feature:refs/pull/1/head
+    EOF
+    upstream <<EOF
+        git merge refs/pull/1/head
+    EOF
+    # clicked delete branch button
+    origin <<EOF
+        git branch -D feature
+    EOF
+    """)
     def test_accepted(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
         self.assertEqual(to_remove, {
@@ -222,20 +222,20 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
         })
 
     @with_fixture("""
-        local <<EOF
-            git checkout -b feature 
-            touch awesome-patch
-            git add awesome-patch
-            git commit -m "Awesome patch"
-            git push -u origin
-        EOF
-        origin <<EOF
-            git push upstream feature:refs/pull/1/head
-        EOF
-        upstream <<EOF
-            git merge refs/pull/1/head
-        EOF
-        """)
+    local <<EOF
+        git checkout -b feature
+        touch awesome-patch
+        git add awesome-patch
+        git commit -m "Awesome patch"
+        git push -u origin
+    EOF
+    origin <<EOF
+        git push upstream feature:refs/pull/1/head
+    EOF
+    upstream <<EOF
+        git merge refs/pull/1/head
+    EOF
+    """)
     def test_accepted_but_forgot_to_delete(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
         self.assertEqual(to_remove, {
@@ -246,19 +246,19 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
         })
 
     @with_fixture("""
-        local <<EOF
-            git checkout -b feature 
-            touch awesome-patch
-            git add awesome-patch
-            git commit -m "Awesome patch"
-            git push -u origin
-        EOF
-        origin <<EOF
-            git push upstream feature:refs/pull/1/head
-            
-            git branch -D feature
-        EOF
-        """)
+    local <<EOF
+        git checkout -b feature
+        touch awesome-patch
+        git add awesome-patch
+        git commit -m "Awesome patch"
+        git push -u origin
+    EOF
+    origin <<EOF
+        git push upstream feature:refs/pull/1/head
+
+        git branch -D feature
+    EOF
+    """)
     def test_rejected(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
         self.assertEqual(to_remove, {
@@ -267,18 +267,18 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
         })
 
     @with_fixture("""
-        local <<EOF
-            git checkout -b feature 
-            touch awesome-patch
-            git add awesome-patch
-            git commit -m "Awesome patch"
-            git push -u origin
-        EOF
-        origin <<EOF
-            git push upstream feature:refs/pull/1/head
-        EOF
-        """)
-    def test_rejected_but_forgot_to_dele(self):
+    local <<EOF
+        git checkout -b feature
+        touch awesome-patch
+        git add awesome-patch
+        git commit -m "Awesome patch"
+        git push -u origin
+    EOF
+    origin <<EOF
+        git push upstream feature:refs/pull/1/head
+    EOF
+    """)
+    def test_rejected_but_forgot_to_delete(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
         self.assertEqual(to_remove, {
             "local": set(),
