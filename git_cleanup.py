@@ -161,15 +161,14 @@ def get_branches_to_remove(base):
     return _branches_to_remove(base, local_branches)
 
 
-parser = argparse.ArgumentParser("cleanup gone tracking branches")
-parser.add_argument('--update', dest='update', action='store_true')
-parser.add_argument('--no-update', dest='update', action='store_false')
-parser.set_defaults(update=True)
-
-args = parser.parse_args()
-
-
 def _main():
+    parser = argparse.ArgumentParser("cleanup gone tracking branches")
+    parser.add_argument('--update', dest='update', action='store_true')
+    parser.add_argument('--no-update', dest='update', action='store_false')
+    parser.set_defaults(update=True)
+
+    args = parser.parse_args()
+
     if args.update:
         _git("remote", "update", "--prune")
 

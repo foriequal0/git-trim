@@ -17,3 +17,6 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - run: python -m unittest tests.py
+      env:
+        LOG_LEVEL: DEBUG
+        TEST_LOG_LEVEL: DEBUG

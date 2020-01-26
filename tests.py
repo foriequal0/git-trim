@@ -68,12 +68,16 @@ class TestSimplePullRequestWorkflow(TestCase):
     fixture_init = """
     git init origin
     origin <<EOF
+        git config user.name "Origin Test"
+        git config user.email "origin@test"
         echo "Hello World!" > README.md
         git add README.md
         git commit -m "Initial commit"
     EOF
     git clone origin local
     local <<EOF
+        git config user.name "Local Test"
+        git config user.email "local@test"
         git config remote.pushdefault origin
         git config push.default current
     EOF
@@ -162,17 +166,23 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
     fixture_init = """
     git init upstream
     upstream <<EOF
+        git config user.name "Upstream Test"
+        git config user.email "upstream@test"
         echo "Hello World!" > README.md
         git add README.md
         git commit -m "Initial commit"
     EOF
     git clone upstream origin -o upstream
     origin <<EOF
+        git config user.name "Origin Test"
+        git config user.email "origin@test"
         git config remote.pushdefault upstream
         git config push.default current
     EOF
     git clone origin local
     local <<EOF
+        git config user.name "Local Test"
+        git config user.email "local@test"
         git config remote.pushdefault origin
         git config push.default current
         git remote add upstream ../upstream
