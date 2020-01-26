@@ -85,9 +85,7 @@ class TestSimplePullRequestWorkflow(TestCase):
         git config remote.pushdefault origin
         git config push.default current
     EOF
-    """
-
-    @with_fixture("""
+    # prepare awesome patch
     local <<EOF
         git checkout -b feature
         touch awesome-patch
@@ -95,6 +93,9 @@ class TestSimplePullRequestWorkflow(TestCase):
         git commit -m "Awesome patch"
         git push -u origin
     EOF
+    """
+
+    @with_fixture("""
     origin <<EOF
         git checkout master
         git merge feature
@@ -109,13 +110,6 @@ class TestSimplePullRequestWorkflow(TestCase):
         })
 
     @with_fixture("""
-    local <<EOF
-        git checkout -b feature
-        touch awesome-patch
-        git add awesome-patch
-        git commit -m "Awesome patch"
-        git push -u origin
-    EOF
     origin <<EOF
         git checkout master
         git merge feature
@@ -131,13 +125,6 @@ class TestSimplePullRequestWorkflow(TestCase):
         })
 
     @with_fixture("""
-    local <<EOF
-        git checkout -b feature
-        touch awesome-patch
-        git add awesome-patch
-        git commit -m "Awesome patch"
-        git push -u origin
-    EOF
     origin <<EOF
         git branch -D feature
     EOF
@@ -150,13 +137,6 @@ class TestSimplePullRequestWorkflow(TestCase):
         })
 
     @with_fixture("""
-    local <<EOF
-        git checkout -b feature
-        touch awesome-patch
-        git add awesome-patch
-        git commit -m "Awesome patch"
-        git push -u origin
-    EOF
     """)
     def test_rejected_but_forgot_to_delete(self):
         to_remove = cleanup.get_branches_to_remove("origin/master")
@@ -193,9 +173,7 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
         git fetch upstream
         git branch -u upstream/master master
     EOF
-    """
-
-    @with_fixture("""
+    # prepare awesome patch
     local <<EOF
         git checkout -b feature
         touch awesome-patch
@@ -203,6 +181,9 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
         git commit -m "Awesome patch"
         git push -u origin
     EOF
+    """
+
+    @with_fixture("""
     origin <<EOF
         git push upstream feature:refs/pull/1/head
     EOF
@@ -222,13 +203,6 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
         })
 
     @with_fixture("""
-    local <<EOF
-        git checkout -b feature
-        touch awesome-patch
-        git add awesome-patch
-        git commit -m "Awesome patch"
-        git push -u origin
-    EOF
     origin <<EOF
         git push upstream feature:refs/pull/1/head
     EOF
@@ -246,13 +220,6 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
         })
 
     @with_fixture("""
-    local <<EOF
-        git checkout -b feature
-        touch awesome-patch
-        git add awesome-patch
-        git commit -m "Awesome patch"
-        git push -u origin
-    EOF
     origin <<EOF
         git push upstream feature:refs/pull/1/head
 
@@ -267,13 +234,6 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
         })
 
     @with_fixture("""
-    local <<EOF
-        git checkout -b feature
-        touch awesome-patch
-        git add awesome-patch
-        git commit -m "Awesome patch"
-        git push -u origin
-    EOF
     origin <<EOF
         git push upstream feature:refs/pull/1/head
     EOF
