@@ -47,7 +47,11 @@ def with_fixture(fixture):
     """)
 
     epilogue = textwrap.dedent("""
-    local <<< "git remote update --prune"
+    local <<EOF
+        git remote update --prune
+        git branch -vv
+        git log --oneline --oneline --decorate --graph
+    EOF
     """)
 
     def decorator(func):
