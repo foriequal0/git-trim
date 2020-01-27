@@ -168,7 +168,7 @@ def get_branches_to_remove(base):
     return _branches_to_remove(base, local_branches)
 
 
-def _main():
+def main():
     parser = argparse.ArgumentParser("cleanup gone tracking branches")
     parser.add_argument('--update', dest='update', action='store_true')
     parser.add_argument('--no-update', dest='update', action='store_false')
@@ -186,4 +186,4 @@ def _main():
 
 
 if __name__ == "__main__":
-    _main()
+    main()
