@@ -101,6 +101,8 @@ def _get_push(branch):
 
 
 class LocalBranch(NamedTuple):
+    # refs/HEAD/master
+    #           ^----^ refname
     refname: str = "refname:lstrip=2"
 
     # refs/remotes/origin/feature/tests
