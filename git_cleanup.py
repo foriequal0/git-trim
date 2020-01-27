@@ -127,32 +127,39 @@ def _get_local_branches() -> List[LocalBranch]:
         cls=LocalBranch)
 
 
-def _gone_branches(local_branches) -> List[LocalBranch]:
-    return [br for br in local_branches if br.push_track == "[gone]" or br.upstream_track == "[gone]"]
-
-
 def _branches_to_remove(base, local_branches):
-    local = set()
-    remotes = dict()
+    local_merged = set()
+    local_gone = set()
+    remotes_merged = dict()
+    remotes_gone = dict()
     for branch in local_branches:
         if branch.upstream_shortref == base:
             continue
 
         merged = len(_git("cherry", base, branch.refname)) == 0
         if merged:
-            local.add(branch.refname)
+            local_merged.add(branch.refname)
+        elif branch.push_track == "[gone]":
+            # push is gone, but not merged
+            local_gone.add(branch.refname)
 
-        # push is gone
-        if branch.push_track == "[gone]":
-            local.add(branch.refname)
-
-        # upstream is gone
-        if branch.push_track != "[gone]" and (merged or (branch.upstream_track == "[gone]")):
-            remotes.setdefault(branch.push, set()).add(branch.push_remoteref)
+        if branch.push_track != "[gone]":
+            if merged:
+                remotes_merged.setdefault(branch.push, set()).add(branch.push_remoteref)
+            elif branch.upstream_track == "[gone]":
+                # upstream is gone but not merged
+                remotes_gone.setdefault(branch.push, set()).add(branch.push_remoteref)
 
     return {
-        "local": local,
-        "remotes": remotes,
+        "local": {
+            "merged": local_merged,
+            "gone": local_gone,
+        },
+        "remotes": {
+            "merged": remotes_merged,
+            # TODO: never used
+            "gone": remotes_gone,
+        }
     }
 
 

@@ -105,8 +105,14 @@ class TestSimplePullRequestWorkflow(TestCase):
     def test_accepted(self):
         to_remove = cleanup.get_branches_to_remove("origin/master")
         self.assertEqual(to_remove, {
-            "local": {"feature"},
-            "remotes": {},
+            "local": {
+                "merged": {"feature"},
+                "gone": set()
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            },
         })
 
     @with_fixture("""
@@ -124,8 +130,14 @@ class TestSimplePullRequestWorkflow(TestCase):
     def test_accepted_but_edited(self):
         to_remove = cleanup.get_branches_to_remove("origin/master")
         self.assertEqual(to_remove, {
-            "local": set(),
-            "remotes": {},
+            "local": {
+                "merged": set(),
+                "gone": {"feature"}
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            },
         })
 
     @with_fixture("""
@@ -137,9 +149,15 @@ class TestSimplePullRequestWorkflow(TestCase):
     def test_accepted_but_forgot_to_delete(self):
         to_remove = cleanup.get_branches_to_remove("origin/master")
         self.assertEqual(to_remove, {
-            "local": {"feature"},
+            "local": {
+                "merged": {"feature"},
+                "gone": set(),
+            },
             "remotes": {
-                "origin": { "feature" }
+                "merged": {
+                    "origin": {"feature"}
+                },
+                "gone": {}
             }
         })
 
@@ -157,8 +175,14 @@ class TestSimplePullRequestWorkflow(TestCase):
     def test_accepted_but_forgot_to_delete_and_edited(self):
         to_remove = cleanup.get_branches_to_remove("origin/master")
         self.assertEqual(to_remove, {
-            "local": set(),
-            "remotes": {}
+            "local": {
+                "merged": set(),
+                "gone": set(),
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            }
         })
 
     @with_fixture("""
@@ -169,8 +193,14 @@ class TestSimplePullRequestWorkflow(TestCase):
     def test_rejected(self):
         to_remove = cleanup.get_branches_to_remove("origin/master")
         self.assertEqual(to_remove, {
-            "local": {"feature"},
-            "remotes": {},
+            "local": {
+                "merged": set(),
+                "gone": {"feature"},
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            },
         })
 
     @with_fixture("""
@@ -186,8 +216,14 @@ class TestSimplePullRequestWorkflow(TestCase):
     def test_rejected_but_edited(self):
         to_remove = cleanup.get_branches_to_remove("origin/master")
         self.assertEqual(to_remove, {
-            "local": set(),
-            "remotes": {},
+            "local": {
+                "merged": set(),
+                "gone": {"feature"},
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            },
         })
 
     @with_fixture("""
@@ -195,8 +231,14 @@ class TestSimplePullRequestWorkflow(TestCase):
     def test_rejected_but_forgot_to_delete(self):
         to_remove = cleanup.get_branches_to_remove("origin/master")
         self.assertEqual(to_remove, {
-            "local": set(),
-            "remotes": {},
+            "local": {
+                "merged": set(),
+                "gone": set(),
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            },
         })
 
     @with_fixture("""
@@ -209,9 +251,16 @@ class TestSimplePullRequestWorkflow(TestCase):
     def test_rejected_but_forgot_to_delete_and_edited(self):
         to_remove = cleanup.get_branches_to_remove("origin/master")
         self.assertEqual(to_remove, {
-            "local": set(),
-            "remotes": {},
+            "local": {
+                "merged": set(),
+                "gone": set(),
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            },
         })
+
 
 class TestSimpleTriangularPullRequestWorkflow(TestCase):
     fixture_init = """
@@ -265,8 +314,14 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
     def test_accepted(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
         self.assertEqual(to_remove, {
-            "local": {"feature"},
-            "remotes": {},
+            "local": {
+                "merged": {"feature"},
+                "gone": set(),
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            },
         })
 
     @with_fixture("""
@@ -289,8 +344,14 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
     def test_accepted_but_edited(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
         self.assertEqual(to_remove, {
-            "local": set(),
-            "remotes": {},
+            "local": {
+                "merged": set(),
+                "gone": {"feature"},
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            },
         })
 
     @with_fixture("""
@@ -304,9 +365,15 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
     def test_accepted_but_forgot_to_delete(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
         self.assertEqual(to_remove, {
-            "local": {"feature"},
+            "local": {
+                "merged": {"feature"},
+                "gone": set(),
+            },
             "remotes": {
-                "origin": {"feature"}
+                "merged": {
+                    "origin": {"feature"}
+                },
+                "gone": {},
             }
         })
 
@@ -326,8 +393,14 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
     def test_accepted_but_forgot_to_delete_and_edited(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
         self.assertEqual(to_remove, {
-            "local": set(),
-            "remotes": {}
+            "local": {
+                "merged": set(),
+                "gone": set(),
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            }
         })
 
     @with_fixture("""
@@ -340,8 +413,14 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
     def test_rejected(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
         self.assertEqual(to_remove, {
-            "local": {"feature"},
-            "remotes": {}
+            "local": {
+                "merged": set(),
+                "gone": {"feature"},
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            }
         })
 
     @with_fixture("""
@@ -359,8 +438,14 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
     def test_rejected_but_edited(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
         self.assertEqual(to_remove, {
-            "local": set(),
-            "remotes": {}
+            "local": {
+                "merged": set(),
+                "gone": {"feature"},
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            }
         })
 
     @with_fixture("""
@@ -371,8 +456,14 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
     def test_rejected_but_forgot_to_delete(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
         self.assertEqual(to_remove, {
-            "local": set(),
-            "remotes": {}
+            "local": {
+                "merged": set(),
+                "gone": set(),
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            }
         })
 
     @with_fixture("""
@@ -388,6 +479,12 @@ class TestSimpleTriangularPullRequestWorkflow(TestCase):
     def test_rejected_but_forgot_to_delete_and_edited(self):
         to_remove = cleanup.get_branches_to_remove("upstream/master")
         self.assertEqual(to_remove, {
-            "local": set(),
-            "remotes": {}
+            "local": {
+                "merged": set(),
+                "gone": set(),
+            },
+            "remotes": {
+                "merged": {},
+                "gone": {},
+            }
         })
