@@ -5,16 +5,18 @@ import os
 import shlex
 import subprocess
 import sys
-from typing import List, Optional, Dict, NamedTuple
+from typing import Dict
+from typing import List
+from typing import NamedTuple
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "WARNING"))
 
 
-def _get_labels(cls, default) -> Optional[List[str]]:
+def _get_labels(cls, default):
     if default is not None or cls is None:
         return default
 
-    if 'typing' in sys.modules and issubclass(cls, NamedTuple):
+    if "typing" in sys.modules and issubclass(cls, NamedTuple):
         return list(cls._field_types.keys())
 
     # collections.namedtuple
@@ -27,32 +29,34 @@ def _get_labels(cls, default) -> Optional[List[str]]:
 def _lines_to_records(lines, fs=None, labels=None, cls=None):
     if fs is None:
         if cls is None:
-            return lines  # type: List[str]
-        return [cls(line) for line in lines]  # type: List[cls]
+            return lines
+        return [cls(line) for line in lines]
     rows: List[List[str]] = [line.split(fs) for line in lines]
 
     labels = _get_labels(cls, labels)
     if labels is None:
         if cls is None:
-            return rows  # type: List[List[str]]
-        return [cls(*fields) for fields in rows]  # type: List[cls]
+            return rows
+        return [cls(*fields) for fields in rows]
 
     records: List[Dict[str, str]] = [dict(zip(labels, fields)) for fields in rows]
     if cls is None:
-        return list(records)  # type: List[Dict[str, str]]
+        return list(records)
 
-    return [cls(**record) for record in records]  # type: List[cls]
+    return [cls(**record) for record in records]
 
 
 def _git(cmd, *args, fs=None, labels=None, cls=None, check=True):
     quoted_args = " ".join(shlex.quote(arg) for arg in args)
-    logging.info(f'> git {cmd} {quoted_args}')
-    result = subprocess.run(["git", cmd, *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    logging.info(f"> git {cmd} {quoted_args}")
+    result = subprocess.run(
+        ["git", cmd, *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
 
     if len(result.stderr) != 0:
         try:
             logging.warning(result.stderr.decode())
-        except:
+        except Exception:
             logging.warning(result.stderr)
     try:
         stdout = result.stdout.decode().strip()
@@ -80,7 +84,7 @@ def _branch(*args, format=None, **kwargs):
 
 
 def _config(*args):
-    result = _git("config", '--default', '', ".".join(args))
+    result = _git("config", "--default", "", ".".join(args))
     if len(result) == 1:
         return result[0]
     else:
@@ -126,7 +130,8 @@ def _get_local_branches() -> List[LocalBranch]:
     return _branch(
         format=":".join(f"%({atom})" for atom in LocalBranch._field_defaults.values()),
         fs=":",
-        cls=LocalBranch)
+        cls=LocalBranch,
+    )
 
 
 def _branches_to_remove(base, local_branches):
@@ -147,21 +152,20 @@ def _branches_to_remove(base, local_branches):
 
         if branch.push_track != "[gone]":
             if merged:
-                remotes_merged.setdefault(branch.push, set()).add(branch.push_remoteref)
+                remotes_merged.setdefault(branch.push, set()).add(
+                    branch.push_remoteref,
+                )
             elif branch.upstream_track == "[gone]":
                 # upstream is gone but not merged
                 remotes_gone.setdefault(branch.push, set()).add(branch.push_remoteref)
 
     return {
-        "local": {
-            "merged": local_merged,
-            "gone": local_gone,
-        },
+        "local": {"merged": local_merged, "gone": local_gone},
         "remotes": {
             "merged": remotes_merged,
             # TODO: never used
             "gone": remotes_gone,
-        }
+        },
     }
 
 
@@ -172,8 +176,8 @@ def get_branches_to_remove(base):
 
 def main():
     parser = argparse.ArgumentParser("cleanup gone tracking branches")
-    parser.add_argument('--update', dest='update', action='store_true')
-    parser.add_argument('--no-update', dest='update', action='store_false')
+    parser.add_argument("--update", dest="update", action="store_true")
+    parser.add_argument("--no-update", dest="update", action="store_false")
     parser.set_defaults(update=True)
 
     args = parser.parse_args()
@@ -183,6 +187,7 @@ def main():
 
     print("Gone tracking branches:")
     to_remove = get_branches_to_remove("upstream/master")
+    print(to_remove)
 
     # TODO: remove
 
