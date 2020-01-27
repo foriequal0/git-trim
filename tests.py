@@ -20,8 +20,8 @@ def fixture_context(fixture_setup):
             os.chdir(tmpdir)
             input = fixture_setup.encode()
             with subprocess.Popen(
-                ["/usr/bin/env", "bash", "-xe", "-"],
-                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
+                    ["/usr/bin/env", "bash", "-xe", "-"],
+                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as process:
                 process.stdin.write(input)
                 process.stdin.close()
                 for line in process.stdout.readlines():
