@@ -1,4 +1,3 @@
 * text
 git-cleanup text diff=python eol=lf
 *.py text diff=python eol=lf
-
