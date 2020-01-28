@@ -184,7 +184,7 @@ def _branches_to_remove(base, local_branches):
     }
 
 
-def get_base(local_branches):
+def get_base(local_branches, remote_branches):
     base_name = _config("cleanup", "base", default="master")
     local_base = None
     for branch in local_branches:
@@ -193,7 +193,6 @@ def get_base(local_branches):
     if local_base:
         return local_base
 
-    remote_branches = _get_remote_branches()
     for branch in remote_branches:
         if branch.refname == base_name:
             return base_name
@@ -213,7 +212,8 @@ def get_base(local_branches):
 
 def get_branches_to_remove(base = None):
     local_branches = _get_local_branches()
-    base = base or get_base(local_branches)
+    remote_branches = _get_remote_branches()
+    base = base or get_base(local_branches, remote_branches)
     return _branches_to_remove(base, local_branches)
 
 
