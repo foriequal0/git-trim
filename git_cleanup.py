@@ -184,7 +184,7 @@ def _branches_to_remove(base, local_branches):
     }
 
 
-def get_base(local_branches, remote_branches):
+def _get_base(local_branches, remote_branches):
     base_name = _config("cleanup", "base", default="master")
 
     local_base = None
@@ -192,6 +192,7 @@ def get_base(local_branches, remote_branches):
         if branch.refname == base_name:
             local_base = branch
 
+    # Use a local branch's tracking upstream
     if local_base:
         if local_base.upstream_track == '[gone]':
             print(f"Tracking upstream branch is gone: {base_name} -> {local_base.upstream_shortref}",
@@ -199,10 +200,12 @@ def get_base(local_branches, remote_branches):
             exit(-1)
         return local_base.upstream_shortref
 
+    # Use a remote branch
     for branch in remote_branches:
         if branch.refname == base_name:
             return base_name
 
+    # Find a closest remote branch
     candidates = [br for br in remote_branches if br.refname_ambiguous == base_name]
     if len(candidates) == 0:
         print(f"There is no remote reference matching with: {base_name}", file=sys.stderr, flush=True)
@@ -218,7 +221,7 @@ def get_base(local_branches, remote_branches):
 def get_branches_to_remove(base = None):
     local_branches = _get_local_branches()
     remote_branches = _get_remote_branches()
-    base = base or get_base(local_branches, remote_branches)
+    base = base or _get_base(local_branches, remote_branches)
     return _branches_to_remove(base, local_branches)
 
 
