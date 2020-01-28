@@ -83,8 +83,8 @@ def _branch(*args, format=None, **kwargs):
         return _git("branch", *args, **kwargs)
 
 
-def _config(*args):
-    result = _git("config", "--default", "", ".".join(args))
+def _config(*args, default=""):
+    result = _git("config", "--default", default, ".".join(args))
     if len(result) == 1:
         return result[0]
     else:
@@ -107,7 +107,7 @@ def _get_push(branch):
 class LocalBranch(NamedTuple):
     # refs/HEAD/master
     #           ^----^ refname
-    refname: str = "refname:lstrip=2"
+    refname: str = "refname:short"
 
     # refs/remotes/origin/feature/tests
     # ^-------------------------------^ {upstream,push}_ref
@@ -126,11 +126,26 @@ class LocalBranch(NamedTuple):
     push_track: str = "push:track"
 
 
+class RemoteBranch(NamedTuple):
+    # refs/HEAD/master
+    #           ^----^ refname
+    refname: str = "refname:short"
+    refname_ambiguous: str = "refname:lstrip=3"
+
+
 def _get_local_branches() -> List[LocalBranch]:
     return _branch(
         format=":".join(f"%({atom})" for atom in LocalBranch._field_defaults.values()),
         fs=":",
         cls=LocalBranch,
+    )
+
+
+def _get_remote_branches() -> List[RemoteBranch]:
+    return _branch(
+        format=":".join(f"%({atom})" for atom in RemoteBranch._field_defaults.values()),
+        fs=":",
+        cls=RemoteBranch,
     )
 
 
@@ -169,8 +184,36 @@ def _branches_to_remove(base, local_branches):
     }
 
 
-def get_branches_to_remove(base):
+def get_base(local_branches):
+    base_name = _config("cleanup", "base", default="master")
+    local_base = None
+    for branch in local_branches:
+        if branch.refname == base_name:
+            local_base = branch.upstream_shortref
+    if local_base:
+        return local_base
+
+    remote_branches = _get_remote_branches()
+    for branch in remote_branches:
+        if branch.refname == base_name:
+            return base_name
+
+    candidates = [br for br in remote_branches
+                 if br.refname_ambiguous == base_name]
+    if len(candidates) == 0:
+        print(f"There is no remote reference matching with: {base_name}", file=sys.stderr, flush=True)
+        exit(-1)
+    elif len(candidates) >= 2:
+        print(f"There are ambiguous remotes with ref: {base_name}", file=sys.stderr, flush=True)
+        for candidate in candidates:
+            print(f" * {candidate.refname}", file=sys.stderr, flush=True)
+        exit(-1)
+    return candidates[0]
+
+
+def get_branches_to_remove(base = None):
     local_branches = _get_local_branches()
+    base = base or get_base(local_branches)
     return _branches_to_remove(base, local_branches)
 
 
@@ -178,6 +221,7 @@ def main():
     parser = argparse.ArgumentParser("cleanup gone tracking branches")
     parser.add_argument("--update", dest="update", action="store_true")
     parser.add_argument("--no-update", dest="update", action="store_false")
+    parser.add_argument("--base", type=str)
     parser.set_defaults(update=True)
 
     args = parser.parse_args()
@@ -186,7 +230,7 @@ def main():
         _git("remote", "update", "--prune")
 
     print("Gone tracking branches:")
-    to_remove = get_branches_to_remove("upstream/master")
+    to_remove = get_branches_to_remove(args.base)
     print(to_remove)
 
     # TODO: remove
