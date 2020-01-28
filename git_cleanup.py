@@ -110,9 +110,9 @@ class LocalBranch(NamedTuple):
     refname: str = "refname:lstrip=2"
 
     # refs/remotes/origin/feature/tests
+    # ^-------------------------------^ {upstream,push}_ref
+    #              ^------------------^ {upstream,push}_shortref
     #              ^----^ {upstream,push}
-    #              ^------------^ {upstream,push}_shortref
-    #              ^------------------^ {upstream,push}_ref
     #                     ^-----------^ {upstream,push}_remoteref
     upstream: str = "upstream:remotename"
     upstream_ref: str = "upstream"
