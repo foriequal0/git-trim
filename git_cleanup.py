@@ -92,7 +92,7 @@ def _config(*args, default=""):
 
 
 def _get_push(branch):
-    pushremote = _config("branch", branch, "pushremote")
+    pushremote = _config("branch", branch, "pushRemote")
     if pushremote:
         return pushremote
 
@@ -194,9 +194,13 @@ def _get_base(local_branches, remote_branches):
 
     # Use a local branch's tracking upstream
     if local_base:
-        if local_base.upstream_track == '[gone]':
-            print(f"Tracking upstream branch is gone: {base_name} -> {local_base.upstream_shortref}",
-                  file=sys.stderr, flush=True)
+        if local_base.upstream_track == "[gone]":
+            shortref = local_base.upstream_shortref
+            print(
+                f"Tracking upstream branch is gone: {base_name} -> {shortref}",
+                file=sys.stderr,
+                flush=True,
+            )
             exit(-1)
         return local_base.upstream_shortref
 
@@ -208,17 +212,25 @@ def _get_base(local_branches, remote_branches):
     # Find a closest remote branch
     candidates = [br for br in remote_branches if br.refname_ambiguous == base_name]
     if len(candidates) == 0:
-        print(f"There is no remote reference matching with: {base_name}", file=sys.stderr, flush=True)
+        print(
+            f"There is no remote reference matching with: {base_name}",
+            file=sys.stderr,
+            flush=True,
+        )
         exit(-1)
     elif len(candidates) >= 2:
-        print(f"There are ambiguous remotes with ref: {base_name}", file=sys.stderr, flush=True)
+        print(
+            f"There are ambiguous remotes with ref: {base_name}",
+            file=sys.stderr,
+            flush=True,
+        )
         for candidate in candidates:
             print(f" * {candidate.refname}", file=sys.stderr, flush=True)
         exit(-1)
     return candidates[0]
 
 
-def get_branches_to_remove(base = None):
+def get_branches_to_remove(base=None):
     local_branches = _get_local_branches()
     remote_branches = _get_remote_branches()
     base = base or _get_base(local_branches, remote_branches)
