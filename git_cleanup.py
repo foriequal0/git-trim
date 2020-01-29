@@ -92,6 +92,7 @@ def _config(*args, default=""):
 
 
 def _get_push(branch):
+    # TODO: https://git-scm.com/docs/git-config#Documentation/git-config.txt-pushdefault
     pushremote = _config("branch", branch, "pushRemote")
     if pushremote:
         return pushremote
@@ -109,6 +110,8 @@ class LocalBranch(NamedTuple):
     #           ^----^ refname
     refname: str = "refname:short"
 
+    # TODO: https://git-scm.com/docs/git-pull#_remotes_a_id_remotes_a
+
     # refs/remotes/origin/feature/tests
     # ^-------------------------------^ {upstream,push}_ref
     #              ^------------------^ {upstream,push}_shortref
@@ -117,7 +120,7 @@ class LocalBranch(NamedTuple):
     upstream: str = "upstream:remotename"
     upstream_ref: str = "upstream"
     upstream_shortref: str = "upstream:short"
-    upstream_remoteref: str = "upstream:lstrip=3"
+    upstream_remoteref: str = "upstream:lstrip=3" ## TODO: parse config remote.<origin>.fetch, $GIT_DIR/remotes/<origin>
     upstream_track: str = "upstream:track"
     push: str = "push:remotename"
     push_ref: str = "push"
@@ -157,7 +160,9 @@ def _branches_to_remove(base, local_branches):
     for branch in local_branches:
         if branch.upstream_shortref == base:
             continue
-
+        # TODO: branch.<name>.merge ?
+        # TODO: tag ?
+        # TODO: remote tracking? https://git-scm.com/docs/git-fetch#_configured_remote_tracking_branches_a_id_crtb_a
         merged = len(_git("cherry", base, branch.refname)) == 0
         if merged:
             local_merged.add(branch.refname)
@@ -210,6 +215,7 @@ def _get_base(local_branches, remote_branches):
             return base_name
 
     # Find a closest remote branch
+    # TODO: https://git-scm.com/docs/git-checkout#Documentation/git-checkout.txt-emgitcheckoutemltbranchgt
     candidates = [br for br in remote_branches if br.refname_ambiguous == base_name]
     if len(candidates) == 0:
         print(
