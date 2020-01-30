@@ -2,6 +2,7 @@
 import argparse
 import logging
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -83,25 +84,64 @@ def _branch(*args, format=None, **kwargs):
         return _git("branch", *args, **kwargs)
 
 
-def _config(*args, default=""):
-    result = _git("config", "--default", default, ".".join(args))
-    if len(result) == 1:
-        return result[0]
-    else:
+def _get_configs():
+    lines = _git("config", "--list")
+    configs = {}
+    for line in lines:
+        try:
+            sep = line.index("=")
+            key = line[:sep].strip()
+            value = line[sep + 1:].strip()
+            configs[key] = value
+        except ValueError:
+            configs[line.strip()] = True
+    return configs
+
+
+def _get_config(configs, *args, default=None, type=str):
+    key = ".".join(args)
+    result = configs.get(key, default)
+    if result is None:
         return None
+    if issubclass(type, bool):
+        if result is bool:
+            return result
+        truelikes = {"yes", "on", "true", "1"}
+        falselikes = {"no", "off", "false", "0"}
+        lower = result.lower()
+        if lower in truelikes:
+            return True
+        elif lower in falselikes:
+            return False
+        else:
+            raise ValueError(f"Invalid boolean: {result}")
+    if issubclass(type, int):
+        if result is int:
+            return result
+        match = re.fullmatch(r"^(?P<number>\d+)(?P<suffix>(|k|M|G))$", result)
+        if not match:
+            raise ValueError(f"Invalid integer: {result}")
+        multipliers = {
+            "": 1,
+            "k": 1024,
+            "M": 1024 ** 2,
+            "G": 1024 ** 3,
+        }
+        return int(match.group("number") * multipliers[match.group("suffix")])
+    return result
 
 
-def _get_push(branch):
+def _get_push(configs, branch):
     # TODO: https://git-scm.com/docs/git-config#Documentation/git-config.txt-pushdefault
-    pushremote = _config("branch", branch, "pushRemote")
+    pushremote = _get_config(configs, f"branch.{branch}.pushRemote")
     if pushremote:
         return pushremote
 
-    pushdefault = _config("remote", "pushdefault")
+    pushdefault = _get_config(configs, "remote.pushDefault")
     if pushdefault:
         return pushdefault
 
-    remote = _config("branch", branch, "remote")
+    remote = _get_config(configs, f"branch.{branch}.remote")
     return remote
 
 
@@ -120,7 +160,8 @@ class LocalBranch(NamedTuple):
     upstream: str = "upstream:remotename"
     upstream_ref: str = "upstream"
     upstream_shortref: str = "upstream:short"
-    upstream_remoteref: str = "upstream:lstrip=3" ## TODO: parse config remote.<origin>.fetch, $GIT_DIR/remotes/<origin>
+    ## TODO: parse config remote.<origin>.fetch, $GIT_DIR/remotes/<origin>
+    upstream_remoteref: str = "upstream:lstrip=3"
     upstream_track: str = "upstream:track"
     push: str = "push:remotename"
     push_ref: str = "push"
@@ -189,8 +230,8 @@ def _branches_to_remove(base, local_branches):
     }
 
 
-def _get_base(local_branches, remote_branches):
-    base_name = _config("cleanup", "base", default="master")
+def _get_base(configs, local_branches, remote_branches):
+    base_name = _get_config(configs, "cleanup.base", default="master")
 
     local_base = None
     for branch in local_branches:
@@ -237,9 +278,10 @@ def _get_base(local_branches, remote_branches):
 
 
 def get_branches_to_remove(base=None):
+    configs = _get_configs()
     local_branches = _get_local_branches()
     remote_branches = _get_remote_branches()
-    base = base or _get_base(local_branches, remote_branches)
+    base = base or _get_base(configs, local_branches, remote_branches)
     return _branches_to_remove(base, local_branches)
 
 
