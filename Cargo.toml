@@ -3,10 +3,21 @@ name = "git-cleanup"
 version = "0.1.0"
 authors = ["SeongChan Lee <foriequal@gmail.com>"]
 edition = "2018"
+build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[build-dependencies]
+vergen = "3"
+
 [dependencies]
+derive_deref = "1.1.0"
+env_logger = "0.7.1"
 git2 = "0.10"
-structopt = { version = "0.3", features = [ "paw" ] }
+log = "0.4.0"
 paw = "1.0"
+structopt = { version = "0.3", features = [ "paw" ] }
+
+[dev-dependencies]
+tempfile = "3.1.0"
+textwrap = "0.11.0"

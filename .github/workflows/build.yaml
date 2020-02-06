@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions-rs/toolchain@v1.0.5
+      with:
+        profile: minimal
+        components: rustfmt
+    - uses: actions/setup-python@v1
+      with:
+        python-version: 3.8
+    - name: Install pre-commit
+      run: |
+        pip install pre-commit
+        pre-commit install --config .pre-commit-config.actions.yaml
+    - name: pre-commit
+      run: |
+        pre-commit run --config .pre-commit-config.actions.yaml --all-files --show-diff-on-failure
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Cache cargo registry
+      uses: actions/cache@v1
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-clippy-registry-${{ hashFiles('**/Cargo.lock') }}
+    - name: Cache cargo index
+      uses: actions/cache@v1
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-clippy-index-${{ hashFiles('**/Cargo.lock') }}
+    - name: Cache cargo build
+      uses: actions/cache@v1
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-clippy-build-target-${{ hashFiles('**/Cargo.lock') }}
+    - uses: actions-rs/toolchain@v1.0.5
+      with:
+        profile: minimal
+        components: clippy
+    - run: cargo fetch --verbose
+    - uses: actions-rs/clippy-check@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        args: --all-features
+
+  test:
+    runs-on: ${{ matrix.os.long }}
+    strategy:
+      matrix:
+        os:
+        - long: ubuntu-latest
+          short: linux
+        - long: macOS-latest
+          short: mac
+      fail-fast: false
+    steps:
+    - uses: actions/checkout@v1
+    - name: Cache cargo registry
+      uses: actions/cache@v1
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-test-registry-${{ hashFiles('**/Cargo.lock') }}
+    - name: Cache cargo index
+      uses: actions/cache@v1
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-test-index-${{ hashFiles('**/Cargo.lock') }}
+    - name: Cache cargo build
+      uses: actions/cache@v1
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-test-build-target-${{ hashFiles('**/Cargo.lock') }}
+    - uses: actions-rs/toolchain@v1.0.5
+      with:
+        profile: minimal
+    - run: cargo fetch --verbose
+    - run: cargo build --tests
+    - run: cargo test --all -- --test-threads=1
+      env:
+        RUST_LOG: trace
+        RUST_BACKTRACE: 1
+
+  build:
+    runs-on: ${{ matrix.os.long }}
+    strategy:
+      matrix:
+        os:
+        - long: ubuntu-latest
+          short: linux
+        - long: macOS-latest
+          short: mac
+        - long: windows-latest
+          short: win
+      fail-fast: false
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions-rs/toolchain@v1.0.5
+      with:
+        profile: minimal
+    - run: cargo fetch --verbose
+    - run: cargo build --release
+    - name: Archive-posix
+      if: matrix.os.short != 'win'
+      working-directory: target/release
+      run: |
+        VERSION=$(./git-cleanup --version | cut -d ' ' -f 2)
+        ARCHIVE="git-cleanup-${{matrix.os.short}}-$VERSION.tgz"
+        echo "::set-env name=VERSION::$VERSION"
+        echo "::set-env name=ARCHIVE::$ARCHIVE"
+
+        rm -rf artifacts
+        mkdir -p artifacts
+        cp 'git-cleanup' artifacts/
+        echo '${{github.sha}} ${{github.ref}}' | tee artifacts/git-ref
+        shasum -a 256 'git-cleanup' | tee artifacts/sha256sums
+    - name: Archive-win
+      if: matrix.os.short == 'win'
+      working-directory: target/release
+      run: |
+        $VERSION=$($(./git-cleanup.exe --version).split( )[1])
+        $ARCHIVE="git-cleanup-${{matrix.os.short}}-$VERSION.zip"
+        echo "::set-env name=VERSION::$VERSION"
+        echo "::set-env name=ARCHIVE::$ARCHIVE"
+
+        if (Test-Path "artifacts") {
+          rm -Recurse -Force artifacts
+        }
+        mkdir artifacts
+        cp 'git-cleanup.exe' artifacts/
+        echo '${{github.sha}} ${{github.ref}}' | tee artifacts/git-ref
+        $(Get-FileHash 'git-cleanup.exe').Hash | tee artifacts/sha256sums
+    - uses: actions/upload-artifact@v1
+      with:
+        name: git-cleanup-${{matrix.os.short}}-${{env.VERSION}}
+        path: target/release/artifacts/
