@@ -14,10 +14,3 @@ repos:
     entry: cargo fmt --
     language: system
     types: [rust]
-  - id: clippy
-    name: clippy
-    description: Lint rust sources
-    entry: cargo clippy --all-features -- -D warnings
-    language: system
-    types: [rust]
-    pass_filenames: false
