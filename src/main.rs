@@ -25,10 +25,11 @@ fn main(args: Args) -> ::std::result::Result<(), Box<dyn std::error::Error>> {
 
     branches.print_summary(&args.delete);
 
-    if !Confirmation::new()
-        .with_text("Confirm?")
-        .default(false)
-        .interact()?
+    if !args.no_confirm
+        && !Confirmation::new()
+            .with_text("Confirm?")
+            .default(false)
+            .interact()?
     {
         println!("Cancelled");
         return Ok(());
