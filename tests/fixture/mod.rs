@@ -116,6 +116,7 @@ impl Fixture {
     }
 }
 
+#[must_use]
 pub struct FixtureGuard {
     _tempdir: TempDir,
     previous_pwd: PathBuf,
