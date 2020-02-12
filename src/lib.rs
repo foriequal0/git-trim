@@ -411,24 +411,38 @@ pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool
         None
     } else {
         let head = repo.head()?;
-        let head_name = head.name().ok_or("non-utf8 head ref name")?;
+        let head_refname = head.name().ok_or("non-utf8 head ref name")?;
+        assert!(head_refname.starts_with("refs/heads/"));
+        let head_name = &head_refname["refs/heads/".len()..];
         if branches.contains(&head_name) {
-            Some(head_name.to_string())
+            Some(head)
         } else {
             None
         }
     };
 
     if dry_run {
-        if let Some(detach_to) = detach_to {
-            println!("Note: switching to '{}' (dry run)", detach_to);
+        if let Some(head) = detach_to {
+            println!(
+                "Note: switching to '{}' (dry run)",
+                head.name().ok_or("non-utf8 head ref name")?
+            );
+            println!("You are in 'detached HED' state... blah blah...");
+            let commit = head.peel_to_commit()?;
+            let message = commit.message().ok_or("non-utf8 head ref name")?;
+            println!(
+                "HEAD is now at {} {} (dry run)",
+                &commit.id().to_string()[..7],
+                message.lines().next().unwrap_or_default()
+            );
         }
         for branch in branches {
             println!("Delete branch {} (dry run).", branch);
         }
     } else {
-        if let Some(detach_to) = detach_to {
-            git(&["checkout", &detach_to])?;
+        if let Some(head) = detach_to {
+            let head_refname = head.name().ok_or("non-utf8 head ref name")?;
+            git(&["checkout", head_refname])?;
         }
         git(&args)?;
     }
