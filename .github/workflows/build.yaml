@@ -112,10 +112,10 @@ jobs:
       with:
         profile: minimal
     - run: cargo fetch --verbose
-    - run: cargo build --release
+    - run: cargo build
     - name: Archive-posix
       if: matrix.os.short != 'win'
-      working-directory: target/release
+      working-directory: target/debug
       run: |
         VERSION=$(./git-trim --version | cut -d ' ' -f 2)
         ARCHIVE="git-trim-${{matrix.os.short}}-$VERSION.tgz"
@@ -129,7 +129,7 @@ jobs:
         shasum -a 256 'git-trim' | tee artifacts/sha256sums
     - name: Archive-win
       if: matrix.os.short == 'win'
-      working-directory: target/release
+      working-directory: target/debug
       run: |
         $VERSION=$($(./git-trim.exe --version).split( )[1])
         $ARCHIVE="git-trim-${{matrix.os.short}}-$VERSION.zip"
@@ -146,4 +146,4 @@ jobs:
     - uses: actions/upload-artifact@v1
       with:
         name: git-trim-${{matrix.os.short}}-${{env.VERSION}}
-        path: target/release/artifacts/
+        path: target/debug/artifacts/
