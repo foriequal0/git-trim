@@ -147,19 +147,56 @@ pub fn get_config_update(repo: &Repository, given: Option<bool>) -> Result<bool>
     }
 }
 
+#[derive(Debug)]
+pub enum ConfigValue<T> {
+    Explicit { value: T, source: String },
+    Implicit(T),
+}
+
+impl<T> Deref for ConfigValue<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            ConfigValue::Explicit { value: x, .. } | ConfigValue::Implicit(x) => x,
+        }
+    }
+}
+
+impl<T> ConfigValue<T> {
+    pub fn map<F, U>(&self, func: F) -> ConfigValue<U>
+    where
+        F: Fn(&T) -> U,
+    {
+        match self {
+            ConfigValue::Explicit { value, source } => ConfigValue::Explicit {
+                value: func(value),
+                source: source.clone(),
+            },
+            ConfigValue::Implicit(x) => ConfigValue::Implicit(func(x)),
+        }
+    }
+}
+
 pub fn get_config_string(
     repo: &Repository,
-    given: Option<String>,
+    given: Option<&String>,
     key: &str,
     default: &str,
-) -> Result<String> {
+) -> Result<ConfigValue<String>> {
     if let Some(given) = given {
-        return Ok(given);
+        return Ok(ConfigValue::Explicit {
+            value: given.clone(),
+            source: "cli".to_string(),
+        });
     }
     let config = repo.config()?;
     match config.get_string(key) {
-        Ok(value) => Ok(value),
-        Err(err) if config_not_exist(&err) => Ok(default.to_string()),
+        Ok(value) => Ok(ConfigValue::Explicit {
+            value,
+            source: key.to_string(),
+        }),
+        Err(err) if config_not_exist(&err) => Ok(ConfigValue::Implicit(default.to_string())),
         Err(err) => Err(err.into()),
     }
 }
@@ -169,14 +206,20 @@ pub fn get_config_bool(
     given: Option<bool>,
     key: &str,
     default: bool,
-) -> Result<bool> {
+) -> Result<ConfigValue<bool>> {
     if let Some(given) = given {
-        return Ok(given);
+        return Ok(ConfigValue::Explicit {
+            value: given,
+            source: "cli".to_string(),
+        });
     }
     let config = repo.config()?;
     match config.get_bool(key) {
-        Ok(value) => Ok(value),
-        Err(err) if config_not_exist(&err) => Ok(default),
+        Ok(value) => Ok(ConfigValue::Explicit {
+            value,
+            source: key.to_string(),
+        }),
+        Err(err) if config_not_exist(&err) => Ok(ConfigValue::Implicit(default)),
         Err(err) => Err(err.into()),
     }
 }
@@ -297,32 +340,24 @@ fn get_push_remote_ref(repo: &Repository, branch: &str) -> Result<Option<String>
     Ok(None)
 }
 
-enum RemoteName {
-    Explicit(String),
-    Implicit(String),
-}
-
-impl Deref for RemoteName {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            RemoteName::Explicit(name) | RemoteName::Implicit(name) => name.as_str(),
-        }
-    }
-}
-
-fn get_push_remote(repo: &Repository, branch: &str) -> Result<RemoteName> {
+fn get_push_remote(repo: &Repository, branch: &str) -> Result<ConfigValue<String>> {
     let config = repo.config()?;
 
-    match config.get_string(&format!("branch.{}.pushRemote", branch)) {
-        Ok(value) => return Ok(RemoteName::Explicit(value)),
+    let source = format!("branch.{}.pushRemote", branch);
+    match config.get_string(&source) {
+        Ok(value) => return Ok(ConfigValue::Explicit { value, source }),
         Err(err) if !config_not_exist(&err) => return Err(err.into()),
         _ => {}
     }
 
-    match config.get_string("remote.pushDefault") {
-        Ok(value) => return Ok(RemoteName::Explicit(value)),
+    let source = "remote.pushDefault";
+    match config.get_string(source) {
+        Ok(value) => {
+            return Ok(ConfigValue::Explicit {
+                value,
+                source: source.to_string(),
+            })
+        }
         Err(err) if !config_not_exist(&err) => return Err(err.into()),
         _ => {}
     }
@@ -330,16 +365,17 @@ fn get_push_remote(repo: &Repository, branch: &str) -> Result<RemoteName> {
     get_remote(repo, branch)
 }
 
-fn get_remote(repo: &Repository, branch: &str) -> Result<RemoteName> {
+fn get_remote(repo: &Repository, branch: &str) -> Result<ConfigValue<String>> {
     let config = repo.config()?;
 
-    match config.get_string(&format!("branch.{}.remote", branch)) {
-        Ok(value) => return Ok(RemoteName::Explicit(value)),
+    let source = format!("branch.{}.remote", branch);
+    match config.get_string(&source) {
+        Ok(value) => return Ok(ConfigValue::Explicit { value, source }),
         Err(err) if !config_not_exist(&err) => return Err(err.into()),
         _ => {}
     }
 
-    Ok(RemoteName::Implicit("origin".to_string()))
+    Ok(ConfigValue::Implicit("origin".to_string()))
 }
 
 fn config_not_exist(err: &git2::Error) -> bool {
@@ -353,7 +389,7 @@ pub fn get_merged_or_gone(repo: &Repository, base: &str) -> Result<MergedOrGone>
         let (branch, _) = branch?;
         let branch_name = branch.name()?.ok_or("non-utf8 branch name")?;
         debug!("Branch: {:?}", branch.name()?);
-        if let RemoteName::Implicit(_) = get_remote(repo, branch_name)? {
+        if let ConfigValue::Implicit(_) = get_remote(repo, branch_name)? {
             debug!(
                 "Skip: the branch doesn't have a tracking remote: {:?}",
                 branch_name

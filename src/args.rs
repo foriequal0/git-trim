@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 use std::fmt::{Display, Error, Formatter};
+use std::process::exit;
 use std::str::FromStr;
 
-#[derive(structopt::StructOpt, Hash, Eq, PartialEq, Copy, Clone)]
+#[derive(structopt::StructOpt, Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Category {
     MergedLocal,
     MergedRemote,
@@ -21,7 +22,7 @@ impl Display for Category {
     }
 }
 
-#[derive(derive_deref::Deref)]
+#[derive(derive_deref::Deref, Debug)]
 pub struct DeleteFilter(HashSet<Category>);
 
 impl FromStr for DeleteFilter {
@@ -42,7 +43,10 @@ impl FromStr for DeleteFilter {
                 "gone-local" => &[GoneLocal],
                 "gone-remote" => &[GoneRemote],
                 _ if arg.is_empty() => &[],
-                _ => return Err(format!("Unexpected branch category: {}", arg)),
+                _ => {
+                    eprintln!("Error: Unexpected branch category: {}", arg);
+                    exit(-1);
+                }
             };
             result.extend(x.iter().copied());
         }
@@ -83,4 +87,39 @@ pub struct Args {
 
     #[structopt(long)]
     pub dry_run: bool,
+}
+
+impl Args {
+    pub fn update(&self) -> Option<bool> {
+        exclusive_bool(("update", self.update), ("no-update", self.no_update))
+    }
+
+    pub fn confirm(&self) -> Option<bool> {
+        exclusive_bool(("confirm", self.confirm), ("no-confirm", self.no_confirm))
+    }
+
+    pub fn detach(&self) -> Option<bool> {
+        exclusive_bool(("detach", self.detach), ("no-detach", self.no_detach))
+    }
+}
+
+fn exclusive_bool(
+    (name_pos, value_pos): (&str, bool),
+    (name_neg, value_neg): (&str, bool),
+) -> Option<bool> {
+    if value_pos && value_neg {
+        eprintln!(
+            "Error: Flag '{}' and '{}' cannot be used simultaneously",
+            name_pos, name_neg,
+        );
+        exit(-1);
+    }
+
+    if value_pos {
+        Some(true)
+    } else if value_neg {
+        Some(false)
+    } else {
+        None
+    }
 }
