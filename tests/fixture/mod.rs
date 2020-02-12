@@ -79,7 +79,7 @@ impl Fixture {
             move || {
                 for line in BufReader::new(stdout).lines() {
                     match line {
-                        Ok(line) if line.starts_with("+") => trace!("{}", line),
+                        Ok(line) if line.starts_with('+') => trace!("{}", line),
                         Ok(line) => info!("{}", line),
                         Err(err) => error!("{}", err),
                     }
@@ -92,7 +92,7 @@ impl Fixture {
             move || {
                 for line in BufReader::new(stderr).lines() {
                     match line {
-                        Ok(line) if line.starts_with("+") => trace!("{}", line),
+                        Ok(line) if line.starts_with('+') => trace!("{}", line),
                         Ok(line) => info!("{}", line),
                         Err(err) => error!("{}", err),
                     }
