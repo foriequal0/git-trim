@@ -546,10 +546,10 @@ pub fn delete_local_branches(
 
     if dry_run {
         if let Some(head) = detach_to {
-            println!(
-                "Note: switching to '{}' (dry run)",
-                head.name().ok_or("non-utf8 head ref name")?
-            );
+            let head_refname = head.name().ok_or("non-utf8 head ref name")?;
+            info!("> git checkout {} (dry-run)", head_refname);
+
+            println!("Note: switching to '{}' (dry run)", head_refname);
             println!("You are in 'detached HED' state... blah blah...");
             let commit = head.peel_to_commit()?;
             let message = commit.message().ok_or("non-utf8 head ref name")?;
@@ -560,6 +560,7 @@ pub fn delete_local_branches(
             );
         }
         for branch in branches {
+            info!("> git {} (dry-run)", args.join(" "));
             println!("Delete branch {} (dry run).", branch);
         }
     } else {
