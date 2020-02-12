@@ -370,11 +370,14 @@ pub fn delete_local_branches(branches: &[&str], dry_run: bool) -> Result<()> {
         return Ok(());
     }
     let mut args = vec!["branch", "--delete", "--force"];
-    if dry_run {
-        args.push("--dry-run");
-    }
     args.extend(branches);
-    git(&args)?;
+    if dry_run {
+        for branch in branches {
+            println!("Delete branch {} (dry run).", branch);
+        }
+    } else {
+        git(&args)?;
+    }
     Ok(())
 }
 
