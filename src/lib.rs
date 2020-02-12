@@ -1,13 +1,13 @@
 pub mod args;
 
 use std::collections::{HashMap, HashSet};
+use std::ops::Deref;
 use std::process::{Command, Stdio};
-
-use crate::args::{Category, DeleteFilter};
 
 use git2::{BranchType, Direction, ErrorClass, ErrorCode, Repository};
 use log::*;
-use std::ops::Deref;
+
+use crate::args::{Category, DeleteFilter};
 
 type Result<T> = ::std::result::Result<T, Error>;
 type Error = Box<dyn std::error::Error>;
