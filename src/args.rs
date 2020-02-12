@@ -77,7 +77,7 @@ pub struct Args {
     /// 'merged' is equivalent to 'merged-local,merged-remote'.
     /// 'gone' is equivalent to 'gone-local,gone-remote'.
     /// 'local' is equivalent to 'merged-local,gone-local'.
-    /// 'remote' is equivalent to 'merged-remote,gone-remote'. Default is 'merged' unless set 'cleanup.filter'
+    /// 'remote' is equivalent to 'merged-remote,gone-remote'. Default is 'merged' unless set 'trim.filter'
     #[structopt(short, long, parse(try_from_str))]
     pub filter: Option<DeleteFilter>,
 

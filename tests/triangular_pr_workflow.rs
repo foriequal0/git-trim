@@ -1,7 +1,7 @@
 use git2::Repository;
 
 use fixture::{rc, Fixture};
-use git_cleanup::{get_merged_or_gone, MergedOrGone};
+use git_trim::{get_merged_or_gone, MergedOrGone};
 
 pub mod fixture;
 

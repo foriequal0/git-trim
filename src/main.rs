@@ -4,8 +4,8 @@ use dialoguer::Confirmation;
 use git2::Repository;
 use log::*;
 
-use git_cleanup::args::{Args, DeleteFilter};
-use git_cleanup::{
+use git_trim::args::{Args, DeleteFilter};
+use git_trim::{
     delete_local_branches, delete_remote_branches, get_config_bool, get_config_string,
     get_merged_or_gone, git,
 };
@@ -27,7 +27,7 @@ fn main(args: Args) -> Result<()> {
         &repo,
         ("update", args.update),
         ("no-update", args.no_update),
-        "cleanup.confirm",
+        "trim.confirm",
         true,
     )?;
 
@@ -35,7 +35,7 @@ fn main(args: Args) -> Result<()> {
         &repo,
         ("confirm", args.confirm),
         ("no-confirm", args.no_confirm),
-        "cleanup.confirm",
+        "trim.confirm",
         true,
     )?;
 
@@ -43,16 +43,16 @@ fn main(args: Args) -> Result<()> {
         &repo,
         ("detach", args.detach),
         ("no-detach", args.no_detach),
-        "cleanup.detach",
+        "trim.detach",
         true,
     )?;
 
-    let base = get_config_string(&repo, args.base, "cleanup.base", "master")?;
+    let base = get_config_string(&repo, args.base, "trim.base", "master")?;
 
     let filter = if let Some(filter) = args.filter {
         filter
     } else {
-        DeleteFilter::from_str(&get_config_string(&repo, None, "cleanup.delete", "merged")?)?
+        DeleteFilter::from_str(&get_config_string(&repo, None, "trim.delete", "merged")?)?
     };
 
     if !update {
