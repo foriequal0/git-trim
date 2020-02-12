@@ -29,7 +29,12 @@ fn main(args: Args) -> ::std::result::Result<(), Box<dyn std::error::Error>> {
 
     branches.print_summary(&args.delete);
 
+    let remote_refs_to_delete = branches.get_remote_refs_to_delete(&args.delete);
+    let local_branches_to_delete = branches.get_local_branches_to_delete(&args.delete);
+    let any_branches_to_remove =
+        !(remote_refs_to_delete.is_empty() && local_branches_to_delete.is_empty());
     if !args.no_confirm
+        && any_branches_to_remove
         && !Confirmation::new()
             .with_text("Confirm?")
             .default(false)
@@ -39,15 +44,7 @@ fn main(args: Args) -> ::std::result::Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    delete_remote_branches(
-        &repo,
-        &branches.get_remote_refs_to_delete(&args.delete),
-        args.dry_run,
-    )?;
-    delete_local_branches(
-        &repo,
-        &branches.get_local_branches_to_delete(&args.delete),
-        args.dry_run,
-    )?;
+    delete_remote_branches(&repo, &remote_refs_to_delete, args.dry_run)?;
+    delete_local_branches(&repo, &local_branches_to_delete, args.dry_run)?;
     Ok(())
 }
