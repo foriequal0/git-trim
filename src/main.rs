@@ -54,7 +54,8 @@ fn main(args: Args) -> Result<()> {
 
     branches.print_summary(&filter);
 
-    if *confirm
+    if !args.dry_run
+        && *confirm
         && branches.are_deleted(&filter)
         && !Confirmation::new()
             .with_text("Confirm?")
