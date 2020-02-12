@@ -39,14 +39,14 @@ fn main(args: Args) -> ::std::result::Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    delete_local_branches(
-        &repo,
-        &branches.get_local_branches_to_delete(&args.delete),
-        args.dry_run,
-    )?;
     delete_remote_branches(
         &repo,
         &branches.get_remote_refs_to_delete(&args.delete),
+        args.dry_run,
+    )?;
+    delete_local_branches(
+        &repo,
+        &branches.get_local_branches_to_delete(&args.delete),
         args.dry_run,
     )?;
     Ok(())
