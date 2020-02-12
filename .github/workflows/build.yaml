@@ -117,22 +117,22 @@ jobs:
       if: matrix.os.short != 'win'
       working-directory: target/release
       run: |
-        VERSION=$(./git-cleanup --version | cut -d ' ' -f 2)
-        ARCHIVE="git-cleanup-${{matrix.os.short}}-$VERSION.tgz"
+        VERSION=$(./git-trim --version | cut -d ' ' -f 2)
+        ARCHIVE="git-trim-${{matrix.os.short}}-$VERSION.tgz"
         echo "::set-env name=VERSION::$VERSION"
         echo "::set-env name=ARCHIVE::$ARCHIVE"
 
         rm -rf artifacts
         mkdir -p artifacts
-        cp 'git-cleanup' artifacts/
+        cp 'git-trim' artifacts/
         echo '${{github.sha}} ${{github.ref}}' | tee artifacts/git-ref
-        shasum -a 256 'git-cleanup' | tee artifacts/sha256sums
+        shasum -a 256 'git-trim' | tee artifacts/sha256sums
     - name: Archive-win
       if: matrix.os.short == 'win'
       working-directory: target/release
       run: |
-        $VERSION=$($(./git-cleanup.exe --version).split( )[1])
-        $ARCHIVE="git-cleanup-${{matrix.os.short}}-$VERSION.zip"
+        $VERSION=$($(./git-trim.exe --version).split( )[1])
+        $ARCHIVE="git-trim-${{matrix.os.short}}-$VERSION.zip"
         echo "::set-env name=VERSION::$VERSION"
         echo "::set-env name=ARCHIVE::$ARCHIVE"
 
@@ -140,10 +140,10 @@ jobs:
           rm -Recurse -Force artifacts
         }
         mkdir artifacts
-        cp 'git-cleanup.exe' artifacts/
+        cp 'git-trim.exe' artifacts/
         echo '${{github.sha}} ${{github.ref}}' | tee artifacts/git-ref
-        $(Get-FileHash 'git-cleanup.exe').Hash | tee artifacts/sha256sums
+        $(Get-FileHash 'git-trim.exe').Hash | tee artifacts/sha256sums
     - uses: actions/upload-artifact@v1
       with:
-        name: git-cleanup-${{matrix.os.short}}-${{env.VERSION}}
+        name: git-trim-${{matrix.os.short}}-${{env.VERSION}}
         path: target/release/artifacts/

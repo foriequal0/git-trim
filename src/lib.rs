@@ -140,7 +140,7 @@ pub fn get_config_update(repo: &Repository, given: Option<bool>) -> Result<bool>
         return Ok(given);
     }
     let config = repo.config()?;
-    match config.get_bool("cleanup.update") {
+    match config.get_bool("trim.update") {
         Ok(value) => Ok(value),
         Err(err) if config_not_exist(&err) => Ok(true),
         Err(err) => Err(err.into()),
