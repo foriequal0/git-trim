@@ -69,6 +69,11 @@ impl MergedOrGone {
                 for branch in branches {
                     println!("  {}", branch);
                 }
+            } else if !branches.is_empty() {
+                println!("Skip {}:", category);
+                for branch in branches {
+                    println!("  {}", branch);
+                }
             }
         }
         print(&self.merged_locals, filter, Category::MergedLocal);
