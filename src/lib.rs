@@ -134,48 +134,26 @@ impl MergedOrGone {
         print(&self.gone_remotes, filter, Category::GoneRemote);
     }
 
-    pub fn are_deleted(&self, filter: &DeleteFilter) -> bool {
-        let mut count = 0;
+    pub fn get_local_branches_to_delete(&self, filter: &DeleteFilter) -> Vec<&str> {
+        let mut result = Vec::new();
         if filter.contains(&Category::MergedLocal) {
-            count += self.merged_locals.len()
+            result.extend(self.merged_locals.iter().map(String::as_str))
         }
         if filter.contains(&Category::GoneLocal) {
-            count += self.gone_locals.len()
+            result.extend(self.gone_locals.iter().map(String::as_str))
         }
-        if filter.contains(&Category::MergedRemote) {
-            count += self.merged_remotes.len();
-        }
-        if filter.contains(&Category::GoneLocal) {
-            count += self.gone_remotes.len();
-        }
-        count != 0
+        result
     }
 
     pub fn get_remote_refs_to_delete(&self, filter: &DeleteFilter) -> Vec<&str> {
         let mut result = Vec::new();
         if filter.contains(&Category::MergedRemote) {
-            result.extend(self.merged_remotes.iter().map(String::as_str));
+            result.extend(self.merged_remotes.iter().map(String::as_str))
         }
         if filter.contains(&Category::GoneLocal) {
-            result.extend(self.gone_remotes.iter().map(String::as_str));
+            result.extend(self.gone_remotes.iter().map(String::as_str))
         }
         result
-    }
-
-    pub fn get_merged_locals(&self, filter: &DeleteFilter) -> Vec<&str> {
-        if filter.contains(&Category::MergedLocal) {
-            self.merged_locals.iter().map(String::as_str).collect()
-        } else {
-            Vec::new()
-        }
-    }
-
-    pub fn get_gone_locals(&self, filter: &DeleteFilter) -> Vec<&str> {
-        if filter.contains(&Category::GoneLocal) {
-            self.gone_locals.iter().map(String::as_str).collect()
-        } else {
-            Vec::new()
-        }
     }
 }
 
@@ -515,19 +493,11 @@ fn resolve_config_base_ref(repo: &Repository, base: &str) -> Result<String> {
         .to_string())
 }
 
-pub fn delete_local_branches(
-    repo: &Repository,
-    branches: &[&str],
-    force: bool,
-    dry_run: bool,
-) -> Result<()> {
+pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool) -> Result<()> {
     if branches.is_empty() {
         return Ok(());
     }
-    let mut args = vec!["branch", "--delete"];
-    if force {
-        args.push("--force");
-    }
+    let mut args = vec!["branch", "--delete", "--force"];
     args.extend(branches);
 
     let detach_to = if repo.head_detached()? {
