@@ -4,6 +4,7 @@ use git_cleanup::{
 };
 use log::*;
 
+use dialoguer::Confirmation;
 use git_cleanup::args::Args;
 
 #[paw::main]
@@ -23,6 +24,15 @@ fn main(args: Args) -> ::std::result::Result<(), Box<dyn std::error::Error>> {
     let branches = get_merged_or_gone(&repo, &base)?;
 
     branches.print_summary(&args.delete);
+
+    if !Confirmation::new()
+        .with_text("Confirm?")
+        .default(false)
+        .interact()?
+    {
+        println!("Cancelled");
+        return Ok(());
+    }
 
     delete_local_branches(
         &branches.get_local_branches_to_delete(&args.delete),
