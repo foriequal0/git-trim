@@ -9,8 +9,11 @@ git-trim
 
 ## Instruction
 
-1. Download the binary from [Release](https://github.com/foriequal0/git-trim/releases), and put it in your `PATH`
-1. Don't forget to set an upstream for a branch that you want to trim automatically. `git push -u <remote> <branch>` will set upstream when you push.
+1. Download the binary
+   1. from [Releases](https://github.com/foriequal0/git-trim/releases), and put it under your `PATH` directories.
+   1. Or `cargo install git-trim` if you have `cargo`
+1. Don't forget to set an upstream for a branch that you want to trim automatically.
+   `git push -u <remote> <branch>` will set upstream for you on push.
 1. Run `git trim` if you need to trim branches especially after PR reviews. It'll automatically recognize merged or gone branches, and delete it.
 1. If you need more power, try `git trim --filter all`
 1. You can also `git trim --dry-run` when you don't trust me.
