@@ -135,14 +135,48 @@ impl MergedOrGone {
     }
 }
 
-pub fn get_config_base(repo: &Repository, given: Option<String>) -> Result<String> {
+pub fn get_config_update(repo: &Repository, given: Option<bool>) -> Result<bool> {
     if let Some(given) = given {
         return Ok(given);
     }
     let config = repo.config()?;
-    match config.get_string("cleanup.base") {
+    match config.get_bool("cleanup.update") {
         Ok(value) => Ok(value),
-        Err(err) if config_not_exist(&err) => Ok("master".to_string()),
+        Err(err) if config_not_exist(&err) => Ok(true),
+        Err(err) => Err(err.into()),
+    }
+}
+
+pub fn get_config_string(
+    repo: &Repository,
+    given: Option<String>,
+    key: &str,
+    default: &str,
+) -> Result<String> {
+    if let Some(given) = given {
+        return Ok(given);
+    }
+    let config = repo.config()?;
+    match config.get_string(key) {
+        Ok(value) => Ok(value),
+        Err(err) if config_not_exist(&err) => Ok(default.to_string()),
+        Err(err) => Err(err.into()),
+    }
+}
+
+pub fn get_config_bool(
+    repo: &Repository,
+    given: Option<bool>,
+    key: &str,
+    default: bool,
+) -> Result<bool> {
+    if let Some(given) = given {
+        return Ok(given);
+    }
+    let config = repo.config()?;
+    match config.get_bool(key) {
+        Ok(value) => Ok(value),
+        Err(err) if config_not_exist(&err) => Ok(default),
         Err(err) => Err(err.into()),
     }
 }
