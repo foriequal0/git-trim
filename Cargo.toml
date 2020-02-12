@@ -1,5 +1,7 @@
 [package]
 name = "git-trim"
+description = "Automatically trims your git remote tracking branches that are merged or gone."
+license = "MIT"
 version = "0.1.2"
 authors = ["SeongChan Lee <foriequal@gmail.com>"]
 edition = "2018"

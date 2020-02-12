@@ -68,7 +68,7 @@ jobs:
         name: git-trim-${{matrix.os.short}}-${{env.VERSION}}
         path: target/release/artifacts/${{env.ARCHIVE}}
 
-  release:
+  github-release:
     needs:
     - upload-artifacts
     runs-on: ubuntu-latest
@@ -126,3 +126,15 @@ jobs:
         asset_path: ./git-trim-win-${{env.VERSION}}.zip
         asset_name: git-trim-win-${{env.VERSION}}.zip
         asset_content_type: application/zip
+
+  cargo-publish:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions-rs/toolchain@v1.0.5
+      with:
+        profile: minimal
+    - run: cargo fetch --verbose
+    - name: Cargo publish
+      run: |
+        cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
