@@ -17,7 +17,14 @@ repos:
   - id: clippy
     name: clippy
     description: Lint rust sources
-    entry: cargo clippy --all-features -- -D warnings
+    entry: cargo clippy --all-targets --all-features -- -D warnings
+    language: system
+    types: [rust]
+    pass_filenames: false
+  - id: check
+    name: check
+    description: Check compilation errors
+    entry: cargo check --all-targets --all-features
     language: system
     types: [rust]
     pass_filenames: false
