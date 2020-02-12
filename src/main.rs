@@ -21,7 +21,11 @@ fn main(args: Args) -> ::std::result::Result<(), Box<dyn std::error::Error>> {
 
     let repo = Repository::open_from_env()?;
     let base = get_config_base(&repo, args.base)?;
-    let branches = get_merged_or_gone(&repo, &base)?;
+    let mut branches = get_merged_or_gone(&repo, &base)?;
+
+    if args.no_detach {
+        branches.adjust_not_to_detach(&repo)?;
+    }
 
     branches.print_summary(&args.delete);
 
@@ -36,6 +40,7 @@ fn main(args: Args) -> ::std::result::Result<(), Box<dyn std::error::Error>> {
     }
 
     delete_local_branches(
+        &repo,
         &branches.get_local_branches_to_delete(&args.delete),
         args.dry_run,
     )?;
