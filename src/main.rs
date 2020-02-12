@@ -1,11 +1,11 @@
+use dialoguer::Confirmation;
 use git2::Repository;
+use log::*;
+
+use git_cleanup::args::Args;
 use git_cleanup::{
     delete_local_branches, delete_remote_branches, get_config_base, get_merged_or_gone, git,
 };
-use log::*;
-
-use dialoguer::Confirmation;
-use git_cleanup::args::Args;
 
 #[paw::main]
 fn main(args: Args) -> ::std::result::Result<(), Box<dyn std::error::Error>> {
