@@ -93,9 +93,9 @@ fn exclusive_flag(
     key: &str,
     default: bool,
 ) -> Result<bool> {
-    if value_pos == value_neg {
+    if value_pos && value_neg {
         return Err(format!(
-            "Flag '{}' and '{}' cannot be used simultinusly",
+            "Flag '{}' and '{}' cannot be used simultaneously",
             name_pos, name_neg
         )
         .into());
