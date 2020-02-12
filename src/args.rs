@@ -57,8 +57,11 @@ pub struct Args {
     #[structopt(short, long)]
     pub base: Option<String>,
 
-    #[structopt(short, long)]
+    #[structopt(long)]
     pub no_update: bool,
+
+    #[structopt(long)]
+    pub no_confirm: bool,
 
     /// Comma separated values of [all, merged, gone, local, remote, merged-local, merged-remote, gone-local, gone-remote].
     /// 'all' is equivalent to 'merged-local,merged-remote,gone-local,gone-remote'.
