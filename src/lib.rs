@@ -22,32 +22,54 @@ pub fn git(args: &[&str]) -> Result<()> {
     }
 }
 
-fn is_merged(base: &str, branch: &str) -> Result<bool> {
-    let range = format!("{}...{}", base, branch);
-    // Is there any revs that are not applied to the base in the branch?
-    let args = vec![
-        "rev-list",
-        "--cherry-pick",
-        "--right-only",
-        "--no-merges",
-        "-n1",
-        &range,
-    ];
+fn git_output(args: &[&str]) -> Result<String> {
     info!("> git {}", args.join(" "));
     let output = Command::new("git")
-        .args(&args)
+        .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .output()?;
     if !output.status.success() {
         return Err(std::io::Error::from_raw_os_error(output.status.code().unwrap_or(-1)).into());
     }
+
+    let str = std::str::from_utf8(&output.stdout)?.trim();
+    Ok(str.to_string())
+}
+
+fn is_merged(base: &str, branch: &str) -> Result<bool> {
+    let range = format!("{}...{}", base, branch);
+    // Is there any revs that are not applied to the base in the branch?
+    let output = git_output(&[
+        "rev-list",
+        "--cherry-pick",
+        "--right-only",
+        "--no-merges",
+        "-n1",
+        &range,
+    ])?;
+
     // empty output means there aren't any revs that are not applied to the base.
-    if output.stdout.is_empty() {
+    if output.is_empty() {
         Ok(true)
     } else {
         Ok(false)
     }
+}
+
+/// Source: https://stackoverflow.com/a/56026209
+fn is_squash_merged(base: &str, branch: &str) -> Result<bool> {
+    let merge_base = git_output(&["merge-base", base, branch])?;
+    let tree = git_output(&["rev-parse", &format!("{}^{{tree}}", branch)])?;
+    let dangling_commit = git_output(&[
+        "commit-tree",
+        &tree,
+        "-p",
+        &merge_base,
+        "-m",
+        "git-trim: squash merge test",
+    ])?;
+    is_merged(base, &dangling_commit)
 }
 
 #[derive(Default, Eq, PartialEq, Debug)]
@@ -408,7 +430,8 @@ pub fn get_merged_or_gone(repo: &Repository, base: &str) -> Result<MergedOrGone>
             debug!("Skip: the branch is a symbolic ref: {:?}", branch_name);
             continue;
         }
-        let merged = is_merged(&base_remote_ref, branch_name)?;
+        let merged = is_merged(&base_remote_ref, branch_name)?
+            || is_squash_merged(&base_remote_ref, branch_name)?;
         let fetch = get_fetch_remote_ref(repo, branch_name)?;
         let push = get_push_remote_ref(repo, branch_name)?;
         match (fetch, push) {
