@@ -1,4 +1,4 @@
-name: CI
+name: Release
 
 on:
   push:
@@ -29,7 +29,8 @@ jobs:
       if: matrix.os.short != 'win'
       working-directory: target/release
       run: |
-        VERSION="${{git.ref}}"
+        VERSION="${{github.ref}}"
+        VERSION="${VERSION#refs/tags/}"
         ARCHIVE="git-cleanup-${{matrix.os.short}}-$VERSION.tgz"
         echo "::set-env name=VERSION::$VERSION"
         echo "::set-env name=ARCHIVE::$ARCHIVE"
@@ -46,7 +47,7 @@ jobs:
       if: matrix.os.short == 'win'
       working-directory: target/release
       run: |
-        $VERSION="${{git.ref}}"
+        $VERSION="${{github.ref}}".Substring("refs/tags/".Length)
         $ARCHIVE="git-cleanup-${{matrix.os.short}}-$VERSION.zip"
         echo "::set-env name=VERSION::$VERSION"
         echo "::set-env name=ARCHIVE::$ARCHIVE"
@@ -70,18 +71,26 @@ jobs:
   release:
     needs:
     - upload-artifacts
+    runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+    - run: |
+        VERSION="${{github.ref}}"
+        VERSION="${VERSION#refs/tags/}"
+        echo "::set-env name=VERSION::$VERSION"
     - uses: actions/download-artifact@v1
       with:
-        name: git-cleanup-linux-${{github.ref}}
+        name: git-cleanup-linux-${{env.VERSION}}
+        path: ./
     - uses: actions/download-artifact@v1
       with:
-        name: git-cleanup-mac-${{github.ref}}
+        name: git-cleanup-mac-${{env.VERSION}}
+        path: ./
     - uses: actions/download-artifact@v1
       with:
-        name: git-cleanup-win-${{github.ref}}
+        name: git-cleanup-win-${{env.VERSION}}
+        path: ./
 
     - name: Create Release
       id: create_release
@@ -98,22 +107,22 @@ jobs:
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-        asset_path: ./git-cleanup-linux-${{github.ref}}.tgz
-        asset_name: git-cleanup-linux-${{github.ref}}.tgz
+        asset_path: ./git-cleanup-linux-${{env.VERSION}}.tgz
+        asset_name: git-cleanup-linux-${{env.VERSION}}.tgz
         asset_content_type: application/gzip
 
     - name: Upload Release Asset - mac
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./git-cleanup-mac-${{github.ref}}.tgz
-        asset_name: git-cleanup-mac-${{github.ref}}.tgz
+        asset_path: ./git-cleanup-mac-${{env.VERSION}}.tgz
+        asset_name: git-cleanup-mac-${{env.VERSION}}.tgz
         asset_content_type: application/zip
 
     - name: Upload Release Asset - win
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./git-cleanup-win-${{github.ref}}.zip
-        asset_name: git-cleanup-win-${{github.ref}}.zip
+        asset_path: ./git-cleanup-win-${{env.VERSION}}.zip
+        asset_name: git-cleanup-win-${{env.VERSION}}.zip
         asset_content_type: application/zip
