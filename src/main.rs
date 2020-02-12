@@ -55,7 +55,7 @@ fn main(args: Args) -> Result<()> {
         DeleteFilter::from_str(&get_config_string(&repo, None, "trim.delete", "merged")?)?
     };
 
-    if !update {
+    if update {
         git(&["remote", "update", "--prune"])?;
     }
     let mut branches = get_merged_or_gone(&repo, &base)?;
@@ -70,7 +70,7 @@ fn main(args: Args) -> Result<()> {
     let local_branches_to_delete = branches.get_local_branches_to_delete(&filter);
     let any_branches_to_remove =
         !(remote_refs_to_delete.is_empty() && local_branches_to_delete.is_empty());
-    if !confirm
+    if confirm
         && any_branches_to_remove
         && !Confirmation::new()
             .with_text("Confirm?")
