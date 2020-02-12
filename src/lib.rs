@@ -56,12 +56,34 @@ pub struct MergedOrGone {
     pub merged_locals: HashSet<String>,
     pub gone_locals: HashSet<String>,
 
+    pub kept_back_locals: HashSet<String>,
+
     /// remote refs
     pub merged_remotes: HashSet<String>,
     pub gone_remotes: HashSet<String>,
 }
 
 impl MergedOrGone {
+    pub fn adjust_not_to_detach(&mut self, repo: &Repository) -> Result<()> {
+        if repo.head_detached()? {
+            return Ok(());
+        }
+        let head = repo.head()?;
+        let head_name = head.name().ok_or("non-utf8 head ref name")?;
+        assert!(head_name.starts_with("refs/heads/"));
+        let head_name = &head_name["refs/heads/".len()..];
+
+        if self.merged_locals.contains(head_name) {
+            self.merged_locals.remove(head_name);
+            self.kept_back_locals.insert(head_name.to_string());
+        }
+        if self.gone_locals.contains(head_name) {
+            self.gone_locals.remove(head_name);
+            self.kept_back_locals.insert(head_name.to_string());
+        }
+        Ok(())
+    }
+
     pub fn print_summary(&self, filter: &DeleteFilter) {
         fn print(branches: &HashSet<String>, filter: &DeleteFilter, category: Category) {
             if filter.contains(&category) && !branches.is_empty() {
@@ -78,6 +100,14 @@ impl MergedOrGone {
         }
         print(&self.merged_locals, filter, Category::MergedLocal);
         print(&self.merged_remotes, filter, Category::MergedRemote);
+
+        if !self.kept_back_locals.is_empty() {
+            println!("Kept back not to become detached HEAD:");
+            for branch in &self.kept_back_locals {
+                println!("  {}", branch);
+            }
+        }
+
         print(&self.gone_locals, filter, Category::GoneLocal);
         print(&self.gone_remotes, filter, Category::GoneRemote);
     }
@@ -370,17 +400,36 @@ fn resolve_config_base_ref(repo: &Repository, base: &str) -> Result<String> {
         .to_string())
 }
 
-pub fn delete_local_branches(branches: &[&str], dry_run: bool) -> Result<()> {
+pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool) -> Result<()> {
     if branches.is_empty() {
         return Ok(());
     }
     let mut args = vec!["branch", "--delete", "--force"];
     args.extend(branches);
+
+    let detach_to = if repo.head_detached()? {
+        None
+    } else {
+        let head = repo.head()?;
+        let head_name = head.name().ok_or("non-utf8 head ref name")?;
+        if branches.contains(&head_name) {
+            Some(head_name.to_string())
+        } else {
+            None
+        }
+    };
+
     if dry_run {
+        if let Some(detach_to) = detach_to {
+            println!("Note: switching to '{}' (dry run)", detach_to);
+        }
         for branch in branches {
             println!("Delete branch {} (dry run).", branch);
         }
     } else {
+        if let Some(detach_to) = detach_to {
+            git(&["checkout", &detach_to])?;
+        }
         git(&args)?;
     }
     Ok(())
@@ -422,7 +471,7 @@ fn get_remote_name_and_ref_on_remote(
         let remote_name = remote_name.ok_or("non-utf8 remote name")?;
         let remote = repo.find_remote(&remote_name)?;
         for refspec in remote.refspecs() {
-            if let Direction::Fetch = refspec.direction() {
+            if let Direction::Push = refspec.direction() {
                 continue;
             }
             let src = refspec.src().ok_or("non-utf8 src dst")?;

@@ -63,6 +63,9 @@ pub struct Args {
     #[structopt(long)]
     pub no_confirm: bool,
 
+    #[structopt(long)]
+    pub no_detach: bool,
+
     /// Comma separated values of [all, merged, gone, local, remote, merged-local, merged-remote, gone-local, gone-remote].
     /// 'all' is equivalent to 'merged-local,merged-remote,gone-local,gone-remote'.
     /// 'merged' is equivalent to 'merged-local,merged-remote'.
