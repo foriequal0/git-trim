@@ -57,23 +57,26 @@ impl FromStr for DeleteFilter {
 
 #[derive(structopt::StructOpt)]
 pub struct Args {
-    /// A ref that other refs are compared to determine whether it is merged or gone.
+    /// A ref that other refs are compared to determine whether it is merged or gone. [default: master] [config: trim.base]
     #[structopt(short, long)]
     pub base: Option<String>,
 
+    /// Not update remotes [config: trim.update]
     #[structopt(long)]
     pub no_update: bool,
-    #[structopt(long)]
+    #[structopt(long, hidden(true))]
     pub update: bool,
 
+    /// Do not ask confirm [config: trim.confirm]
     #[structopt(long)]
     pub no_confirm: bool,
-    #[structopt(long)]
+    #[structopt(long, hidden(true))]
     pub confirm: bool,
 
+    /// Do not detach when HEAD is about to be deleted [config: trim.detach]
     #[structopt(long)]
     pub no_detach: bool,
-    #[structopt(long)]
+    #[structopt(long, hidden(true))]
     pub detach: bool,
 
     /// Comma separated values of [all, merged, gone, local, remote, merged-local, merged-remote, gone-local, gone-remote].
@@ -81,7 +84,7 @@ pub struct Args {
     /// 'merged' is equivalent to 'merged-local,merged-remote'.
     /// 'gone' is equivalent to 'gone-local,gone-remote'.
     /// 'local' is equivalent to 'merged-local,gone-local'.
-    /// 'remote' is equivalent to 'merged-remote,gone-remote'. Default is 'merged' unless set 'trim.filter'
+    /// 'remote' is equivalent to 'merged-remote,gone-remote'. [default : 'merged'] [config: trim.filter]
     #[structopt(short, long, parse(try_from_str))]
     pub filter: Option<DeleteFilter>,
 
