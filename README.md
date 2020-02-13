@@ -30,11 +30,11 @@ You might need to install `libssl-dev` packages if you build from the source. Se
 There are so many lines of commands to type and many statuses of branches that corresponding to PRs that you've sent.
 Were they merged or rejected? Did I forget to delete the remote branch after it is merged?
 
-After some working with the repository, you'll likely to see the mess of merged gone-or-not branches.
+After some working with the repository, you'll execute `git fetch --prune` or `git remote update --prune` occasionally. However, you'll likely see the mess of local branches that are already merged and removed on the remote or remote branches that are merged but the maintainer forgot to delete them.
 
 ![before](images/0-before.png)
 
-They are tedious to remove manually. `git branch --merged` have betrayed us.
+They are tedious to remove manually. `git branch --merged`'ll likely to betray you it is rebase merged or squash merged
 
 ![git branch --merged doesn't help](images/1-branch-merged.png)
 
