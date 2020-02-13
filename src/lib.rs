@@ -1,4 +1,7 @@
+#![feature(backtrace, try_trait)]
+
 pub mod args;
+pub mod error;
 
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
@@ -8,21 +11,20 @@ use git2::{BranchType, Direction, ErrorClass, ErrorCode, Repository};
 use log::*;
 
 use crate::args::{Category, DeleteFilter};
+use crate::error::TracedResult;
 
-type Result<T> = ::std::result::Result<T, Error>;
-type Error = Box<dyn std::error::Error>;
-
-pub fn git(args: &[&str]) -> Result<()> {
+pub fn git(args: &[&str]) -> TracedResult<()> {
     info!("> git {}", args.join(" "));
     let exit_status = Command::new("git").args(args).status()?;
     if !exit_status.success() {
-        Err(std::io::Error::from_raw_os_error(exit_status.code().unwrap_or(-1)).into())
-    } else {
-        Ok(())
+        Err(std::io::Error::from_raw_os_error(
+            exit_status.code().unwrap_or(-1),
+        ))?;
     }
+    TracedResult::ok(())
 }
 
-fn git_output(args: &[&str]) -> Result<String> {
+fn git_output(args: &[&str]) -> TracedResult<String> {
     info!("> git {}", args.join(" "));
     let output = Command::new("git")
         .args(args)
@@ -30,14 +32,16 @@ fn git_output(args: &[&str]) -> Result<String> {
         .stdout(Stdio::piped())
         .output()?;
     if !output.status.success() {
-        return Err(std::io::Error::from_raw_os_error(output.status.code().unwrap_or(-1)).into());
+        Err(std::io::Error::from_raw_os_error(
+            output.status.code().unwrap_or(-1),
+        ))?
     }
 
     let str = std::str::from_utf8(&output.stdout)?.trim();
-    Ok(str.to_string())
+    TracedResult::ok(str.to_string())
 }
 
-fn is_merged(base: &str, branch: &str) -> Result<bool> {
+fn is_merged(base: &str, branch: &str) -> TracedResult<bool> {
     let range = format!("{}...{}", base, branch);
     // Is there any revs that are not applied to the base in the branch?
     let output = git_output(&[
@@ -51,14 +55,14 @@ fn is_merged(base: &str, branch: &str) -> Result<bool> {
 
     // empty output means there aren't any revs that are not applied to the base.
     if output.is_empty() {
-        Ok(true)
+        TracedResult::ok(true)
     } else {
-        Ok(false)
+        TracedResult::ok(false)
     }
 }
 
 /// Source: https://stackoverflow.com/a/56026209
-fn is_squash_merged(base: &str, branch: &str) -> Result<bool> {
+fn is_squash_merged(base: &str, branch: &str) -> TracedResult<bool> {
     let merge_base = git_output(&["merge-base", base, branch])?;
     let tree = git_output(&["rev-parse", &format!("{}^{{tree}}", branch)])?;
     let dangling_commit = git_output(&[
@@ -86,9 +90,9 @@ pub struct MergedOrGone {
 }
 
 impl MergedOrGone {
-    pub fn adjust_not_to_detach(&mut self, repo: &Repository) -> Result<()> {
+    pub fn adjust_not_to_detach(&mut self, repo: &Repository) -> TracedResult<()> {
         if repo.head_detached()? {
-            return Ok(());
+            return TracedResult::ok(());
         }
         let head = repo.head()?;
         let head_name = head.name().ok_or("non-utf8 head ref name")?;
@@ -103,7 +107,7 @@ impl MergedOrGone {
             self.gone_locals.remove(head_name);
             self.kept_back_locals.insert(head_name.to_string());
         }
-        Ok(())
+        TracedResult::ok(())
     }
 
     pub fn print_summary(&self, filter: &DeleteFilter) {
@@ -157,15 +161,15 @@ impl MergedOrGone {
     }
 }
 
-pub fn get_config_update(repo: &Repository, given: Option<bool>) -> Result<bool> {
+pub fn get_config_update(repo: &Repository, given: Option<bool>) -> TracedResult<bool> {
     if let Some(given) = given {
-        return Ok(given);
+        return TracedResult::ok(given);
     }
     let config = repo.config()?;
     match config.get_bool("trim.update") {
-        Ok(value) => Ok(value),
-        Err(err) if config_not_exist(&err) => Ok(true),
-        Err(err) => Err(err.into()),
+        Ok(value) => TracedResult::ok(value),
+        Err(err) if config_not_exist(&err) => TracedResult::ok(true),
+        Err(err) => TracedResult::err(err.into()),
     }
 }
 
@@ -205,21 +209,23 @@ pub fn get_config_string(
     given: Option<&String>,
     key: &str,
     default: &str,
-) -> Result<ConfigValue<String>> {
+) -> TracedResult<ConfigValue<String>> {
     if let Some(given) = given {
-        return Ok(ConfigValue::Explicit {
+        return TracedResult::ok(ConfigValue::Explicit {
             value: given.clone(),
             source: "cli".to_string(),
         });
     }
     let config = repo.config()?;
     match config.get_string(key) {
-        Ok(value) => Ok(ConfigValue::Explicit {
+        Ok(value) => TracedResult::ok(ConfigValue::Explicit {
             value,
             source: key.to_string(),
         }),
-        Err(err) if config_not_exist(&err) => Ok(ConfigValue::Implicit(default.to_string())),
-        Err(err) => Err(err.into()),
+        Err(err) if config_not_exist(&err) => {
+            TracedResult::ok(ConfigValue::Implicit(default.to_string()))
+        }
+        Err(err) => TracedResult::err(err.into()),
     }
 }
 
@@ -228,33 +234,37 @@ pub fn get_config_bool(
     given: Option<bool>,
     key: &str,
     default: bool,
-) -> Result<ConfigValue<bool>> {
+) -> TracedResult<ConfigValue<bool>> {
     if let Some(given) = given {
-        return Ok(ConfigValue::Explicit {
+        return TracedResult::ok(ConfigValue::Explicit {
             value: given,
             source: "cli".to_string(),
         });
     }
     let config = repo.config()?;
     match config.get_bool(key) {
-        Ok(value) => Ok(ConfigValue::Explicit {
+        Ok(value) => TracedResult::ok(ConfigValue::Explicit {
             value,
             source: key.to_string(),
         }),
-        Err(err) if config_not_exist(&err) => Ok(ConfigValue::Implicit(default)),
-        Err(err) => Err(err.into()),
+        Err(err) if config_not_exist(&err) => TracedResult::ok(ConfigValue::Implicit(default)),
+        Err(err) => TracedResult::err(err.into()),
     }
 }
 
 // given refspec for a remote: refs/heads/*:refs/remotes/origin
 // master -> refs/remotes/origin/master
 // refs/head/master -> refs/remotes/origin/master
-fn get_fetch_remote_ref(repo: &Repository, branch: &str) -> Result<Option<String>> {
+fn get_fetch_remote_ref(repo: &Repository, branch: &str) -> TracedResult<Option<String>> {
     let remote_name = get_remote(repo, branch)?;
     get_remote_ref(repo, &remote_name, branch)
 }
 
-fn get_remote_ref(repo: &Repository, remote_name: &str, branch: &str) -> Result<Option<String>> {
+fn get_remote_ref(
+    repo: &Repository,
+    remote_name: &str,
+    branch: &str,
+) -> TracedResult<Option<String>> {
     let remote = repo.find_remote(remote_name)?;
     for refspec in remote.refspecs() {
         if let Direction::Push = refspec.direction() {
@@ -272,10 +282,10 @@ fn get_remote_ref(repo: &Repository, remote_name: &str, branch: &str) -> Result<
 
         let exists = repo.find_reference(&expanded).is_ok();
         if exists {
-            return Ok(Some(expanded));
+            return TracedResult::ok(Some(expanded));
         }
     }
-    Ok(None)
+    TracedResult::ok(None)
 }
 
 #[derive(Eq, PartialEq)]
@@ -287,24 +297,24 @@ struct RefOnRemote {
 // given refspec for a remote: refs/heads/*:refs/heads/*
 // master -> refs/remotes/origin/master
 // refs/head/master -> refs/remotes/origin/master
-fn get_push_ref_on_remote(repo: &Repository, branch: &str) -> Result<Option<RefOnRemote>> {
+fn get_push_ref_on_remote(repo: &Repository, branch: &str) -> TracedResult<Option<RefOnRemote>> {
     fn get_ref_on_remote(
         repo: &Repository,
         remote_name: &str,
         branch: &str,
         src: &str,
         dst: &str,
-    ) -> Result<Option<RefOnRemote>> {
+    ) -> TracedResult<Option<RefOnRemote>> {
         let reference = repo.resolve_reference_from_short_name(branch)?;
         let refname = reference.name().ok_or("non-utf8 ref")?;
         let relative_ref = if refname.starts_with(&src[..src.len() - 1]) {
             &refname[src.len() - 1..]
         } else {
-            return Ok(None);
+            return TracedResult::ok(None);
         };
         let expanded = dst.replace("*", relative_ref);
 
-        Ok(Some(RefOnRemote {
+        TracedResult::ok(Some(RefOnRemote {
             remote_name: remote_name.to_string(),
             refname: expanded,
         }))
@@ -313,7 +323,7 @@ fn get_push_ref_on_remote(repo: &Repository, branch: &str) -> Result<Option<RefO
     let push_default = match config.get_string("push.default") {
         Ok(value) => value,
         Err(err) if config_not_exist(&err) => "simple".to_string(),
-        Err(err) => return Err(err.into()),
+        Err(err) => return TracedResult::err(err.into()),
     };
 
     match push_default.as_str() {
@@ -339,7 +349,7 @@ fn get_push_ref_on_remote(repo: &Repository, branch: &str) -> Result<Option<RefO
                 assert!(src.ends_with('*'), "Unsupported src refspec");
                 if let Some(result) = get_ref_on_remote(repo, &remote_name, branch_name, src, dst)?
                 {
-                    return Ok(Some(result));
+                    return TracedResult::ok(Some(result));
                 }
             }
             panic!("refspec doesn't exist");
@@ -349,62 +359,62 @@ fn get_push_ref_on_remote(repo: &Repository, branch: &str) -> Result<Option<RefO
     }
 }
 
-fn get_push_remote_ref(repo: &Repository, branch: &str) -> Result<Option<String>> {
+fn get_push_remote_ref(repo: &Repository, branch: &str) -> TracedResult<Option<String>> {
     if let Some(RefOnRemote {
         remote_name,
         refname,
     }) = get_push_ref_on_remote(repo, branch)?
     {
         if let Some(remote_ref) = get_remote_ref(repo, &remote_name, &refname)? {
-            return Ok(Some(remote_ref));
+            return TracedResult::ok(Some(remote_ref));
         }
     }
-    Ok(None)
+    TracedResult::ok(None)
 }
 
-fn get_push_remote(repo: &Repository, branch: &str) -> Result<ConfigValue<String>> {
+fn get_push_remote(repo: &Repository, branch: &str) -> TracedResult<ConfigValue<String>> {
     let config = repo.config()?;
 
     let source = format!("branch.{}.pushRemote", branch);
     match config.get_string(&source) {
-        Ok(value) => return Ok(ConfigValue::Explicit { value, source }),
-        Err(err) if !config_not_exist(&err) => return Err(err.into()),
+        Ok(value) => return TracedResult::ok(ConfigValue::Explicit { value, source }),
+        Err(err) if !config_not_exist(&err) => return TracedResult::err(err.into()),
         _ => {}
     }
 
     let source = "remote.pushDefault";
     match config.get_string(source) {
         Ok(value) => {
-            return Ok(ConfigValue::Explicit {
+            return TracedResult::ok(ConfigValue::Explicit {
                 value,
                 source: source.to_string(),
             })
         }
-        Err(err) if !config_not_exist(&err) => return Err(err.into()),
+        Err(err) if !config_not_exist(&err) => return TracedResult::err(err.into()),
         _ => {}
     }
 
     get_remote(repo, branch)
 }
 
-fn get_remote(repo: &Repository, branch: &str) -> Result<ConfigValue<String>> {
+fn get_remote(repo: &Repository, branch: &str) -> TracedResult<ConfigValue<String>> {
     let config = repo.config()?;
 
     let source = format!("branch.{}.remote", branch);
     match config.get_string(&source) {
-        Ok(value) => return Ok(ConfigValue::Explicit { value, source }),
-        Err(err) if !config_not_exist(&err) => return Err(err.into()),
+        Ok(value) => return TracedResult::ok(ConfigValue::Explicit { value, source }),
+        Err(err) if !config_not_exist(&err) => return TracedResult::err(err.into()),
         _ => {}
     }
 
-    Ok(ConfigValue::Implicit("origin".to_string()))
+    TracedResult::ok(ConfigValue::Implicit("origin".to_string()))
 }
 
 fn config_not_exist(err: &git2::Error) -> bool {
     err.code() == ErrorCode::NotFound && err.class() == ErrorClass::Config
 }
 
-pub fn get_merged_or_gone(repo: &Repository, base: &str) -> Result<MergedOrGone> {
+pub fn get_merged_or_gone(repo: &Repository, base: &str) -> TracedResult<MergedOrGone> {
     let base_remote_ref = resolve_config_base_ref(repo, base)?;
     let mut result = MergedOrGone::default();
     for branch in repo.branches(Some(BranchType::Local))? {
@@ -468,34 +478,39 @@ pub fn get_merged_or_gone(repo: &Repository, base: &str) -> Result<MergedOrGone>
         }
     }
 
-    Ok(result)
+    TracedResult::ok(result)
 }
 
-fn resolve_config_base_ref(repo: &Repository, base: &str) -> Result<String> {
+fn resolve_config_base_ref(repo: &Repository, base: &str) -> TracedResult<String> {
     // find "master -> refs/remotes/origin/master"
     if let Some(remote_ref) = get_fetch_remote_ref(&repo, base)? {
         trace!("Found fetch remote ref for: {}, {}", base, remote_ref);
-        return Ok(remote_ref);
+        return TracedResult::ok(remote_ref);
     }
 
     // match "origin/master -> refs/remotes/origin/master"
     if let Ok(remote_ref) = repo.find_reference(&format!("refs/remotes/{}", base)) {
         let refname = remote_ref.name().ok_or("non-utf8 reference name")?;
         trace!("Found remote ref for: {}, {}", base, refname);
-        return Ok(refname.to_string());
+        return TracedResult::ok(refname.to_string());
     }
 
     trace!("Not found remote refs. fallback: {}", base);
-    Ok(repo
-        .find_reference(base)?
-        .name()
-        .ok_or("non-utf8 ref")?
-        .to_string())
+    TracedResult::ok(
+        repo.find_reference(base)?
+            .name()
+            .ok_or("non-utf8 ref")?
+            .to_string(),
+    )
 }
 
-pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool) -> Result<()> {
+pub fn delete_local_branches(
+    repo: &Repository,
+    branches: &[&str],
+    dry_run: bool,
+) -> TracedResult<()> {
     if branches.is_empty() {
-        return Ok(());
+        return TracedResult::ok(());
     }
     let mut args = vec!["branch", "--delete", "--force"];
     args.extend(branches);
@@ -540,16 +555,16 @@ pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool
         }
         git(&args)?;
     }
-    Ok(())
+    TracedResult::ok(())
 }
 
 pub fn delete_remote_branches(
     repo: &Repository,
     remote_refs: &[&str],
     dry_run: bool,
-) -> Result<()> {
+) -> TracedResult<()> {
     if remote_refs.is_empty() {
-        return Ok(());
+        return TracedResult::ok(());
     }
     let mut per_remote = HashMap::new();
     for remote_ref in remote_refs {
@@ -567,13 +582,13 @@ pub fn delete_remote_branches(
         args.extend(remote_refnames.iter().map(String::as_str));
         git(&args)?;
     }
-    Ok(())
+    TracedResult::ok(())
 }
 
 fn get_remote_name_and_ref_on_remote(
     repo: &Repository,
     remote_ref: &str,
-) -> Result<(String, String)> {
+) -> TracedResult<(String, String)> {
     assert!(remote_ref.starts_with("refs/remotes/"));
     for remote_name in repo.remotes()?.iter() {
         let remote_name = remote_name.ok_or("non-utf8 remote name")?;
@@ -587,7 +602,7 @@ fn get_remote_name_and_ref_on_remote(
             assert!(dst.ends_with('*'), "Unsupported src refspec");
             if remote_ref.starts_with(&dst[..dst.len() - 1]) {
                 let expanded = src.replace("*", &remote_ref[dst.len() - 1..]);
-                return Ok((
+                return TracedResult::ok((
                     remote.name().ok_or("non-utf8 remote name")?.to_string(),
                     expanded,
                 ));
