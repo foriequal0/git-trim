@@ -9,16 +9,22 @@ git-trim
 
 ## Instruction
 
-1. Download the binary
-   1. from [Releases](https://github.com/foriequal0/git-trim/releases), and put it under your `PATH` directories.
-   1. Or `cargo install git-trim` if you have `cargo`
+### Installation
+Download binary from [Releases](https://github.com/foriequal0/git-trim/releases), and put it under your `PATH` directories.
+
+You can also install with `cargo install git-trim` if you have `cargo`.
+
+It uses [`git2`](https://crates.io/crates/git2) under the hood which depends conditionally on [`openssl-sys`](https://crates.io/crates/openssl) on *nix platform.
+You might need to install `libssl-dev` packages if you build from the source. See: https://docs.rs/openssl/0.10.28/openssl/#automatic
+
+### How to use
 1. Don't forget to set an upstream for a branch that you want to trim automatically.
    `git push -u <remote> <branch>` will set an upstream for you on push.
 1. Run `git trim` if you need to trim branches especially after PR reviews. It'll automatically recognize merged or gone branches, and delete it.
 1. If you need more power, try `git trim --filter all`
 1. You can also `git trim --dry-run` when you don't trust me.
 
-## Why I've made this? Show me how it works.
+## Why have you made this? Show me how it works.
 
 ### Git's PR workflow is a little bit tedious as a routine.
 There are so many lines of commands to type and many statuses of branches that corresponding to PRs that you've sent.
@@ -64,7 +70,7 @@ It can even `push --delete` when you forgot to delete the remote branch if neede
 
 * A classic merge with a merge commit with `git merge --no-ff`
 * A rebase merge with `git merge --ff-only`
-* A squash merge with `git merge --squash`
+* A squash merge with `git merge --squash` (With this method: https://stackoverflow.com/a/56026209)
 
 ## What is the difference between the `merged` and `gone` branch?
 
@@ -77,7 +83,7 @@ So you might have been mistakenly amended or rebased the branch and the patch is
 Then it is `gone`, which means that you might lose your changes. The term is borrowed from the git's remote tracking states.
 
 ## Disclaimers
-"Git and the Git logo are either registered trademarks or trademarks of Software Freedom Conservancy, Inc., corporate home of the Git Project, in the United States and/or other countries.
+Git and the Git logo are either registered trademarks or trademarks of Software Freedom Conservancy, Inc., corporate home of the Git Project, in the United States and/or other countries.
 
 The logo is a derivative work of [Git Logo](https://git-scm.com/downloads/logos). Git Logo by [Jason Long](https://twitter.com/jasonlong) is licensed under the [Creative Commons Attribution 3.0 Unported License](https://creativecommons.org/licenses/by/3.0/).
 
