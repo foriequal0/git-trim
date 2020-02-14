@@ -254,26 +254,47 @@ fn get_fetch_remote_ref(repo: &Repository, branch: &str) -> Result<Option<String
 
 fn get_remote_ref(repo: &Repository, remote_name: &str, branch: &str) -> Result<Option<String>> {
     let remote = repo.find_remote(remote_name)?;
+    let ref_on_remote = {
+        let config = repo.config()?;
+        match config.get_string(&format!("branch.{}.merge", branch)) {
+            Ok(ref_on_remote) => ref_on_remote,
+            Err(err) if config_not_exist(&err) => return Ok(None),
+            Err(err) => return Err(err.into()),
+        }
+    };
+    assert!(
+        ref_on_remote.starts_with("refs/"),
+        "'git config branch.{}.merge' should start with 'refs/'",
+        branch
+    );
     for refspec in remote.refspecs() {
         if let Direction::Push = refspec.direction() {
             continue;
         }
         let src = refspec.src().context("non-utf8 src dst")?;
         let dst = refspec.dst().context("non-utf8 refspec dst")?;
-        assert!(src.ends_with('*'), "Unsupported src refspec");
-        let name = if branch.starts_with("refs/") && branch.starts_with(&src[..src.len() - 1]) {
-            &branch[src.len() - 1..]
-        } else {
-            branch
-        };
-        let expanded = dst.replace("*", name);
-
-        let exists = repo.find_reference(&expanded).is_ok();
-        if exists {
-            return Ok(Some(expanded));
-        }
+        return Ok(expand_refspec_dst(repo, &ref_on_remote, &src, dst));
     }
     Ok(None)
+}
+
+fn expand_refspec_dst(
+    repo: &Repository,
+    ref_on_remote: &str,
+    src: &str,
+    dst: &str,
+) -> Option<String> {
+    assert!(src.ends_with('*'), "Unsupported src refspec");
+    if !ref_on_remote.starts_with(&src[..src.len() - 1]) {
+        return None;
+    }
+    let expanded = dst.replace("*", &ref_on_remote[src.len() - 1..]);
+    let exists = repo.find_reference(&expanded).is_ok();
+    if exists {
+        Some(expanded)
+    } else {
+        None
+    }
 }
 
 #[derive(Eq, PartialEq)]
@@ -286,63 +307,37 @@ struct RefOnRemote {
 // master -> refs/remotes/origin/master
 // refs/head/master -> refs/remotes/origin/master
 fn get_push_ref_on_remote(repo: &Repository, branch: &str) -> Result<Option<RefOnRemote>> {
-    fn get_ref_on_remote(
-        repo: &Repository,
-        remote_name: &str,
-        branch: &str,
-        src: &str,
-        dst: &str,
-    ) -> Result<Option<RefOnRemote>> {
-        let reference = repo.resolve_reference_from_short_name(branch)?;
-        let refname = reference.name().context("non-utf8 ref")?;
-        let relative_ref = if refname.starts_with(&src[..src.len() - 1]) {
-            &refname[src.len() - 1..]
-        } else {
-            return Ok(None);
-        };
-        let expanded = dst.replace("*", relative_ref);
+    let remote_name = get_push_remote(repo, branch)?;
 
-        Ok(Some(RefOnRemote {
-            remote_name: remote_name.to_string(),
-            refname: expanded,
-        }))
-    }
+    let config = repo.config()?;
+    match config.get_string(&format!("branch.{}.merge", branch)) {
+        Ok(ref_on_remote) => {
+            return Ok(Some(RefOnRemote {
+                remote_name: remote_name.clone(),
+                refname: ref_on_remote,
+            }))
+        }
+        Err(err) if config_not_exist(&err) => {}
+        Err(err) => return Err(err.into()),
+    };
+
     let config = repo.config()?;
     let push_default = match config.get_string("push.default") {
         Ok(value) => value,
         Err(err) if config_not_exist(&err) => "simple".to_string(),
         Err(err) => return Err(err.into()),
     };
-
     match push_default.as_str() {
-        "current" => {
-            let remote_name = get_push_remote(repo, branch)?;
-            get_ref_on_remote(repo, &remote_name, branch, "refs/heads/*", "refs/heads/*")
-        }
+        "current" => Ok(Some(RefOnRemote {
+            remote_name: remote_name.to_string(),
+            refname: branch.to_string(),
+        })),
         "upstream" | "tracking" | "simple" => {
-            let branch = repo.find_branch(branch, BranchType::Local)?;
-            let branch_name = branch.name()?.context("non-utf8 branch name")?;
-            let upstream = branch.upstream()?;
-            if push_default.as_str() == "simple" && Some(branch_name) != upstream.name()? {
-                panic!("The current branch foo has no upstream branch")
-            }
-            let remote_name = get_push_remote(repo, branch_name)?;
-            let remote = repo.find_remote(&remote_name)?;
-            for refspec in remote.refspecs() {
-                if let Direction::Fetch = refspec.direction() {
-                    continue;
-                }
-                let src = refspec.src().context("non-utf8 src dst")?;
-                let dst = refspec.dst().context("non-utf8 refspec dst")?;
-                assert!(src.ends_with('*'), "Unsupported src refspec");
-                if let Some(result) = get_ref_on_remote(repo, &remote_name, branch_name, src, dst)?
-                {
-                    return Ok(Some(result));
-                }
-            }
-            panic!("refspec doesn't exist");
+            panic!("The current branch foo has no upstream branch.");
         }
-        "nothing" | "matching" => unimplemented!("push.default=matching is not implemented"),
+        "nothing" | "matching" => {
+            unimplemented!("push.default=nothing|matching is not implemented.")
+        }
         _ => panic!("unexpected config push.default"),
     }
 }
@@ -416,9 +411,8 @@ pub fn get_merged_or_gone(repo: &Repository, base: &str) -> Result<MergedOrGone>
             );
             continue;
         }
-        if let Ok(upstream) = branch.upstream() {
-            let remote_ref = upstream.get().name();
-            if remote_ref == Some(&base_remote_ref) {
+        if let Some(remote_ref) = get_fetch_remote_ref(repo, branch_name)? {
+            if Some(&remote_ref) == Some(&base_remote_ref) {
                 debug!("Skip: the branch is the base: {:?}", branch_name);
                 continue;
             }
