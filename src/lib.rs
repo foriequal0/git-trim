@@ -434,6 +434,9 @@ pub fn get_merged_or_gone(repo: &Repository, base: &str) -> Result<MergedOrGone>
             || is_squash_merged(&base_remote_ref, branch_name)?;
         let fetch = get_fetch_remote_ref(repo, branch_name)?;
         let push = get_push_remote_ref(repo, branch_name)?;
+        trace!("merged: {}", merged);
+        trace!("fetch: {:?}", fetch);
+        trace!("push: {:?}", push);
         match (fetch, push) {
             (Some(_), Some(remote_ref)) if merged => {
                 debug!("merged local, merged remote: the branch is merged, but forgot to delete");
