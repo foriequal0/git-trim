@@ -23,14 +23,13 @@ fn fixture() -> Fixture {
             git config user.name "Origin Test"
             git config user.email "origin@test"
             git config remote.pushdefault upstream
-            git config push.default current
         EOF
         git clone origin local
         local <<EOF
             git config user.name "Local Test"
             git config user.email "local@test"
             git config remote.pushdefault origin
-            git config push.default current
+            git config push.default simple
             git remote add upstream ../upstream
             git fetch upstream
             git branch -u upstream/master master
@@ -41,7 +40,7 @@ fn fixture() -> Fixture {
             touch awesome-patch
             git add awesome-patch
             git commit -m "Awesome patch"
-            git push -u origin
+            git push -u origin feature
         EOF
         "#,
     )
