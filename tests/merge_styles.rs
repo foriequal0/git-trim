@@ -1,14 +1,11 @@
-extern crate git_trim;
-
-use git2::Repository;
-
-use fixture::{rc, Fixture};
-use git_trim::{get_merged_or_gone, MergedOrGone};
-
 mod fixture;
 
-type Result<T> = ::std::result::Result<T, Error>;
-type Error = Box<dyn std::error::Error>;
+use anyhow::Result;
+use git2::Repository;
+
+use git_trim::{get_merged_or_gone, MergedOrGone};
+
+use fixture::{rc, Fixture};
 
 fn fixture() -> Fixture {
     rc().append_fixture_trace(

@@ -4,13 +4,11 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::process::{Command, Stdio};
 
+use anyhow::{Context, Result};
 use git2::{BranchType, Direction, ErrorClass, ErrorCode, Repository};
 use log::*;
 
 use crate::args::{Category, DeleteFilter};
-
-type Result<T> = ::std::result::Result<T, Error>;
-type Error = Box<dyn std::error::Error>;
 
 pub fn git(args: &[&str]) -> Result<()> {
     info!("> git {}", args.join(" "));
@@ -91,7 +89,7 @@ impl MergedOrGone {
             return Ok(());
         }
         let head = repo.head()?;
-        let head_name = head.name().ok_or("non-utf8 head ref name")?;
+        let head_name = head.name().context("non-utf8 head ref name")?;
         assert!(head_name.starts_with("refs/heads/"));
         let head_name = &head_name["refs/heads/".len()..];
 
@@ -260,8 +258,8 @@ fn get_remote_ref(repo: &Repository, remote_name: &str, branch: &str) -> Result<
         if let Direction::Push = refspec.direction() {
             continue;
         }
-        let src = refspec.src().ok_or("non-utf8 src dst")?;
-        let dst = refspec.dst().ok_or("non-utf8 refspec dst")?;
+        let src = refspec.src().context("non-utf8 src dst")?;
+        let dst = refspec.dst().context("non-utf8 refspec dst")?;
         assert!(src.ends_with('*'), "Unsupported src refspec");
         let name = if branch.starts_with("refs/") && branch.starts_with(&src[..src.len() - 1]) {
             &branch[src.len() - 1..]
@@ -296,7 +294,7 @@ fn get_push_ref_on_remote(repo: &Repository, branch: &str) -> Result<Option<RefO
         dst: &str,
     ) -> Result<Option<RefOnRemote>> {
         let reference = repo.resolve_reference_from_short_name(branch)?;
-        let refname = reference.name().ok_or("non-utf8 ref")?;
+        let refname = reference.name().context("non-utf8 ref")?;
         let relative_ref = if refname.starts_with(&src[..src.len() - 1]) {
             &refname[src.len() - 1..]
         } else {
@@ -323,7 +321,7 @@ fn get_push_ref_on_remote(repo: &Repository, branch: &str) -> Result<Option<RefO
         }
         "upstream" | "tracking" | "simple" => {
             let branch = repo.find_branch(branch, BranchType::Local)?;
-            let branch_name = branch.name()?.ok_or("non-utf8 branch name")?;
+            let branch_name = branch.name()?.context("non-utf8 branch name")?;
             let upstream = branch.upstream()?;
             if push_default.as_str() == "simple" && Some(branch_name) != upstream.name()? {
                 panic!("The current branch foo has no upstream branch")
@@ -334,8 +332,8 @@ fn get_push_ref_on_remote(repo: &Repository, branch: &str) -> Result<Option<RefO
                 if let Direction::Fetch = refspec.direction() {
                     continue;
                 }
-                let src = refspec.src().ok_or("non-utf8 src dst")?;
-                let dst = refspec.dst().ok_or("non-utf8 refspec dst")?;
+                let src = refspec.src().context("non-utf8 src dst")?;
+                let dst = refspec.dst().context("non-utf8 refspec dst")?;
                 assert!(src.ends_with('*'), "Unsupported src refspec");
                 if let Some(result) = get_ref_on_remote(repo, &remote_name, branch_name, src, dst)?
                 {
@@ -409,7 +407,7 @@ pub fn get_merged_or_gone(repo: &Repository, base: &str) -> Result<MergedOrGone>
     let mut result = MergedOrGone::default();
     for branch in repo.branches(Some(BranchType::Local))? {
         let (branch, _) = branch?;
-        let branch_name = branch.name()?.ok_or("non-utf8 branch name")?;
+        let branch_name = branch.name()?.context("non-utf8 branch name")?;
         debug!("Branch: {:?}", branch.name()?);
         if let ConfigValue::Implicit(_) = get_remote(repo, branch_name)? {
             debug!(
@@ -483,7 +481,7 @@ fn resolve_config_base_ref(repo: &Repository, base: &str) -> Result<String> {
 
     // match "origin/master -> refs/remotes/origin/master"
     if let Ok(remote_ref) = repo.find_reference(&format!("refs/remotes/{}", base)) {
-        let refname = remote_ref.name().ok_or("non-utf8 reference name")?;
+        let refname = remote_ref.name().context("non-utf8 reference name")?;
         trace!("Found remote ref for: {}, {}", base, refname);
         return Ok(refname.to_string());
     }
@@ -492,7 +490,7 @@ fn resolve_config_base_ref(repo: &Repository, base: &str) -> Result<String> {
     Ok(repo
         .find_reference(base)?
         .name()
-        .ok_or("non-utf8 ref")?
+        .context("non-utf8 ref")?
         .to_string())
 }
 
@@ -507,7 +505,7 @@ pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool
         None
     } else {
         let head = repo.head()?;
-        let head_refname = head.name().ok_or("non-utf8 head ref name")?;
+        let head_refname = head.name().context("non-utf8 head ref name")?;
         assert!(head_refname.starts_with("refs/heads/"));
         let head_name = &head_refname["refs/heads/".len()..];
         if branches.contains(&head_name) {
@@ -519,13 +517,13 @@ pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool
 
     if dry_run {
         if let Some(head) = detach_to {
-            let head_refname = head.name().ok_or("non-utf8 head ref name")?;
+            let head_refname = head.name().context("non-utf8 head ref name")?;
             info!("> git checkout {} (dry-run)", head_refname);
 
             println!("Note: switching to '{}' (dry run)", head_refname);
             println!("You are in 'detached HED' state... blah blah...");
             let commit = head.peel_to_commit()?;
-            let message = commit.message().ok_or("non-utf8 head ref name")?;
+            let message = commit.message().context("non-utf8 head ref name")?;
             println!(
                 "HEAD is now at {} {} (dry run)",
                 &commit.id().to_string()[..7],
@@ -538,7 +536,7 @@ pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool
         }
     } else {
         if let Some(head) = detach_to {
-            let head_refname = head.name().ok_or("non-utf8 head ref name")?;
+            let head_refname = head.name().context("non-utf8 head ref name")?;
             git(&["checkout", head_refname])?;
         }
         git(&args)?;
@@ -579,19 +577,19 @@ fn get_remote_name_and_ref_on_remote(
 ) -> Result<(String, String)> {
     assert!(remote_ref.starts_with("refs/remotes/"));
     for remote_name in repo.remotes()?.iter() {
-        let remote_name = remote_name.ok_or("non-utf8 remote name")?;
+        let remote_name = remote_name.context("non-utf8 remote name")?;
         let remote = repo.find_remote(&remote_name)?;
         for refspec in remote.refspecs() {
             if let Direction::Push = refspec.direction() {
                 continue;
             }
-            let src = refspec.src().ok_or("non-utf8 src dst")?;
-            let dst = refspec.dst().ok_or("non-utf8 refspec dst")?;
+            let src = refspec.src().context("non-utf8 src dst")?;
+            let dst = refspec.dst().context("non-utf8 refspec dst")?;
             assert!(dst.ends_with('*'), "Unsupported src refspec");
             if remote_ref.starts_with(&dst[..dst.len() - 1]) {
                 let expanded = src.replace("*", &remote_ref[dst.len() - 1..]);
                 return Ok((
-                    remote.name().ok_or("non-utf8 remote name")?.to_string(),
+                    remote.name().context("non-utf8 remote name")?.to_string(),
                     expanded,
                 ));
             }

@@ -15,7 +15,7 @@ Download binary from [Releases](https://github.com/foriequal0/git-trim/releases)
 You can also install with `cargo install git-trim` if you have `cargo`.
 
 It uses [`git2`](https://crates.io/crates/git2) under the hood which depends conditionally on [`openssl-sys`](https://crates.io/crates/openssl) on *nix platform.
-You might need to install `libssl-dev` packages if you build from the source. See: https://docs.rs/openssl/0.10.28/openssl/#automatic
+You might need to install `libssl-dev` and `pkg-config` packages if you build from the source. See: https://docs.rs/openssl/0.10.28/openssl/#automatic
 
 ### How to use
 1. Don't forget to set an upstream for a branch that you want to trim automatically.
