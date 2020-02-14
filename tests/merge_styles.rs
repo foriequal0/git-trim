@@ -23,7 +23,7 @@ fn fixture() -> Fixture {
             git config user.name "Local Test"
             git config user.email "local@test"
             git config remote.pushdefault origin
-            git config push.default current
+            git config push.default simple
         EOF
         # prepare awesome patch
         local <<EOF
@@ -34,7 +34,7 @@ fn fixture() -> Fixture {
             touch another-patch
             git add another-patch
             git commit -m "Another patch"
-            git push -u origin
+            git push -u origin feature
         EOF
         "#,
     )
