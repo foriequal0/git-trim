@@ -445,8 +445,16 @@ pub fn get_merged_or_gone(repo: &Repository, base: &str) -> Result<MergedOrGone>
                 debug!("skip: live branch. not merged, not gone");
             }
 
+            // `git branch`'s shows `%(upstream)` as s `%(push)` fallback if there isn't a specified push remote.
+            // But our `get_push_remote_ref` doesn't.
+            (Some(fetch_ref), None) if merged => {
+                debug!("merged local, merged remote: the branch is merged, but forgot to delete");
+                // TODO: it might be a long running branch like 'develop' in a git-flow
+                result.merged_locals.insert(branch_name.to_string());
+                result.merged_remotes.insert(fetch_ref);
+            }
             (Some(_), None) => {
-                debug!("skip: it might be a long running branch like 'develop' but never pushed to the personal repo in the triangular workflow");
+                debug!("skip: it might be a long running branch like 'develop' in a git-flow");
             }
 
             (None, Some(remote_ref)) if merged => {
