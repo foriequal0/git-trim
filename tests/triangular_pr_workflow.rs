@@ -9,7 +9,7 @@ type Result<T> = ::std::result::Result<T, Error>;
 type Error = Box<dyn std::error::Error>;
 
 fn fixture() -> Fixture {
-    rc().append_silent_fixture(
+    rc().append_fixture_trace(
         r#"
         git init upstream
         upstream <<EOF
@@ -44,7 +44,6 @@ fn fixture() -> Fixture {
             git commit -m "Awesome patch"
             git push -u origin
         EOF
-        set -x
         "#,
     )
 }
