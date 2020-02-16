@@ -64,7 +64,8 @@ fn test_accepted() -> Result<()> {
         "#,
     )?;
     let repo = Repository::open_from_env()?;
-    let branches = get_merged_or_gone(&repo, "master")?;
+    let config = repo.config()?.snapshot()?;
+    let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -97,7 +98,8 @@ fn test_accepted_but_edited() -> Result<()> {
         "#,
     )?;
     let repo = Repository::open_from_env()?;
-    let branches = get_merged_or_gone(&repo, "master")?;
+    let config = repo.config()?.snapshot()?;
+    let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -121,7 +123,8 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
         "#,
     )?;
     let repo = Repository::open_from_env()?;
-    let branches = get_merged_or_gone(&repo, "master")?;
+    let config = repo.config()?.snapshot()?;
+    let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -151,7 +154,8 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
         "#,
     )?;
     let repo = Repository::open_from_env()?;
-    let branches = get_merged_or_gone(&repo, "master")?;
+    let config = repo.config()?.snapshot()?;
+    let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
@@ -167,7 +171,8 @@ fn test_rejected() -> Result<()> {
         "#,
     )?;
     let repo = Repository::open_from_env()?;
-    let branches = get_merged_or_gone(&repo, "master")?;
+    let config = repo.config()?.snapshot()?;
+    let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -194,7 +199,8 @@ fn test_rejected_but_edited() -> Result<()> {
         "#,
     )?;
     let repo = Repository::open_from_env()?;
-    let branches = get_merged_or_gone(&repo, "master")?;
+    let config = repo.config()?.snapshot()?;
+    let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -215,7 +221,8 @@ fn test_rejected_but_forgot_to_delete() -> Result<()> {
         "#,
     )?;
     let repo = Repository::open_from_env()?;
-    let branches = get_merged_or_gone(&repo, "master")?;
+    let config = repo.config()?.snapshot()?;
+    let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
@@ -235,7 +242,8 @@ fn test_rejected_but_forgot_to_delete_and_edited() -> Result<()> {
         "#,
     )?;
     let repo = Repository::open_from_env()?;
-    let branches = get_merged_or_gone(&repo, "master")?;
+    let config = repo.config()?.snapshot()?;
+    let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }

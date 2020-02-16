@@ -18,28 +18,29 @@ fn main(args: Args) -> Result<()> {
     info!("TARGET_TRIPLE: {}", env!("VERGEN_TARGET_TRIPLE"));
 
     let repo = Repository::open_from_env()?;
+    let config = repo.config()?.snapshot()?;
 
-    let base = get_config(&repo, "trim.base")
+    let base = get_config(&config, "trim.base")
         .with_explicit("cli", args.base.clone())
         .with_default(&String::from("master"))
         .read()?
         .expect("has default");
-    let update = get_config(&repo, "trim.update")
+    let update = get_config(&config, "trim.update")
         .with_explicit("cli", args.update())
         .with_default(&true)
         .read()?
         .expect("has default");
-    let confirm = get_config(&repo, "trim.confirm")
+    let confirm = get_config(&config, "trim.confirm")
         .with_explicit("cli", args.confirm())
         .with_default(&true)
         .read()?
         .expect("has default");
-    let detach = get_config(&repo, "trim.detach")
+    let detach = get_config(&config, "trim.detach")
         .with_explicit("cli", args.detach())
         .with_default(&true)
         .read()?
         .expect("has default");
-    let filter = get_config(&repo, "trim.filter")
+    let filter = get_config(&config, "trim.filter")
         .with_explicit("cli", args.filter)
         .with_default(&DeleteFilter::default())
         .parse()?
@@ -54,7 +55,7 @@ fn main(args: Args) -> Result<()> {
     if *update {
         git(&["remote", "update", "--prune"])?;
     }
-    let mut branches = get_merged_or_gone(&repo, &base)?;
+    let mut branches = get_merged_or_gone(&repo, &config, &base)?;
 
     if *detach {
         branches.adjust_not_to_detach(&repo)?;

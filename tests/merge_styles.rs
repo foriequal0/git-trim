@@ -54,7 +54,8 @@ fn test_noff() -> Result<()> {
     )?;
 
     let repo = Repository::open_from_env()?;
-    let branches = get_merged_or_gone(&repo, "master")?;
+    let config = repo.config()?.snapshot()?;
+    let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -81,7 +82,8 @@ fn test_rebase() -> Result<()> {
     )?;
 
     let repo = Repository::open_from_env()?;
-    let branches = get_merged_or_gone(&repo, "master")?;
+    let config = repo.config()?.snapshot()?;
+    let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -106,7 +108,8 @@ fn test_squash() -> Result<()> {
     )?;
 
     let repo = Repository::open_from_env()?;
-    let branches = get_merged_or_gone(&repo, "master")?;
+    let config = repo.config()?.snapshot()?;
+    let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
         branches,
         MergedOrGone {

@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use anyhow::Result;
-use git2::{Config, ErrorClass, ErrorCode, Repository};
+use git2::{Config, ErrorClass, ErrorCode};
 use std::str::FromStr;
 
 type GitResult<T> = std::result::Result<T, git2::Error>;
@@ -31,15 +31,15 @@ impl<T> Deref for ConfigValue<T> {
 }
 
 pub struct ConfigBuilder<'a, T> {
-    repo: &'a Repository,
+    config: &'a Config,
     key: &'a str,
     explicit: Option<(&'a str, T)>,
     default: Option<&'a T>,
 }
 
-pub fn get_config<'a, T>(repo: &'a Repository, key: &'a str) -> ConfigBuilder<'a, T> {
+pub fn get_config<'a, T>(config: &'a Config, key: &'a str) -> ConfigBuilder<'a, T> {
     ConfigBuilder {
-        repo,
+        config,
         key,
         explicit: None,
         default: None,
@@ -80,8 +80,7 @@ where
                 source: source.to_string(),
             }));
         }
-        let config = self.repo.config()?;
-        match T::get_config_value(&config, self.key) {
+        match T::get_config_value(self.config, self.key) {
             Ok(value) => Ok(Some(ConfigValue::Explicit {
                 value,
                 source: self.key.to_string(),
@@ -113,10 +112,9 @@ where
             }));
         }
 
-        let config = self.repo.config()?;
-        let result = match config.get_string(self.key) {
+        let result = match self.config.get_str(self.key) {
             Ok(value) => Some(ConfigValue::Explicit {
-                value: parse(value.as_str())?,
+                value: parse(value)?,
                 source: self.key.to_string(),
             }),
             Err(err) if config_not_exist(&err) => {
@@ -131,6 +129,7 @@ where
         Ok(result)
     }
 }
+
 impl<'a, T> ConfigBuilder<'a, T>
 where
     T: FromStr + Clone,

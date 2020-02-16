@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Direction, Repository};
+use git2::{BranchType, Config, Direction, Repository};
 use log::*;
 
 use crate::args::{Category, DeleteFilter};
@@ -159,16 +159,25 @@ impl MergedOrGone {
 // given refspec for a remote: refs/heads/*:refs/remotes/origin
 // master -> refs/remotes/origin/master
 // refs/head/master -> refs/remotes/origin/master
-fn get_fetch_remote_ref(repo: &Repository, branch: &str) -> Result<Option<String>> {
-    let remote_name = get_remote(repo, branch)?;
-    get_remote_ref(repo, &remote_name, branch)
+fn get_fetch_remote_ref(
+    repo: &Repository,
+    config: &Config,
+    branch: &str,
+) -> Result<Option<String>> {
+    let remote_name = get_remote(config, branch)?;
+    get_remote_ref(repo, config, &remote_name, branch)
 }
 
-fn get_remote_ref(repo: &Repository, remote_name: &str, branch: &str) -> Result<Option<String>> {
+fn get_remote_ref(
+    repo: &Repository,
+    config: &Config,
+    remote_name: &str,
+    branch: &str,
+) -> Result<Option<String>> {
     let remote = repo.find_remote(remote_name)?;
     let key = format!("branch.{}.merge", branch);
     let ref_on_remote: ConfigValue<String> =
-        if let Some(ref_on_remote) = get_config(repo, &key).read()? {
+        if let Some(ref_on_remote) = get_config(config, &key).read()? {
             ref_on_remote
         } else {
             return Ok(None);
@@ -217,11 +226,11 @@ struct RefOnRemote {
 // given refspec for a remote: refs/heads/*:refs/heads/*
 // master -> refs/remotes/origin/master
 // refs/head/master -> refs/remotes/origin/master
-fn get_push_ref_on_remote(repo: &Repository, branch: &str) -> Result<Option<RefOnRemote>> {
-    let remote_name = get_push_remote(repo, branch)?;
+fn get_push_ref_on_remote(config: &Config, branch: &str) -> Result<Option<RefOnRemote>> {
+    let remote_name = get_push_remote(config, branch)?;
 
     if let Some(merge) =
-        get_config(repo, &format!("branch.{}.merge", branch)).parse_with(|ref_on_remote| {
+        get_config(config, &format!("branch.{}.merge", branch)).parse_with(|ref_on_remote| {
             Ok(RefOnRemote {
                 remote_name: remote_name.clone(),
                 refname: ref_on_remote.to_string(),
@@ -231,7 +240,7 @@ fn get_push_ref_on_remote(repo: &Repository, branch: &str) -> Result<Option<RefO
         return Ok(Some(merge.clone()));
     }
 
-    let push_default = get_config(repo, "push.default")
+    let push_default = get_config(config, "push.default")
         .with_default(&String::from("simple"))
         .read()?
         .expect("has default");
@@ -251,57 +260,57 @@ fn get_push_ref_on_remote(repo: &Repository, branch: &str) -> Result<Option<RefO
     }
 }
 
-fn get_push_remote_ref(repo: &Repository, branch: &str) -> Result<Option<String>> {
+fn get_push_remote_ref(repo: &Repository, config: &Config, branch: &str) -> Result<Option<String>> {
     if let Some(RefOnRemote {
         remote_name,
         refname,
-    }) = get_push_ref_on_remote(repo, branch)?
+    }) = get_push_ref_on_remote(config, branch)?
     {
-        if let Some(remote_ref) = get_remote_ref(repo, &remote_name, &refname)? {
+        if let Some(remote_ref) = get_remote_ref(repo, config, &remote_name, &refname)? {
             return Ok(Some(remote_ref));
         }
     }
     Ok(None)
 }
 
-fn get_push_remote(repo: &Repository, branch: &str) -> Result<ConfigValue<String>> {
-    if let Some(push_remote) = get_config(repo, &format!("branch.{}.pushRemote", branch))
+fn get_push_remote(config: &Config, branch: &str) -> Result<ConfigValue<String>> {
+    if let Some(push_remote) = get_config(config, &format!("branch.{}.pushRemote", branch))
         .parse_with(|push_remote| Ok(push_remote.to_string()))?
     {
         return Ok(push_remote);
     }
 
-    if let Some(push_default) = get_config(repo, "remote.pushDefault")
+    if let Some(push_default) = get_config(config, "remote.pushDefault")
         .parse_with(|push_default| Ok(push_default.to_string()))?
     {
         return Ok(push_default);
     }
 
-    get_remote(repo, branch)
+    get_remote(config, branch)
 }
 
-fn get_remote(repo: &Repository, branch: &str) -> Result<ConfigValue<String>> {
-    Ok(get_config(repo, &format!("branch.{}.remote", branch))
+fn get_remote(config: &Config, branch: &str) -> Result<ConfigValue<String>> {
+    Ok(get_config(config, &format!("branch.{}.remote", branch))
         .with_default(&String::from("origin"))
         .read()?
         .expect("has default"))
 }
 
-pub fn get_merged_or_gone(repo: &Repository, base: &str) -> Result<MergedOrGone> {
-    let base_remote_ref = resolve_config_base_ref(repo, base)?;
+pub fn get_merged_or_gone(repo: &Repository, config: &Config, base: &str) -> Result<MergedOrGone> {
+    let base_remote_ref = resolve_config_base_ref(repo, config, base)?;
     let mut result = MergedOrGone::default();
     for branch in repo.branches(Some(BranchType::Local))? {
         let (branch, _) = branch?;
         let branch_name = branch.name()?.context("non-utf8 branch name")?;
         debug!("Branch: {:?}", branch.name()?);
-        if let ConfigValue::Implicit(_) = get_remote(repo, branch_name)? {
+        if let ConfigValue::Implicit(_) = get_remote(config, branch_name)? {
             debug!(
                 "Skip: the branch doesn't have a tracking remote: {:?}",
                 branch_name
             );
             continue;
         }
-        if let Some(remote_ref) = get_fetch_remote_ref(repo, branch_name)? {
+        if let Some(remote_ref) = get_fetch_remote_ref(repo, config, branch_name)? {
             if Some(&remote_ref) == Some(&base_remote_ref) {
                 debug!("Skip: the branch is the base: {:?}", branch_name);
                 continue;
@@ -314,8 +323,8 @@ pub fn get_merged_or_gone(repo: &Repository, base: &str) -> Result<MergedOrGone>
         }
         let merged = is_merged(&base_remote_ref, branch_name)?
             || is_squash_merged(&base_remote_ref, branch_name)?;
-        let fetch = get_fetch_remote_ref(repo, branch_name)?;
-        let push = get_push_remote_ref(repo, branch_name)?;
+        let fetch = get_fetch_remote_ref(repo, config, branch_name)?;
+        let push = get_push_remote_ref(repo, config, branch_name)?;
         trace!("merged: {}", merged);
         trace!("fetch: {:?}", fetch);
         trace!("push: {:?}", push);
@@ -364,9 +373,9 @@ pub fn get_merged_or_gone(repo: &Repository, base: &str) -> Result<MergedOrGone>
     Ok(result)
 }
 
-fn resolve_config_base_ref(repo: &Repository, base: &str) -> Result<String> {
+fn resolve_config_base_ref(repo: &Repository, config: &Config, base: &str) -> Result<String> {
     // find "master -> refs/remotes/origin/master"
-    if let Some(remote_ref) = get_fetch_remote_ref(&repo, base)? {
+    if let Some(remote_ref) = get_fetch_remote_ref(&repo, config, base)? {
         trace!("Found fetch remote ref for: {}, {}", base, remote_ref);
         return Ok(remote_ref);
     }
