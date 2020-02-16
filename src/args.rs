@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::fmt::{Display, Error, Formatter};
 use std::process::exit;
+use std::result::Result::Err;
 use std::str::FromStr;
 
 #[derive(structopt::StructOpt, Hash, Eq, PartialEq, Copy, Clone, Debug)]
@@ -22,11 +23,11 @@ impl Display for Category {
     }
 }
 
-#[derive(derive_deref::Deref, Debug)]
+#[derive(derive_deref::Deref, Debug, Clone)]
 pub struct DeleteFilter(HashSet<Category>);
 
 impl FromStr for DeleteFilter {
-    type Err = String;
+    type Err = DeleteFilterParseError;
 
     fn from_str(args: &str) -> Result<DeleteFilter, Self::Err> {
         use Category::*;
@@ -44,8 +45,9 @@ impl FromStr for DeleteFilter {
                 "gone-remote" => &[GoneRemote],
                 _ if arg.is_empty() => &[],
                 _ => {
-                    eprintln!("Error: Unexpected branch category: {}", arg);
-                    exit(-1);
+                    return Err(DeleteFilterParseError {
+                        message: format!("Unexpected branch category: {}", arg),
+                    });
                 }
             };
             result.extend(x.iter().copied());
@@ -54,6 +56,28 @@ impl FromStr for DeleteFilter {
         Ok(DeleteFilter(result))
     }
 }
+
+impl Default for DeleteFilter {
+    fn default() -> Self {
+        use Category::*;
+        DeleteFilter(vec![MergedLocal, MergedRemote].into_iter().collect())
+    }
+}
+
+#[derive(Debug)]
+pub struct DeleteFilterParseError {
+    message: String,
+}
+
+unsafe impl Sync for DeleteFilterParseError {}
+
+impl Display for DeleteFilterParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "DeleteFilterParseError: {}", &self.message)
+    }
+}
+
+impl std::error::Error for DeleteFilterParseError {}
 
 #[derive(structopt::StructOpt)]
 pub struct Args {
