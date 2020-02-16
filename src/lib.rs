@@ -1,14 +1,15 @@
 pub mod args;
+pub mod config;
 
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Direction, ErrorClass, ErrorCode, Repository};
+use git2::{BranchType, Direction, Repository};
 use log::*;
 
 use crate::args::{Category, DeleteFilter};
+use crate::config::{get_config, ConfigValue};
 
 pub fn git(args: &[&str]) -> Result<()> {
     info!("> git {}", args.join(" "));
@@ -155,95 +156,6 @@ impl MergedOrGone {
     }
 }
 
-pub fn get_config_update(repo: &Repository, given: Option<bool>) -> Result<bool> {
-    if let Some(given) = given {
-        return Ok(given);
-    }
-    let config = repo.config()?;
-    match config.get_bool("trim.update") {
-        Ok(value) => Ok(value),
-        Err(err) if config_not_exist(&err) => Ok(true),
-        Err(err) => Err(err.into()),
-    }
-}
-
-#[derive(Debug)]
-pub enum ConfigValue<T> {
-    Explicit { value: T, source: String },
-    Implicit(T),
-}
-
-impl<T> Deref for ConfigValue<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            ConfigValue::Explicit { value: x, .. } | ConfigValue::Implicit(x) => x,
-        }
-    }
-}
-
-impl<T> ConfigValue<T> {
-    pub fn map<F, U>(&self, func: F) -> ConfigValue<U>
-    where
-        F: Fn(&T) -> U,
-    {
-        match self {
-            ConfigValue::Explicit { value, source } => ConfigValue::Explicit {
-                value: func(value),
-                source: source.clone(),
-            },
-            ConfigValue::Implicit(x) => ConfigValue::Implicit(func(x)),
-        }
-    }
-}
-
-pub fn get_config_string(
-    repo: &Repository,
-    given: Option<&String>,
-    key: &str,
-    default: &str,
-) -> Result<ConfigValue<String>> {
-    if let Some(given) = given {
-        return Ok(ConfigValue::Explicit {
-            value: given.clone(),
-            source: "cli".to_string(),
-        });
-    }
-    let config = repo.config()?;
-    match config.get_string(key) {
-        Ok(value) => Ok(ConfigValue::Explicit {
-            value,
-            source: key.to_string(),
-        }),
-        Err(err) if config_not_exist(&err) => Ok(ConfigValue::Implicit(default.to_string())),
-        Err(err) => Err(err.into()),
-    }
-}
-
-pub fn get_config_bool(
-    repo: &Repository,
-    given: Option<bool>,
-    key: &str,
-    default: bool,
-) -> Result<ConfigValue<bool>> {
-    if let Some(given) = given {
-        return Ok(ConfigValue::Explicit {
-            value: given,
-            source: "cli".to_string(),
-        });
-    }
-    let config = repo.config()?;
-    match config.get_bool(key) {
-        Ok(value) => Ok(ConfigValue::Explicit {
-            value,
-            source: key.to_string(),
-        }),
-        Err(err) if config_not_exist(&err) => Ok(ConfigValue::Implicit(default)),
-        Err(err) => Err(err.into()),
-    }
-}
-
 // given refspec for a remote: refs/heads/*:refs/remotes/origin
 // master -> refs/remotes/origin/master
 // refs/head/master -> refs/remotes/origin/master
@@ -254,14 +166,13 @@ fn get_fetch_remote_ref(repo: &Repository, branch: &str) -> Result<Option<String
 
 fn get_remote_ref(repo: &Repository, remote_name: &str, branch: &str) -> Result<Option<String>> {
     let remote = repo.find_remote(remote_name)?;
-    let ref_on_remote = {
-        let config = repo.config()?;
-        match config.get_string(&format!("branch.{}.merge", branch)) {
-            Ok(ref_on_remote) => ref_on_remote,
-            Err(err) if config_not_exist(&err) => return Ok(None),
-            Err(err) => return Err(err.into()),
-        }
-    };
+    let key = format!("branch.{}.merge", branch);
+    let ref_on_remote: ConfigValue<String> =
+        if let Some(ref_on_remote) = get_config(repo, &key).read()? {
+            ref_on_remote
+        } else {
+            return Ok(None);
+        };
     assert!(
         ref_on_remote.starts_with("refs/"),
         "'git config branch.{}.merge' should start with 'refs/'",
@@ -297,7 +208,7 @@ fn expand_refspec_dst(
     }
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Clone)]
 struct RefOnRemote {
     remote_name: String,
     refname: String,
@@ -309,24 +220,22 @@ struct RefOnRemote {
 fn get_push_ref_on_remote(repo: &Repository, branch: &str) -> Result<Option<RefOnRemote>> {
     let remote_name = get_push_remote(repo, branch)?;
 
-    let config = repo.config()?;
-    match config.get_string(&format!("branch.{}.merge", branch)) {
-        Ok(ref_on_remote) => {
-            return Ok(Some(RefOnRemote {
+    if let Some(merge) =
+        get_config(repo, &format!("branch.{}.merge", branch)).parse_with(|ref_on_remote| {
+            Ok(RefOnRemote {
                 remote_name: remote_name.clone(),
-                refname: ref_on_remote,
-            }))
-        }
-        Err(err) if config_not_exist(&err) => {}
-        Err(err) => return Err(err.into()),
-    };
+                refname: ref_on_remote.to_string(),
+            })
+        })?
+    {
+        return Ok(Some(merge.clone()));
+    }
 
-    let config = repo.config()?;
-    let push_default = match config.get_string("push.default") {
-        Ok(value) => value,
-        Err(err) if config_not_exist(&err) => "simple".to_string(),
-        Err(err) => return Err(err.into()),
-    };
+    let push_default = get_config(repo, "push.default")
+        .with_default(&String::from("simple"))
+        .read()?
+        .expect("has default");
+
     match push_default.as_str() {
         "current" => Ok(Some(RefOnRemote {
             remote_name: remote_name.to_string(),
@@ -356,45 +265,26 @@ fn get_push_remote_ref(repo: &Repository, branch: &str) -> Result<Option<String>
 }
 
 fn get_push_remote(repo: &Repository, branch: &str) -> Result<ConfigValue<String>> {
-    let config = repo.config()?;
-
-    let source = format!("branch.{}.pushRemote", branch);
-    match config.get_string(&source) {
-        Ok(value) => return Ok(ConfigValue::Explicit { value, source }),
-        Err(err) if !config_not_exist(&err) => return Err(err.into()),
-        _ => {}
+    if let Some(push_remote) = get_config(repo, &format!("branch.{}.pushRemote", branch))
+        .parse_with(|push_remote| Ok(push_remote.to_string()))?
+    {
+        return Ok(push_remote);
     }
 
-    let source = "remote.pushDefault";
-    match config.get_string(source) {
-        Ok(value) => {
-            return Ok(ConfigValue::Explicit {
-                value,
-                source: source.to_string(),
-            })
-        }
-        Err(err) if !config_not_exist(&err) => return Err(err.into()),
-        _ => {}
+    if let Some(push_default) = get_config(repo, "remote.pushDefault")
+        .parse_with(|push_default| Ok(push_default.to_string()))?
+    {
+        return Ok(push_default);
     }
 
     get_remote(repo, branch)
 }
 
 fn get_remote(repo: &Repository, branch: &str) -> Result<ConfigValue<String>> {
-    let config = repo.config()?;
-
-    let source = format!("branch.{}.remote", branch);
-    match config.get_string(&source) {
-        Ok(value) => return Ok(ConfigValue::Explicit { value, source }),
-        Err(err) if !config_not_exist(&err) => return Err(err.into()),
-        _ => {}
-    }
-
-    Ok(ConfigValue::Implicit("origin".to_string()))
-}
-
-fn config_not_exist(err: &git2::Error) -> bool {
-    err.code() == ErrorCode::NotFound && err.class() == ErrorClass::Config
+    Ok(get_config(repo, &format!("branch.{}.remote", branch))
+        .with_default(&String::from("origin"))
+        .read()?
+        .expect("has default"))
 }
 
 pub fn get_merged_or_gone(repo: &Repository, base: &str) -> Result<MergedOrGone> {

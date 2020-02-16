@@ -1,14 +1,10 @@
-use std::str::FromStr;
-
 use dialoguer::Confirmation;
 use git2::Repository;
 use log::*;
 
 use git_trim::args::{Args, DeleteFilter};
-use git_trim::{
-    delete_local_branches, delete_remote_branches, get_config_bool, get_config_string,
-    get_merged_or_gone, git, ConfigValue,
-};
+use git_trim::config::get_config;
+use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_gone, git};
 
 type Result<T> = ::std::result::Result<T, Error>;
 type Error = Box<dyn std::error::Error>;
@@ -23,19 +19,31 @@ fn main(args: Args) -> Result<()> {
 
     let repo = Repository::open_from_env()?;
 
-    let base = get_config_string(&repo, args.base.as_ref(), "trim.base", "master")?;
-    let update = get_config_bool(&repo, args.update(), "trim.update", true)?;
-    let confirm = get_config_bool(&repo, args.confirm(), "trim.confirm", true)?;
-    let detach = get_config_bool(&repo, args.detach(), "trim.detach", true)?;
-    let filter = if let Some(filter) = args.filter {
-        ConfigValue::Explicit {
-            value: filter,
-            source: "cli".to_string(),
-        }
-    } else {
-        get_config_string(&repo, None, "trim.filter", "merged")?
-            .map(|s| DeleteFilter::from_str(s).unwrap())
-    };
+    let base = get_config(&repo, "trim.base")
+        .with_explicit("cli", args.base.clone())
+        .with_default(&String::from("master"))
+        .read()?
+        .expect("has default");
+    let update = get_config(&repo, "trim.update")
+        .with_explicit("cli", args.update())
+        .with_default(&true)
+        .read()?
+        .expect("has default");
+    let confirm = get_config(&repo, "trim.confirm")
+        .with_explicit("cli", args.confirm())
+        .with_default(&true)
+        .read()?
+        .expect("has default");
+    let detach = get_config(&repo, "trim.detach")
+        .with_explicit("cli", args.detach())
+        .with_default(&true)
+        .read()?
+        .expect("has default");
+    let filter = get_config(&repo, "trim.filter")
+        .with_explicit("cli", args.filter)
+        .with_default(&DeleteFilter::default())
+        .parse()?
+        .expect("has default");
 
     info!("base: {:?}", base);
     info!("update: {:?}", update);
