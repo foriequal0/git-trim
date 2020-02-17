@@ -40,8 +40,8 @@ fn main(args: Args) -> Result<()> {
         .with_default(&true)
         .read()?
         .expect("has default");
-    let filter = config::get(&config, "trim.filter")
-        .with_explicit("cli", args.filter)
+    let filter = config::get(&config, "trim.delete")
+        .with_explicit("cli", args.delete)
         .with_default(&DeleteFilter::default())
         .parse()?
         .expect("has default");
