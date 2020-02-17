@@ -32,25 +32,23 @@ pub fn expand_refspec(
 }
 
 fn expand(reference: &str, src: &str, dest: &str) -> Option<String> {
-    assert_eq!(
-        src.chars().filter(|&c| c == '*').count(),
-        1,
-        "Unsupported glob pattern: {}",
-        src
-    );
-    assert_eq!(
-        dest.chars().filter(|&c| c == '*').count(),
-        1,
-        "Unsupported glob pattern: {}",
+    let src_stars = src.chars().filter(|&c| c == '*').count();
+    let dst_stars = dest.chars().filter(|&c| c == '*').count();
+    assert!(
+        src_stars <= 1 && src_stars == dst_stars,
+        "Unsupported refspec patterns: {}:{}",
+        src,
         dest
     );
-    let star = src.find('*').expect("assert number of '*' == 1");
-    let left = &src[..star];
-    let right = &src[star + 1..];
-    let matched = if reference.starts_with(&left) && reference.ends_with(right) {
-        &reference[left.len()..reference.len() - right.len()]
-    } else {
-        return None;
-    };
-    Some(dest.replace("*", matched))
+    if let Some(star) = src.find('*') {
+        let left = &src[..star];
+        let right = &src[star + 1..];
+        if reference.starts_with(&left) && reference.ends_with(right) {
+            let matched = &reference[left.len()..reference.len() - right.len()];
+            return Some(dest.replace("*", matched));
+        }
+    } else if src == reference {
+        return Some(dest.to_string());
+    }
+    None
 }
