@@ -1,5 +1,6 @@
 pub mod args;
 pub mod config;
+pub mod simple_glob;
 
 use std::collections::{HashMap, HashSet};
 use std::process::{Command, Stdio};
@@ -10,6 +11,7 @@ use log::*;
 
 use crate::args::{Category, DeleteFilter};
 use crate::config::{get_config, ConfigValue};
+use crate::simple_glob::{expand_refspec, ExpansionSide};
 
 pub fn git(args: &[&str]) -> Result<()> {
     info!("> git {}", args.join(" "));
@@ -187,33 +189,22 @@ fn get_remote_ref(
         "'git config branch.{}.merge' should start with 'refs/'",
         branch
     );
-    for refspec in remote.refspecs() {
-        if let Direction::Push = refspec.direction() {
-            continue;
-        }
-        let src = refspec.src().context("non-utf8 src dst")?;
-        let dst = refspec.dst().context("non-utf8 refspec dst")?;
-        return Ok(expand_refspec_dst(repo, &ref_on_remote, &src, dst));
-    }
-    Ok(None)
-}
 
-fn expand_refspec_dst(
-    repo: &Repository,
-    ref_on_remote: &str,
-    src: &str,
-    dst: &str,
-) -> Option<String> {
-    assert!(src.ends_with('*'), "Unsupported src refspec");
-    if !ref_on_remote.starts_with(&src[..src.len() - 1]) {
-        return None;
-    }
-    let expanded = dst.replace("*", &ref_on_remote[src.len() - 1..]);
-    let exists = repo.find_reference(&expanded).is_ok();
-    if exists {
-        Some(expanded)
+    if let Some(expanded) = expand_refspec(
+        &remote,
+        &ref_on_remote,
+        Direction::Fetch,
+        ExpansionSide::Right,
+    )? {
+        // TODO: is this necessary?
+        let exists = repo.find_reference(&expanded).is_ok();
+        if exists {
+            Ok(Some(expanded))
+        } else {
+            Ok(None)
+        }
     } else {
-        None
+        Ok(None)
     }
 }
 
@@ -481,20 +472,13 @@ fn get_remote_name_and_ref_on_remote(
     for remote_name in repo.remotes()?.iter() {
         let remote_name = remote_name.context("non-utf8 remote name")?;
         let remote = repo.find_remote(&remote_name)?;
-        for refspec in remote.refspecs() {
-            if let Direction::Push = refspec.direction() {
-                continue;
-            }
-            let src = refspec.src().context("non-utf8 src dst")?;
-            let dst = refspec.dst().context("non-utf8 refspec dst")?;
-            assert!(dst.ends_with('*'), "Unsupported src refspec");
-            if remote_ref.starts_with(&dst[..dst.len() - 1]) {
-                let expanded = src.replace("*", &remote_ref[dst.len() - 1..]);
-                return Ok((
-                    remote.name().context("non-utf8 remote name")?.to_string(),
-                    expanded,
-                ));
-            }
+        if let Some(expanded) =
+            expand_refspec(&remote, remote_ref, Direction::Fetch, ExpansionSide::Left)?
+        {
+            return Ok((
+                remote.name().context("non-utf8 remote name")?.to_string(),
+                expanded,
+            ));
         }
     }
     unreachable!("matching refspec is not found");
