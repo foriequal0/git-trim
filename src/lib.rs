@@ -223,11 +223,9 @@ struct RefOnRemote {
     refname: String,
 }
 
-// given refspec for a remote: refs/heads/*:refs/heads/*
-// master -> refs/remotes/origin/master
-// refs/head/master -> refs/remotes/origin/master
 fn get_push_ref_on_remote(config: &Config, branch: &str) -> Result<Option<RefOnRemote>> {
     let remote_name = get_push_remote(config, branch)?;
+    // TODO: remote.<name>.push?
 
     if let Some(merge) =
         get_config(config, &format!("branch.{}.merge", branch)).parse_with(|ref_on_remote| {
@@ -260,6 +258,9 @@ fn get_push_ref_on_remote(config: &Config, branch: &str) -> Result<Option<RefOnR
     }
 }
 
+// given refspec for a remote: refs/heads/*:refs/heads/*
+// master -> refs/remotes/origin/master
+// refs/head/master -> refs/remotes/origin/master
 fn get_push_remote_ref(repo: &Repository, config: &Config, branch: &str) -> Result<Option<String>> {
     if let Some(RefOnRemote {
         remote_name,
