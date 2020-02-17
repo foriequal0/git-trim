@@ -1,8 +1,8 @@
 use std::ops::Deref;
+use std::str::FromStr;
 
 use anyhow::Result;
 use git2::{Config, ErrorClass, ErrorCode};
-use std::str::FromStr;
 
 type GitResult<T> = std::result::Result<T, git2::Error>;
 
@@ -37,7 +37,7 @@ pub struct ConfigBuilder<'a, T> {
     default: Option<&'a T>,
 }
 
-pub fn get_config<'a, T>(config: &'a Config, key: &'a str) -> ConfigBuilder<'a, T> {
+pub fn get<'a, T>(config: &'a Config, key: &'a str) -> ConfigBuilder<'a, T> {
     ConfigBuilder {
         config,
         key,
@@ -160,4 +160,27 @@ impl ConfigValues for bool {
 
 fn config_not_exist(err: &git2::Error) -> bool {
     err.code() == ErrorCode::NotFound && err.class() == ErrorClass::Config
+}
+
+pub fn get_push_remote(config: &Config, branch: &str) -> Result<ConfigValue<String>> {
+    if let Some(push_remote) = get(config, &format!("branch.{}.pushRemote", branch))
+        .parse_with(|push_remote| Ok(push_remote.to_string()))?
+    {
+        return Ok(push_remote);
+    }
+
+    if let Some(push_default) =
+        get(config, "remote.pushDefault").parse_with(|push_default| Ok(push_default.to_string()))?
+    {
+        return Ok(push_default);
+    }
+
+    get_remote(config, branch)
+}
+
+pub fn get_remote(config: &Config, branch: &str) -> Result<ConfigValue<String>> {
+    Ok(get(config, &format!("branch.{}.remote", branch))
+        .with_default(&String::from("origin"))
+        .read()?
+        .expect("has default"))
 }
