@@ -3,7 +3,7 @@ use git2::Repository;
 use log::*;
 
 use git_trim::args::{Args, DeleteFilter};
-use git_trim::config::get_config;
+use git_trim::config;
 use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_gone, git};
 
 type Result<T> = ::std::result::Result<T, Error>;
@@ -20,27 +20,27 @@ fn main(args: Args) -> Result<()> {
     let repo = Repository::open_from_env()?;
     let config = repo.config()?.snapshot()?;
 
-    let base = get_config(&config, "trim.base")
+    let base = config::get(&config, "trim.base")
         .with_explicit("cli", args.base.clone())
         .with_default(&String::from("master"))
         .read()?
         .expect("has default");
-    let update = get_config(&config, "trim.update")
+    let update = config::get(&config, "trim.update")
         .with_explicit("cli", args.update())
         .with_default(&true)
         .read()?
         .expect("has default");
-    let confirm = get_config(&config, "trim.confirm")
+    let confirm = config::get(&config, "trim.confirm")
         .with_explicit("cli", args.confirm())
         .with_default(&true)
         .read()?
         .expect("has default");
-    let detach = get_config(&config, "trim.detach")
+    let detach = config::get(&config, "trim.detach")
         .with_explicit("cli", args.detach())
         .with_default(&true)
         .read()?
         .expect("has default");
-    let filter = get_config(&config, "trim.filter")
+    let filter = config::get(&config, "trim.filter")
         .with_explicit("cli", args.filter)
         .with_default(&DeleteFilter::default())
         .parse()?
