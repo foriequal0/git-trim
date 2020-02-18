@@ -11,7 +11,6 @@ use git2::{BranchType, Config, Direction, Repository};
 use log::*;
 
 use crate::args::{Category, DeleteFilter};
-use crate::config::ConfigValue;
 use crate::remote_ref::{get_fetch_remote_ref, get_push_remote_ref};
 use crate::simple_glob::{expand_refspec, ExpansionSide};
 pub use crate::subprocess::remote_update;
@@ -104,11 +103,18 @@ impl MergedOrGone {
 pub fn get_merged_or_gone(repo: &Repository, config: &Config, base: &str) -> Result<MergedOrGone> {
     let base_remote_ref = resolve_config_base_ref(repo, config, base)?;
     let mut result = MergedOrGone::default();
+    // Fast filling ff merged branches
+    let noff_merged_locals = subprocess::get_noff_merged_locals(repo, config, &base_remote_ref)?;
+    result.merged_locals.extend(noff_merged_locals.clone());
+
+    let mut merged_locals = HashSet::new();
+    merged_locals.extend(noff_merged_locals);
+
     for branch in repo.branches(Some(BranchType::Local))? {
         let (branch, _) = branch?;
         let branch_name = branch.name()?.context("non-utf8 branch name")?;
         debug!("Branch: {:?}", branch.name()?);
-        if let ConfigValue::Implicit(_) = config::get_remote(config, branch_name)? {
+        if config::get_remote(config, branch_name)?.is_implicit() {
             debug!(
                 "Skip: the branch doesn't have a tracking remote: {:?}",
                 branch_name
@@ -126,7 +132,8 @@ pub fn get_merged_or_gone(repo: &Repository, config: &Config, base: &str) -> Res
             debug!("Skip: the branch is a symbolic ref: {:?}", branch_name);
             continue;
         }
-        let merged = subprocess::is_merged(repo, &base_remote_ref, branch_name)?
+        let merged = merged_locals.contains(branch_name)
+            || subprocess::is_merged(repo, &base_remote_ref, branch_name)?
             || subprocess::is_squash_merged(repo, &base_remote_ref, branch_name)?;
         let fetch = get_fetch_remote_ref(repo, config, branch_name)?;
         let push = get_push_remote_ref(repo, config, branch_name)?;
