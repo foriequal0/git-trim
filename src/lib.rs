@@ -5,6 +5,7 @@ mod simple_glob;
 mod subprocess;
 
 use std::collections::{HashMap, HashSet};
+use std::convert::TryFrom;
 
 use anyhow::{Context, Result};
 use git2::{BranchType, Config as GitConfig, Direction, Error as GitError, ErrorCode, Repository};
@@ -15,7 +16,6 @@ use crate::args::{Category, DeleteFilter};
 use crate::remote_ref::{get_fetch_remote_ref, get_push_remote_ref};
 use crate::simple_glob::{expand_refspec, ExpansionSide};
 pub use crate::subprocess::remote_update;
-use std::convert::TryFrom;
 
 pub struct Git {
     pub repo: Repository,
@@ -225,6 +225,16 @@ impl MergedOrGone {
         }
         result
     }
+
+    pub fn accumulate(mut self, mut other: Self) -> Self {
+        self.merged_locals.extend(other.merged_locals.drain());
+        self.gone_locals.extend(other.gone_locals.drain());
+        self.kept_back.extend(other.kept_back.drain());
+        self.merged_remotes.extend(other.merged_remotes.drain());
+        self.gone_remotes.extend(other.gone_remotes.drain());
+
+        self
+    }
 }
 
 fn keep_branches(
@@ -289,6 +299,7 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGone> {
     let mut merged_locals = HashSet::new();
     merged_locals.extend(noff_merged_locals);
 
+    let mut base_and_branch_to_compare = Vec::new();
     for branch in git.repo.branches(Some(BranchType::Local))? {
         let (branch, _) = branch?;
         let branch_name = branch.name()?.context("non-utf8 branch name")?;
@@ -321,52 +332,25 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGone> {
             debug!("Skip: the branch is a symbolic ref: {:?}", branch_name);
             continue;
         }
-        let merged = merged_locals.contains(branch_name)
-            || subprocess::is_merged(&git.repo, &base_remote_refs, branch_name)?;
-        let fetch = get_fetch_remote_ref(&git.repo, &git.config, branch_name)?;
-        let push = get_push_remote_ref(&git.repo, &git.config, branch_name)?;
-        trace!("merged: {}", merged);
-        trace!("fetch: {:?}", fetch);
-        trace!("push: {:?}", push);
-        match (fetch, push) {
-            (Some(_), Some(remote_ref)) if merged => {
-                debug!("merged local, merged remote: the branch is merged, but forgot to delete");
-                result.merged_locals.insert(branch_name.to_string());
-                result.merged_remotes.insert(remote_ref);
-            }
-            (Some(_), Some(_)) => {
-                debug!("skip: live branch. not merged, not gone");
-            }
-
-            // `git branch`'s shows `%(upstream)` as s `%(push)` fallback if there isn't a specified push remote.
-            // But our `get_push_remote_ref` doesn't.
-            (Some(fetch_ref), None) if merged => {
-                debug!("merged local, merged remote: the branch is merged, but forgot to delete");
-                result.merged_locals.insert(branch_name.to_string());
-                result.merged_remotes.insert(fetch_ref);
-            }
-            (Some(_), None) => {
-                debug!("skip: it might be a long running branch like 'develop' in a git-flow");
-            }
-
-            (None, Some(remote_ref)) if merged => {
-                debug!("merged remote: it might be a long running branch like 'develop' which is once pushed to the personal git.repo in the triangular workflow, but the branch is merged on the upstream");
-                result.merged_remotes.insert(remote_ref);
-            }
-            (None, Some(remote_ref)) => {
-                debug!("gone remote: it might be a long running branch like 'develop' which is once pushed to the personal git.repo in the triangular workflow, but the branch is gone on the upstream");
-                result.gone_remotes.insert(remote_ref);
-            }
-
-            (None, None) if merged => {
-                debug!("merged local: the branch is merged, and deleted");
-                result.merged_locals.insert(branch_name.to_string());
-            }
-            (None, None) => {
-                debug!("gone local: the branch is not merged but gone somehow");
-                result.gone_locals.insert(branch_name.to_string());
-            }
+        for base_remote_ref in &base_remote_refs {
+            base_and_branch_to_compare.push((base_remote_ref.to_string(), branch_name.to_string()));
         }
+    }
+
+    let classifications = base_and_branch_to_compare
+        .into_iter()
+        .map(|(base_remote_ref, branch_name)| {
+            classify(git, &merged_locals, &base_remote_ref, &branch_name)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    for classification in classifications.into_iter() {
+        debug!("branch: {}", classification.branch_name);
+        trace!("merged: {}", classification.branch_is_merged);
+        trace!("push: {:?}", classification.fetch);
+        trace!("fetch: {:?}", classification.push);
+        debug!("message: {}", classification.message);
+        result = result.accumulate(classification.result);
     }
 
     result.keep_base(&git.repo, &git.config, &config.bases)?;
@@ -377,6 +361,78 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGone> {
     }
 
     Ok(result)
+}
+
+struct Classification {
+    branch_name: String,
+    branch_is_merged: bool,
+    fetch: Option<String>,
+    push: Option<String>,
+    message: &'static str,
+    result: MergedOrGone,
+}
+
+fn classify(
+    git: &Git,
+    merged_locals: &HashSet<String>,
+    base_remote_ref: &str,
+    branch_name: &str,
+) -> Result<Classification> {
+    let merged = merged_locals.contains(branch_name)
+        || subprocess::is_merged(&git.repo, base_remote_ref, branch_name)?;
+    let fetch = get_fetch_remote_ref(&git.repo, &git.config, branch_name)?;
+    let push = get_push_remote_ref(&git.repo, &git.config, branch_name)?;
+
+    let mut c = Classification {
+        branch_name: branch_name.to_string(),
+        branch_is_merged: merged,
+        fetch: fetch.clone(),
+        push: push.clone(),
+        message: "",
+        result: MergedOrGone::default(),
+    };
+
+    match (fetch, push) {
+        (Some(_), Some(remote_ref)) if merged => {
+            c.message = "merged local, merged remote: the branch is merged, but forgot to delete";
+            c.result.merged_locals.insert(branch_name.to_string());
+            c.result.merged_remotes.insert(remote_ref);
+        }
+        (Some(_), Some(_)) => {
+            c.message = "skip: live branch. not merged, not gone";
+        }
+
+        // `git branch`'s shows `%(upstream)` as s `%(push)` fallback if there isn't a specified push remote.
+        // But our `get_push_remote_ref` doesn't.
+        (Some(fetch_ref), None) if merged => {
+            c.message = "merged local, merged remote: the branch is merged, but forgot to delete";
+            c.result.merged_locals.insert(branch_name.to_string());
+            c.result.merged_remotes.insert(fetch_ref);
+        }
+        (Some(_), None) => {
+            c.message = "skip: it might be a long running branch like 'develop' in a git-flow";
+        }
+
+        (None, Some(remote_ref)) if merged => {
+            c.message = "merged remote: it might be a long running branch like 'develop' which is once pushed to the personal git.repo in the triangular workflow, but the branch is merged on the upstream";
+            c.result.merged_remotes.insert(remote_ref);
+        }
+        (None, Some(remote_ref)) => {
+            c.message = "gone remote: it might be a long running branch like 'develop' which is once pushed to the personal git.repo in the triangular workflow, but the branch is gone on the upstream";
+            c.result.gone_remotes.insert(remote_ref);
+        }
+
+        (None, None) if merged => {
+            c.message = "merged local: the branch is merged, and deleted";
+            c.result.merged_locals.insert(branch_name.to_string());
+        }
+        (None, None) => {
+            c.message = "gone local: the branch is not merged but gone somehow";
+            c.result.gone_locals.insert(branch_name.to_string());
+        }
+    }
+
+    Ok(c)
 }
 
 /// if there are following references:
