@@ -126,8 +126,8 @@ pub fn get_merged_or_gone(repo: &Repository, config: &Config, base: &str) -> Res
             debug!("Skip: the branch is a symbolic ref: {:?}", branch_name);
             continue;
         }
-        let merged = subprocess::is_merged(&base_remote_ref, branch_name)?
-            || subprocess::is_squash_merged(&base_remote_ref, branch_name)?;
+        let merged = subprocess::is_merged(repo, &base_remote_ref, branch_name)?
+            || subprocess::is_squash_merged(repo, &base_remote_ref, branch_name)?;
         let fetch = get_fetch_remote_ref(repo, config, branch_name)?;
         let push = get_push_remote_ref(repo, config, branch_name)?;
         trace!("merged: {}", merged);
@@ -220,9 +220,9 @@ pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool
     };
 
     if let Some(head) = detach_to {
-        subprocess::checkout(head, dry_run)?;
+        subprocess::checkout(repo, head, dry_run)?;
     }
-    subprocess::branch_delete(branches, dry_run)?;
+    subprocess::branch_delete(repo, branches, dry_run)?;
 
     Ok(())
 }
@@ -242,7 +242,7 @@ pub fn delete_remote_branches(
         entry.push(ref_on_remote);
     }
     for (remote_name, remote_refnames) in per_remote.iter() {
-        subprocess::push_delete(remote_name, remote_refnames, dry_run)?;
+        subprocess::push_delete(repo, remote_name, remote_refnames, dry_run)?;
     }
     Ok(())
 }

@@ -39,7 +39,7 @@ fn fixture() -> Fixture {
 
 #[test]
 fn test_accepted() -> Result<()> {
-    let _guard = fixture().prepare(
+    let guard = fixture().prepare(
         "local",
         r#"
         origin <<EOF
@@ -50,7 +50,7 @@ fn test_accepted() -> Result<()> {
         "#,
     )?;
 
-    let repo = Repository::open_from_env()?;
+    let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
     let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
@@ -65,7 +65,7 @@ fn test_accepted() -> Result<()> {
 
 #[test]
 fn test_accepted_but_edited() -> Result<()> {
-    let _guard = fixture().prepare(
+    let guard = fixture().prepare(
         "local",
         r#"
         origin <<EOF
@@ -80,7 +80,7 @@ fn test_accepted_but_edited() -> Result<()> {
         EOF
         "#,
     )?;
-    let repo = Repository::open_from_env()?;
+    let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
     let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
@@ -95,7 +95,7 @@ fn test_accepted_but_edited() -> Result<()> {
 
 #[test]
 fn test_accepted_but_forgot_to_delete() -> Result<()> {
-    let _guard = fixture().prepare(
+    let guard = fixture().prepare(
         "local",
         r#"
         origin <<EOF
@@ -104,7 +104,7 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
         EOF
         "#,
     )?;
-    let repo = Repository::open_from_env()?;
+    let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
     let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
@@ -120,7 +120,7 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
 
 #[test]
 fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
-    let _guard = fixture().prepare(
+    let guard = fixture().prepare(
         "local",
         r#"
         origin <<EOF
@@ -134,7 +134,7 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
         EOF
         "#,
     )?;
-    let repo = Repository::open_from_env()?;
+    let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
     let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(branches, MergedOrGone::default(),);
@@ -143,7 +143,7 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
 
 #[test]
 fn test_rejected() -> Result<()> {
-    let _guard = fixture().prepare(
+    let guard = fixture().prepare(
         "local",
         r#"
         origin <<EOF
@@ -151,7 +151,7 @@ fn test_rejected() -> Result<()> {
         EOF
     "#,
     )?;
-    let repo = Repository::open_from_env()?;
+    let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
     let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
@@ -166,7 +166,7 @@ fn test_rejected() -> Result<()> {
 
 #[test]
 fn test_rejected_but_edited() -> Result<()> {
-    let _guard = fixture().prepare(
+    let guard = fixture().prepare(
         "local",
         r#"
         origin <<EOF
@@ -179,7 +179,7 @@ fn test_rejected_but_edited() -> Result<()> {
         EOF
     "#,
     )?;
-    let repo = Repository::open_from_env()?;
+    let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
     let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
@@ -194,8 +194,8 @@ fn test_rejected_but_edited() -> Result<()> {
 
 #[test]
 fn test_rejected_but_forgot_to_delete() -> Result<()> {
-    let _guard = fixture().prepare("local", r#""#)?;
-    let repo = Repository::open_from_env()?;
+    let guard = fixture().prepare("local", r#""#)?;
+    let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
     let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(branches, MergedOrGone::default(),);
@@ -204,7 +204,7 @@ fn test_rejected_but_forgot_to_delete() -> Result<()> {
 
 #[test]
 fn test_rejected_but_forgot_to_delete_and_edited() -> Result<()> {
-    let _guard = fixture().prepare(
+    let guard = fixture().prepare(
         "local",
         r#"
         local <<EOF
@@ -214,7 +214,7 @@ fn test_rejected_but_forgot_to_delete_and_edited() -> Result<()> {
         EOF
     "#,
     )?;
-    let repo = Repository::open_from_env()?;
+    let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
     let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(branches, MergedOrGone::default(),);
