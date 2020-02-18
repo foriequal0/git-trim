@@ -119,3 +119,79 @@ fn test_squash() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+fn test_mixed() -> Result<()> {
+    let fixture = rc().append_fixture_trace(
+        r#"
+        git init origin
+        origin <<EOF
+            git config user.name "Origin Test"
+            git config user.email "origin@test"
+            echo "Hello World!" > README.md
+            git add README.md
+            git commit -m "Initial commit"
+        EOF
+        git clone origin local
+        local <<EOF
+            git config user.name "Local Test"
+            git config user.email "local@test"
+            git config remote.pushdefault origin
+            git config push.default simple
+        EOF
+        # prepare awesome patch
+        mk_test_branches() {
+            BASE=$1
+            NAME=$2
+            COUNT=$3
+            git checkout -b "$NAME" "$BASE"
+            for i in $(seq "$COUNT"); do
+                touch "$NAME-$i"
+                git add "$NAME-$i"
+                git commit -m "Add $NAME-$i"
+            done
+            git push -u origin "$NAME"
+        }
+        local <<EOF
+            mk_test_branches master rebaseme 3
+            mk_test_branches master squashme 3
+            mk_test_branches master noffme 3
+        EOF
+        "#,
+    );
+    let guard = fixture.prepare(
+        "local",
+        r#"
+        origin <<EOF
+            # squash
+            git checkout master
+            git merge squashme --squash && git commit --no-edit
+            git branch -D squashme
+
+            # rebaseme
+            git checkout -b rebase-tmp rebaseme
+            git rebase master
+            git checkout master
+            git merge rebase-tmp --ff-only
+            git branch -D rebase-tmp rebaseme
+
+            # noff
+            git checkout master
+            git merge noffme --no-ff
+            git branch -D noffme
+        EOF
+        "#,
+    )?;
+
+    let repo = Repository::open(guard.working_directory())?;
+    let config = repo.config()?.snapshot()?;
+    let branches = get_merged_or_gone(&repo, &config, "master")?;
+    assert_eq!(
+        branches,
+        MergedOrGone {
+            merged_locals: set! {"squashme", "rebaseme", "noffme"},
+            ..Default::default()
+        },
+    );
+    Ok(())
+}
