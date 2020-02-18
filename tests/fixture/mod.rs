@@ -125,24 +125,22 @@ impl Fixture {
             return Err(Error::from_raw_os_error(exit_status.code().unwrap_or(-1)));
         }
 
-        let previous_pwd = std::env::current_dir()?;
-        std::env::set_current_dir(tempdir.path().join(working_directory))?;
         Ok(FixtureGuard {
-            _tempdir: tempdir,
-            previous_pwd,
+            tempdir,
+            working_directory: working_directory.to_string(),
         })
     }
 }
 
 #[must_use]
 pub struct FixtureGuard {
-    _tempdir: TempDir,
-    previous_pwd: PathBuf,
+    tempdir: TempDir,
+    working_directory: String,
 }
 
-impl<'a> Drop for FixtureGuard {
-    fn drop(&mut self) {
-        std::env::set_current_dir(&self.previous_pwd).unwrap();
+impl FixtureGuard {
+    pub fn working_directory(&self) -> PathBuf {
+        self.tempdir.path().join(&self.working_directory)
     }
 }
 

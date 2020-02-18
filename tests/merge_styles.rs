@@ -42,7 +42,7 @@ fn fixture() -> Fixture {
 
 #[test]
 fn test_noff() -> Result<()> {
-    let _guard = fixture().prepare(
+    let guard = fixture().prepare(
         "local",
         r#"
         origin <<EOF
@@ -53,7 +53,7 @@ fn test_noff() -> Result<()> {
         "#,
     )?;
 
-    let repo = Repository::open_from_env()?;
+    let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
     let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
@@ -68,7 +68,7 @@ fn test_noff() -> Result<()> {
 
 #[test]
 fn test_rebase() -> Result<()> {
-    let _guard = fixture().prepare(
+    let guard = fixture().prepare(
         "local",
         r#"
         origin <<EOF
@@ -81,7 +81,7 @@ fn test_rebase() -> Result<()> {
         "#,
     )?;
 
-    let repo = Repository::open_from_env()?;
+    let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
     let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(
@@ -96,7 +96,7 @@ fn test_rebase() -> Result<()> {
 
 #[test]
 fn test_squash() -> Result<()> {
-    let _guard = fixture().prepare(
+    let guard = fixture().prepare(
         "local",
         r#"
         origin <<EOF
@@ -107,7 +107,7 @@ fn test_squash() -> Result<()> {
         "#,
     )?;
 
-    let repo = Repository::open_from_env()?;
+    let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
     let branches = get_merged_or_gone(&repo, &config, "master")?;
     assert_eq!(

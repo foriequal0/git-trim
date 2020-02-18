@@ -1,12 +1,17 @@
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
-use git2::Reference;
+use git2::{Reference, Repository};
 use log::*;
 
-fn git(args: &[&str]) -> Result<()> {
-    info!("> git {}", args.join(" "));
-    let exit_status = Command::new("git").args(args).status()?;
+fn git(repo: &Repository, args: &[&str]) -> Result<()> {
+    let workdir = repo.workdir().context("Bare repository is not supported")?;
+    let workdir = workdir.to_str().context("non utf-8 workdir")?;
+    info!("> git -C {} {}", workdir, args.join(" "));
+
+    let mut cd_args = vec!["-C", workdir];
+    cd_args.extend_from_slice(args);
+    let exit_status = Command::new("git").args(cd_args).status()?;
     if !exit_status.success() {
         Err(std::io::Error::from_raw_os_error(exit_status.code().unwrap_or(-1)).into())
     } else {
@@ -14,10 +19,15 @@ fn git(args: &[&str]) -> Result<()> {
     }
 }
 
-fn git_output(args: &[&str]) -> Result<String> {
-    info!("> git {}", args.join(" "));
+fn git_output(repo: &Repository, args: &[&str]) -> Result<String> {
+    let workdir = repo.workdir().context("Bare repository is not supported")?;
+    let workdir = workdir.to_str().context("non utf-8 workdir")?;
+    info!("> git -C {} {}", workdir, args.join(" "));
+
+    let mut cd_args = vec!["-C", workdir];
+    cd_args.extend_from_slice(args);
     let output = Command::new("git")
-        .args(args)
+        .args(cd_args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .output()?;
@@ -33,21 +43,24 @@ fn git_output(args: &[&str]) -> Result<String> {
     Ok(str.to_string())
 }
 
-pub fn remote_update() -> Result<()> {
-    git(&["remote", "update", "--prune"])
+pub fn remote_update(repo: &Repository) -> Result<()> {
+    git(repo, &["remote", "update", "--prune"])
 }
 
-pub fn is_merged(base: &str, branch: &str) -> Result<bool> {
+pub fn is_merged(repo: &Repository, base: &str, branch: &str) -> Result<bool> {
     let range = format!("{}...{}", base, branch);
     // Is there any revs that are not applied to the base in the branch?
-    let output = git_output(&[
-        "rev-list",
-        "--cherry-pick",
-        "--right-only",
-        "--no-merges",
-        "-n1",
-        &range,
-    ])?;
+    let output = git_output(
+        repo,
+        &[
+            "rev-list",
+            "--cherry-pick",
+            "--right-only",
+            "--no-merges",
+            "-n1",
+            &range,
+        ],
+    )?;
 
     // empty output means there aren't any revs that are not applied to the base.
     if output.is_empty() {
@@ -58,24 +71,27 @@ pub fn is_merged(base: &str, branch: &str) -> Result<bool> {
 }
 
 /// Source: https://stackoverflow.com/a/56026209
-pub fn is_squash_merged(base: &str, branch: &str) -> Result<bool> {
-    let merge_base = git_output(&["merge-base", base, branch])?;
-    let tree = git_output(&["rev-parse", &format!("{}^{{tree}}", branch)])?;
-    let dangling_commit = git_output(&[
-        "commit-tree",
-        &tree,
-        "-p",
-        &merge_base,
-        "-m",
-        "git-trim: squash merge test",
-    ])?;
-    is_merged(base, &dangling_commit)
+pub fn is_squash_merged(repo: &Repository, base: &str, branch: &str) -> Result<bool> {
+    let merge_base = git_output(repo, &["merge-base", base, branch])?;
+    let tree = git_output(repo, &["rev-parse", &format!("{}^{{tree}}", branch)])?;
+    let dangling_commit = git_output(
+        repo,
+        &[
+            "commit-tree",
+            &tree,
+            "-p",
+            &merge_base,
+            "-m",
+            "git-trim: squash merge test",
+        ],
+    )?;
+    is_merged(repo, base, &dangling_commit)
 }
 
-pub fn checkout(head: Reference, dry_run: bool) -> Result<()> {
+pub fn checkout(repo: &Repository, head: Reference, dry_run: bool) -> Result<()> {
     let head_refname = head.name().context("non-utf8 head ref name")?;
     if !dry_run {
-        git(&["checkout", head_refname])
+        git(repo, &["checkout", head_refname])
     } else {
         info!("> git checkout {} (dry-run)", head_refname);
 
@@ -92,11 +108,11 @@ pub fn checkout(head: Reference, dry_run: bool) -> Result<()> {
     }
 }
 
-pub fn branch_delete(branches: &[&str], dry_run: bool) -> Result<()> {
+pub fn branch_delete(repo: &Repository, branches: &[&str], dry_run: bool) -> Result<()> {
     let mut args = vec!["branch", "--delete", "--force"];
     args.extend(branches);
     if !dry_run {
-        git(&args)
+        git(repo, &args)
     } else {
         for branch in branches {
             info!("> git {} (dry-run)", args.join(" "));
@@ -106,12 +122,17 @@ pub fn branch_delete(branches: &[&str], dry_run: bool) -> Result<()> {
     }
 }
 
-pub fn push_delete(remote_name: &str, remote_refnames: &[String], dry_run: bool) -> Result<()> {
+pub fn push_delete(
+    repo: &Repository,
+    remote_name: &str,
+    remote_refnames: &[String],
+    dry_run: bool,
+) -> Result<()> {
     let mut command = vec!["push", "--delete"];
     if dry_run {
         command.push("--dry-run");
     }
     command.push(remote_name);
     command.extend(remote_refnames.iter().map(String::as_str));
-    git(&command)
+    git(repo, &command)
 }

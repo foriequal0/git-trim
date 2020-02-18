@@ -53,7 +53,7 @@ fn main(args: Args) -> Result<()> {
     info!("filter: {:?}", filter);
 
     if *update {
-        remote_update()?;
+        remote_update(&repo)?;
     }
     let mut branches = get_merged_or_gone(&repo, &config, &base)?;
 
