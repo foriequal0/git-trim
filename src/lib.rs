@@ -1,7 +1,7 @@
 pub mod args;
 pub mod config;
-pub mod remote_ref;
-pub mod simple_glob;
+mod remote_ref;
+mod simple_glob;
 
 use std::collections::{HashMap, HashSet};
 use std::process::{Command, Stdio};
