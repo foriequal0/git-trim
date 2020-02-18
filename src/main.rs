@@ -4,7 +4,7 @@ use log::*;
 
 use git_trim::args::{Args, DeleteFilter};
 use git_trim::config;
-use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_gone, git};
+use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_gone, remote_update};
 
 type Result<T> = ::std::result::Result<T, Error>;
 type Error = Box<dyn std::error::Error>;
@@ -53,7 +53,7 @@ fn main(args: Args) -> Result<()> {
     info!("filter: {:?}", filter);
 
     if *update {
-        git(&["remote", "update", "--prune"])?;
+        remote_update()?;
     }
     let mut branches = get_merged_or_gone(&repo, &config, &base)?;
 
