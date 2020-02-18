@@ -133,8 +133,7 @@ pub fn get_merged_or_gone(repo: &Repository, config: &Config, base: &str) -> Res
             continue;
         }
         let merged = merged_locals.contains(branch_name)
-            || subprocess::is_merged(repo, &base_remote_ref, branch_name)?
-            || subprocess::is_squash_merged(repo, &base_remote_ref, branch_name)?;
+            || subprocess::is_merged(repo, &base_remote_ref, branch_name)?;
         let fetch = get_fetch_remote_ref(repo, config, branch_name)?;
         let push = get_push_remote_ref(repo, config, branch_name)?;
         trace!("merged: {}", merged);

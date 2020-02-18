@@ -51,6 +51,12 @@ pub fn remote_update(repo: &Repository) -> Result<()> {
 }
 
 pub fn is_merged(repo: &Repository, base: &str, branch: &str) -> Result<bool> {
+    let merge_base = git_output(&repo, &["merge-base", base, branch])?;
+    Ok(is_merged_by_rev_list(repo, base, branch)?
+        || is_squash_merged(repo, &merge_base, base, branch)?)
+}
+
+fn is_merged_by_rev_list(repo: &Repository, base: &str, branch: &str) -> Result<bool> {
     let range = format!("{}...{}", base, branch);
     // Is there any revs that are not applied to the base in the branch?
     let output = git_output(
@@ -66,16 +72,11 @@ pub fn is_merged(repo: &Repository, base: &str, branch: &str) -> Result<bool> {
     )?;
 
     // empty output means there aren't any revs that are not applied to the base.
-    if output.is_empty() {
-        Ok(true)
-    } else {
-        Ok(false)
-    }
+    Ok(output.is_empty())
 }
 
 /// Source: https://stackoverflow.com/a/56026209
-pub fn is_squash_merged(repo: &Repository, base: &str, branch: &str) -> Result<bool> {
-    let merge_base = git_output(repo, &["merge-base", base, branch])?;
+fn is_squash_merged(repo: &Repository, merge_base: &str, base: &str, branch: &str) -> Result<bool> {
     let tree = git_output(repo, &["rev-parse", &format!("{}^{{tree}}", branch)])?;
     let dangling_commit = git_output(
         repo,
@@ -88,7 +89,8 @@ pub fn is_squash_merged(repo: &Repository, base: &str, branch: &str) -> Result<b
             "git-trim: squash merge test",
         ],
     )?;
-    is_merged(repo, base, &dangling_commit)
+
+    is_merged_by_rev_list(repo, base, &dangling_commit)
 }
 
 pub fn get_noff_merged_locals(
