@@ -18,6 +18,13 @@ impl<T> ConfigValue<T> {
             ConfigValue::Explicit { value: x, .. } | ConfigValue::Implicit(x) => x,
         }
     }
+
+    pub fn is_implicit(&self) -> bool {
+        match self {
+            ConfigValue::Explicit { .. } => false,
+            ConfigValue::Implicit(_) => true,
+        }
+    }
 }
 
 impl<T> Deref for ConfigValue<T> {
