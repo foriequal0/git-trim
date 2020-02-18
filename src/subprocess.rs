@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
@@ -6,7 +7,6 @@ use log::*;
 
 use crate::config::get_remote;
 use crate::remote_ref::get_fetch_remote_ref;
-use std::collections::HashSet;
 
 fn git(repo: &Repository, args: &[&str]) -> Result<()> {
     let workdir = repo.workdir().context("Bare repository is not supported")?;
@@ -55,16 +55,10 @@ pub fn remote_update(repo: &Repository, dry_run: bool) -> Result<()> {
     }
 }
 
-pub fn is_merged(repo: &Repository, base_remote_refs: &[String], branch: &str) -> Result<bool> {
-    for base_remote_ref in base_remote_refs {
-        let merge_base = git_output(&repo, &["merge-base", base_remote_ref, branch])?;
-        if is_merged_by_rev_list(repo, base_remote_ref, branch)?
-            || is_squash_merged(repo, &merge_base, base_remote_ref, branch)?
-        {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+pub fn is_merged(repo: &Repository, base_remote_ref: &str, branch: &str) -> Result<bool> {
+    let merge_base = git_output(&repo, &["merge-base", base_remote_ref, branch])?;
+    Ok(is_merged_by_rev_list(repo, base_remote_ref, branch)?
+        || is_squash_merged(repo, &merge_base, base_remote_ref, branch)?)
 }
 
 fn is_merged_by_rev_list(repo: &Repository, base: &str, branch: &str) -> Result<bool> {
