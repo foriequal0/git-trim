@@ -2,9 +2,9 @@ pub mod args;
 pub mod config;
 mod remote_ref;
 mod simple_glob;
+mod subprocess;
 
 use std::collections::{HashMap, HashSet};
-use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
 use git2::{BranchType, Config, Direction, Repository};
@@ -14,66 +14,7 @@ use crate::args::{Category, DeleteFilter};
 use crate::config::ConfigValue;
 use crate::remote_ref::{get_fetch_remote_ref, get_push_remote_ref};
 use crate::simple_glob::{expand_refspec, ExpansionSide};
-
-pub fn git(args: &[&str]) -> Result<()> {
-    info!("> git {}", args.join(" "));
-    let exit_status = Command::new("git").args(args).status()?;
-    if !exit_status.success() {
-        Err(std::io::Error::from_raw_os_error(exit_status.code().unwrap_or(-1)).into())
-    } else {
-        Ok(())
-    }
-}
-
-fn git_output(args: &[&str]) -> Result<String> {
-    info!("> git {}", args.join(" "));
-    let output = Command::new("git")
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .output()?;
-    if !output.status.success() {
-        return Err(std::io::Error::from_raw_os_error(output.status.code().unwrap_or(-1)).into());
-    }
-
-    let str = std::str::from_utf8(&output.stdout)?.trim();
-    Ok(str.to_string())
-}
-
-fn is_merged(base: &str, branch: &str) -> Result<bool> {
-    let range = format!("{}...{}", base, branch);
-    // Is there any revs that are not applied to the base in the branch?
-    let output = git_output(&[
-        "rev-list",
-        "--cherry-pick",
-        "--right-only",
-        "--no-merges",
-        "-n1",
-        &range,
-    ])?;
-
-    // empty output means there aren't any revs that are not applied to the base.
-    if output.is_empty() {
-        Ok(true)
-    } else {
-        Ok(false)
-    }
-}
-
-/// Source: https://stackoverflow.com/a/56026209
-fn is_squash_merged(base: &str, branch: &str) -> Result<bool> {
-    let merge_base = git_output(&["merge-base", base, branch])?;
-    let tree = git_output(&["rev-parse", &format!("{}^{{tree}}", branch)])?;
-    let dangling_commit = git_output(&[
-        "commit-tree",
-        &tree,
-        "-p",
-        &merge_base,
-        "-m",
-        "git-trim: squash merge test",
-    ])?;
-    is_merged(base, &dangling_commit)
-}
+pub use crate::subprocess::remote_update;
 
 #[derive(Default, Eq, PartialEq, Debug)]
 pub struct MergedOrGone {
@@ -185,8 +126,8 @@ pub fn get_merged_or_gone(repo: &Repository, config: &Config, base: &str) -> Res
             debug!("Skip: the branch is a symbolic ref: {:?}", branch_name);
             continue;
         }
-        let merged = is_merged(&base_remote_ref, branch_name)?
-            || is_squash_merged(&base_remote_ref, branch_name)?;
+        let merged = subprocess::is_merged(&base_remote_ref, branch_name)?
+            || subprocess::is_squash_merged(&base_remote_ref, branch_name)?;
         let fetch = get_fetch_remote_ref(repo, config, branch_name)?;
         let push = get_push_remote_ref(repo, config, branch_name)?;
         trace!("merged: {}", merged);
@@ -263,8 +204,6 @@ pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool
     if branches.is_empty() {
         return Ok(());
     }
-    let mut args = vec!["branch", "--delete", "--force"];
-    args.extend(branches);
 
     let detach_to = if repo.head_detached()? {
         None
@@ -280,32 +219,11 @@ pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool
         }
     };
 
-    if dry_run {
-        if let Some(head) = detach_to {
-            let head_refname = head.name().context("non-utf8 head ref name")?;
-            info!("> git checkout {} (dry-run)", head_refname);
-
-            println!("Note: switching to '{}' (dry run)", head_refname);
-            println!("You are in 'detached HED' state... blah blah...");
-            let commit = head.peel_to_commit()?;
-            let message = commit.message().context("non-utf8 head ref name")?;
-            println!(
-                "HEAD is now at {} {} (dry run)",
-                &commit.id().to_string()[..7],
-                message.lines().next().unwrap_or_default()
-            );
-        }
-        for branch in branches {
-            info!("> git {} (dry-run)", args.join(" "));
-            println!("Delete branch {} (dry run).", branch);
-        }
-    } else {
-        if let Some(head) = detach_to {
-            let head_refname = head.name().context("non-utf8 head ref name")?;
-            git(&["checkout", head_refname])?;
-        }
-        git(&args)?;
+    if let Some(head) = detach_to {
+        subprocess::checkout(head, dry_run)?;
     }
+    subprocess::branch_delete(branches, dry_run)?;
+
     Ok(())
 }
 
@@ -323,15 +241,8 @@ pub fn delete_remote_branches(
         let entry = per_remote.entry(remote_name).or_insert_with(Vec::new);
         entry.push(ref_on_remote);
     }
-    let mut command = vec!["push", "--delete"];
-    if dry_run {
-        command.push("--dry-run");
-    }
     for (remote_name, remote_refnames) in per_remote.iter() {
-        let mut args = command.clone();
-        args.push(remote_name);
-        args.extend(remote_refnames.iter().map(String::as_str));
-        git(&args)?;
+        subprocess::push_delete(remote_name, remote_refnames, dry_run)?;
     }
     Ok(())
 }
