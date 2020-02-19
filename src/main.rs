@@ -1,8 +1,10 @@
+use std::iter::FromIterator;
+
 use dialoguer::Confirmation;
 use git2::Repository;
 use log::*;
 
-use git_trim::args::{Args, DeleteFilter};
+use git_trim::args::{Args, CommaSeparatedUniqueVec, DeleteFilter};
 use git_trim::config;
 use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_gone, remote_update};
 
@@ -20,10 +22,13 @@ fn main(args: Args) -> Result<()> {
     let repo = Repository::open_from_env()?;
     let config = repo.config()?.snapshot()?;
 
-    let base = config::get(&config, "trim.base")
-        .with_explicit("cli", args.base.clone())
-        .with_default(&String::from("master"))
-        .read()?
+    let bases = config::get(&config, "trim.bases")
+        .with_explicit("cli", CommaSeparatedUniqueVec::flatten(args.bases.clone()))
+        .with_default(&CommaSeparatedUniqueVec::from_iter(vec![
+            String::from("develop"),
+            String::from("master"),
+        ]))
+        .parse()?
         .expect("has default");
     let update = config::get(&config, "trim.update")
         .with_explicit("cli", args.update())
@@ -46,7 +51,7 @@ fn main(args: Args) -> Result<()> {
         .parse()?
         .expect("has default");
 
-    info!("base: {:?}", base);
+    info!("bases: {:?}", bases);
     info!("update: {:?}", update);
     info!("confirm: {:?}", confirm);
     info!("detach: {:?}", detach);
@@ -55,8 +60,10 @@ fn main(args: Args) -> Result<()> {
     if *update {
         remote_update(&repo)?;
     }
-    let mut branches = get_merged_or_gone(&repo, &config, &base)?;
 
+    let mut branches = get_merged_or_gone(&repo, &config, &bases)?;
+
+    branches.keep_base(&repo, &config, &bases)?;
     if *detach {
         branches.adjust_not_to_detach(&repo)?;
     }

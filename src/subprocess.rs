@@ -6,6 +6,7 @@ use log::*;
 
 use crate::config::get_remote;
 use crate::remote_ref::get_fetch_remote_ref;
+use std::collections::HashSet;
 
 fn git(repo: &Repository, args: &[&str]) -> Result<()> {
     let workdir = repo.workdir().context("Bare repository is not supported")?;
@@ -50,10 +51,16 @@ pub fn remote_update(repo: &Repository) -> Result<()> {
     git(repo, &["remote", "update", "--prune"])
 }
 
-pub fn is_merged(repo: &Repository, base: &str, branch: &str) -> Result<bool> {
-    let merge_base = git_output(&repo, &["merge-base", base, branch])?;
-    Ok(is_merged_by_rev_list(repo, base, branch)?
-        || is_squash_merged(repo, &merge_base, base, branch)?)
+pub fn is_merged(repo: &Repository, base_remote_refs: &[String], branch: &str) -> Result<bool> {
+    for base_remote_ref in base_remote_refs {
+        let merge_base = git_output(&repo, &["merge-base", base_remote_ref, branch])?;
+        if is_merged_by_rev_list(repo, base_remote_ref, branch)?
+            || is_squash_merged(repo, &merge_base, base_remote_ref, branch)?
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn is_merged_by_rev_list(repo: &Repository, base: &str, branch: &str) -> Result<bool> {
@@ -96,38 +103,40 @@ fn is_squash_merged(repo: &Repository, merge_base: &str, base: &str, branch: &st
 pub fn get_noff_merged_locals(
     repo: &Repository,
     config: &Config,
-    base_remote_ref: &str,
-) -> Result<Vec<String>> {
-    let output = git_output(
-        repo,
-        &[
-            "branch",
-            "--format",
-            "%(refname:short)",
-            "--merged",
-            base_remote_ref,
-        ],
-    )?;
-    let mut result = Vec::new();
-    for refname in output.lines() {
-        trace!("refname: {}", refname);
-        if get_remote(config, refname)?.is_implicit() {
-            trace!("skip: it is not a tracking branch");
-            continue;
+    base_remote_refs: &[String],
+) -> Result<HashSet<String>> {
+    let mut result = HashSet::new();
+    for base_remote_ref in base_remote_refs {
+        let output = git_output(
+            repo,
+            &[
+                "branch",
+                "--format",
+                "%(refname:short)",
+                "--merged",
+                base_remote_ref,
+            ],
+        )?;
+        for refname in output.lines() {
+            trace!("refname: {}", refname);
+            if get_remote(config, refname)?.is_implicit() {
+                trace!("skip: it is not a tracking branch");
+                continue;
+            }
+            let remote_ref = get_fetch_remote_ref(repo, config, refname)?;
+            if Some(base_remote_ref) == remote_ref.as_ref() {
+                trace!("skip: {} tracks {}", refname, base_remote_ref);
+                continue;
+            }
+            let branch = repo.find_branch(&refname, BranchType::Local)?;
+            if branch.get().symbolic_target().is_some() {
+                trace!("skip: it is symbolic");
+                continue;
+            }
+            let branch_name = branch.name()?.context("no utf-8 branch name")?.to_string();
+            trace!("noff merged local: it is merged to {}", base_remote_ref);
+            result.insert(branch_name);
         }
-        let remote_ref = get_fetch_remote_ref(repo, config, refname)?;
-        if Some(base_remote_ref) == remote_ref.as_deref() {
-            trace!("skip: {} tracks {}", refname, base_remote_ref);
-            continue;
-        }
-        let branch = repo.find_branch(&refname, BranchType::Local)?;
-        if branch.get().symbolic_target().is_some() {
-            trace!("skip: it is symbolic");
-            continue;
-        }
-        let branch_name = branch.name()?.context("no utf-8 branch name")?.to_string();
-        trace!("noff merged local: it is merged to {}", base_remote_ref);
-        result.push(branch_name);
     }
     Ok(result)
 }

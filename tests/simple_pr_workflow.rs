@@ -52,7 +52,7 @@ fn test_accepted() -> Result<()> {
 
     let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, "master")?;
+    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()])?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -82,7 +82,7 @@ fn test_accepted_but_edited() -> Result<()> {
     )?;
     let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, "master")?;
+    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()])?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -106,7 +106,7 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
     )?;
     let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, "master")?;
+    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()])?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -136,7 +136,7 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
     )?;
     let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, "master")?;
+    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()])?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
@@ -153,7 +153,7 @@ fn test_rejected() -> Result<()> {
     )?;
     let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, "master")?;
+    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()])?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -181,7 +181,7 @@ fn test_rejected_but_edited() -> Result<()> {
     )?;
     let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, "master")?;
+    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()])?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -197,7 +197,7 @@ fn test_rejected_but_forgot_to_delete() -> Result<()> {
     let guard = fixture().prepare("local", r#""#)?;
     let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, "master")?;
+    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()])?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
@@ -216,7 +216,7 @@ fn test_rejected_but_forgot_to_delete_and_edited() -> Result<()> {
     )?;
     let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, "master")?;
+    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()])?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
