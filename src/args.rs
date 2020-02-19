@@ -142,11 +142,54 @@ where
     }
 }
 
+#[derive(derive_deref::Deref, Debug, Clone, Default)]
+pub struct CommaSeparatedSet<T: Debug + Eq + Hash>(HashSet<T>);
+
+impl<T> FromStr for CommaSeparatedSet<T>
+where
+    T: FromStr + Clone + Debug + Eq + Hash,
+{
+    type Err = T::Err;
+
+    fn from_str(args: &str) -> Result<Self, Self::Err> {
+        let mut result = HashSet::new();
+        for arg in args.split(',') {
+            result.insert(arg.trim().parse()?);
+        }
+        Ok(Self(result))
+    }
+}
+
+impl<T> CommaSeparatedSet<T>
+where
+    T: Default + Debug + Eq + Hash,
+{
+    fn accumulate(self, other: Self) -> Self {
+        Self(self.0.into_iter().chain(other.0.into_iter()).collect())
+    }
+
+    pub fn flatten<I>(args: I) -> Option<Self>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        let result = args.into_iter().fold(Self::default(), Self::accumulate);
+        if result.len() == 0 {
+            None
+        } else {
+            Some(result)
+        }
+    }
+}
+
 #[derive(structopt::StructOpt)]
 pub struct Args {
     /// Comma separated or a multiple arguments of refs that other refs are compared to determine whether it is merged or gone. [default: master] [config: trim.base]
     #[structopt(short, long, aliases=&["base"])]
     pub bases: Vec<CommaSeparatedUniqueVec<String>>,
+
+    // Comma separated or a multiple arguments of glob pattern of branches that never be deleted.
+    #[structopt(short, long)]
+    pub protected: Vec<CommaSeparatedSet<String>>,
 
     /// Not update remotes [config: trim.update]
     #[structopt(long)]

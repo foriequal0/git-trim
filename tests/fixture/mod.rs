@@ -175,11 +175,9 @@ pub fn rc() -> Fixture {
 macro_rules! set {
     {$($x:expr),*} => ({
         use ::std::collections::HashSet;
-        use ::std::convert::From;
+        use ::std::iter::FromIterator;
 
-        let mut tmp = HashSet::new();
-        $(tmp.insert(From::from($x));)*
-        tmp
+        HashSet::from_iter(vec![$(From::from($x),)*])
     });
     {$($x:expr,)*} => ($crate::set!{$($x),*})
 }

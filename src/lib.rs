@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context, Result};
 use git2::{BranchType, Config, Direction, ErrorCode, Repository};
+use glob::Pattern;
 use log::*;
 
 use crate::args::{Category, DeleteFilter};
@@ -57,6 +58,39 @@ impl MergedOrGone {
         self.kept_back.extend(keep_remote_refs(
             &base_refs,
             "Gone remotes but kept back because it is a base",
+            &mut self.gone_remotes,
+        ));
+        Ok(())
+    }
+
+    pub fn keep_protected(
+        &mut self,
+        repo: &Repository,
+        config: &Config,
+        protected_branches: &HashSet<String>,
+    ) -> Result<()> {
+        let protected_refs = resolve_protected_refs(repo, config, protected_branches)?;
+        trace!("protected_refs: {:#?}", protected_refs);
+        self.kept_back.extend(keep_branches(
+            repo,
+            &protected_refs,
+            "Merged local but kept back because it is protected",
+            &mut self.merged_locals,
+        )?);
+        self.kept_back.extend(keep_branches(
+            repo,
+            &protected_refs,
+            "Gone local but kept back because it is protected",
+            &mut self.gone_locals,
+        )?);
+        self.kept_back.extend(keep_remote_refs(
+            &protected_refs,
+            "Merged remotes but kept back because it is protected",
+            &mut self.merged_remotes,
+        ));
+        self.kept_back.extend(keep_remote_refs(
+            &protected_refs,
+            "Gone remotes but kept back because it is protected",
             &mut self.gone_remotes,
         ));
         Ok(())
@@ -190,14 +224,19 @@ fn keep_remote_refs(
     kept_back
 }
 
-#[allow(clippy::cognitive_complexity)]
+#[allow(clippy::cognitive_complexity, clippy::implicit_hasher)]
 pub fn get_merged_or_gone(
     repo: &Repository,
     config: &Config,
     bases: &[String],
+    protected_branches: &HashSet<String>,
 ) -> Result<MergedOrGone> {
     let base_remote_refs = resolve_base_remote_refs(repo, config, bases)?;
     trace!("base_remote_refs: {:#?}", base_remote_refs);
+
+    let protected_refs = resolve_protected_refs(repo, config, protected_branches)?;
+    trace!("protected_refs: {:#?}", protected_refs);
+
     let mut result = MergedOrGone::default();
     // Fast filling ff merged branches
     let noff_merged_locals = subprocess::get_noff_merged_locals(repo, config, &base_remote_refs)?;
@@ -217,10 +256,20 @@ pub fn get_merged_or_gone(
             );
             continue;
         }
+        if protected_refs.contains(branch_name) {
+            debug!("Skip: the branch is protected branch: {:?}", branch_name);
+            continue;
+        }
         if let Some(remote_ref) = get_fetch_remote_ref(repo, config, branch_name)? {
             if base_remote_refs.contains(&remote_ref) {
                 debug!("Skip: the branch is the base: {:?}", branch_name);
                 continue;
+            }
+            if protected_refs.contains(&remote_ref) {
+                debug!(
+                    "Skip: the branch tracks protected branch: {:?}",
+                    branch_name
+                );
             }
         }
         let reference = branch.get();
@@ -343,6 +392,57 @@ fn resolve_base_remote_refs(
         if base.starts_with("refs/remotes/") {
             result.push(base.to_string());
             continue;
+        }
+    }
+    Ok(result)
+}
+
+/// protected branch patterns
+/// if there are following references:
+/// refs/heads/release-v1.x
+/// refs/remotes/origin/release-v1.x
+/// refs/remotes/upstream/release-v1.x
+/// and release-v1.x tracks upstream/release-v1.x
+///
+/// release-*
+/// -> refs/heads/release-v1.x,
+///    refs/remotes/upstream/release-v1.x,
+/// origin/release-*
+/// -> refs/remotes/origin/release-v1.x
+/// refs/heads/release-*
+/// -> refs/heads/release-v1.x
+/// refs/remotes/origin/release-*
+/// -> refs/remotes/origin/release-v1.x
+#[allow(clippy::implicit_hasher)]
+fn resolve_protected_refs(
+    repo: &Repository,
+    config: &Config,
+    protected_branches: &HashSet<String>,
+) -> Result<HashSet<String>> {
+    let mut result = HashSet::default();
+    for protected in protected_branches {
+        for reference in repo.references_glob(protected)? {
+            let reference = reference?;
+            let refname = reference.name().context("non utf-8 refname")?;
+            result.insert(refname.to_string());
+        }
+        for reference in repo.references_glob(&format!("refs/remotes/{}", protected))? {
+            let reference = reference?;
+            let refname = reference.name().context("non utf-8 refname")?;
+            result.insert(refname.to_string());
+        }
+        for branch in repo.branches(Some(BranchType::Local))? {
+            let (branch, _) = branch?;
+            let branch_name = branch.name()?.context("non utf-8 branch name")?;
+            if Pattern::new(protected)?.matches(branch_name) {
+                result.insert(branch_name.to_string());
+                if let Some(remote_ref) = get_fetch_remote_ref(repo, config, branch_name)? {
+                    result.insert(remote_ref);
+                }
+                let reference = branch.into_reference();
+                let refname = reference.name().context("non utf-8 ref")?;
+                result.insert(refname.to_string());
+            }
         }
     }
     Ok(result)
