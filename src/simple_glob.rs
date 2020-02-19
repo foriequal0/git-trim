@@ -2,6 +2,7 @@ use std::iter::Iterator;
 
 use anyhow::{Context, Result};
 use git2::{Direction, Remote};
+use log::*;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum ExpansionSide {
@@ -24,14 +25,14 @@ pub fn expand_refspec(
             _ => {}
         }
         match side {
-            ExpansionSide::Right => return Ok(expand(&reference, left, right)),
-            ExpansionSide::Left => return Ok(expand(&reference, right, left)),
+            ExpansionSide::Right => return Ok(expand(left, right, &reference)),
+            ExpansionSide::Left => return Ok(expand(right, left, &reference)),
         };
     }
     Ok(None)
 }
 
-fn expand(reference: &str, src: &str, dest: &str) -> Option<String> {
+fn expand(src: &str, dest: &str, reference: &str) -> Option<String> {
     let src_stars = src.chars().filter(|&c| c == '*').count();
     let dst_stars = dest.chars().filter(|&c| c == '*').count();
     assert!(
@@ -40,15 +41,33 @@ fn expand(reference: &str, src: &str, dest: &str) -> Option<String> {
         src,
         dest
     );
-    if let Some(star) = src.find('*') {
-        let left = &src[..star];
-        let right = &src[star + 1..];
-        if reference.starts_with(&left) && reference.ends_with(right) {
-            let matched = &reference[left.len()..reference.len() - right.len()];
-            return Some(dest.replace("*", matched));
+
+    if let Some(matched) = simple_match(src, reference) {
+        Some(dest.replace("*", matched))
+    } else {
+        None
+    }
+}
+
+fn simple_match<'a>(pattern: &str, reference: &'a str) -> Option<&'a str> {
+    let src_stars = pattern.chars().filter(|&c| c == '*').count();
+    if src_stars <= 1 {
+        if let Some(star) = pattern.find('*') {
+            let left = &pattern[..star];
+            let right = &pattern[star + 1..];
+            if reference.starts_with(&left) && reference.ends_with(right) {
+                let matched = &reference[left.len()..reference.len() - right.len()];
+                return Some(matched);
+            }
+        } else if pattern == reference {
+            return Some("");
         }
-    } else if src == reference {
-        return Some(dest.to_string());
+        return None;
+    } else {
+        warn!(
+            "Unsupported refspec patterns, too many asterisks: {}",
+            pattern
+        );
     }
     None
 }
