@@ -100,6 +100,7 @@ impl MergedOrGone {
     }
 }
 
+#[allow(clippy::cognitive_complexity)]
 pub fn get_merged_or_gone(repo: &Repository, config: &Config, base: &str) -> Result<MergedOrGone> {
     let base_remote_ref = resolve_config_base_ref(repo, config, base)?;
     let mut result = MergedOrGone::default();
