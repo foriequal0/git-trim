@@ -1,2 +1,4 @@
 * text
 *.png binary
+
+Cargo.lock linguist-generated=true
