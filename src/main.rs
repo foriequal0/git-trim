@@ -4,7 +4,7 @@ use dialoguer::Confirmation;
 use git2::Repository;
 use log::*;
 
-use git_trim::args::{Args, CommaSeparatedUniqueVec, DeleteFilter};
+use git_trim::args::{Args, CommaSeparatedSet, CommaSeparatedUniqueVec, DeleteFilter};
 use git_trim::config;
 use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_gone, remote_update};
 
@@ -30,6 +30,11 @@ fn main(args: Args) -> Result<()> {
         ]))
         .parse()?
         .expect("has default");
+    let protected = config::get(&config, "trim.protected")
+        .with_explicit("cli", CommaSeparatedSet::flatten(args.protected.clone()))
+        .with_default(&CommaSeparatedSet::default())
+        .parse()?
+        .expect("has default");
     let update = config::get(&config, "trim.update")
         .with_explicit("cli", args.update())
         .with_default(&true)
@@ -52,6 +57,7 @@ fn main(args: Args) -> Result<()> {
         .expect("has default");
 
     info!("bases: {:?}", bases);
+    info!("protected: {:?}", protected);
     info!("update: {:?}", update);
     info!("confirm: {:?}", confirm);
     info!("detach: {:?}", detach);
@@ -61,9 +67,10 @@ fn main(args: Args) -> Result<()> {
         remote_update(&repo, args.dry_run)?;
     }
 
-    let mut branches = get_merged_or_gone(&repo, &config, &bases)?;
+    let mut branches = get_merged_or_gone(&repo, &config, &bases, &protected)?;
 
     branches.keep_base(&repo, &config, &bases)?;
+    branches.keep_protected(&repo, &config, &protected)?;
     if !*detach {
         branches.adjust_not_to_detach(&repo)?;
     }
