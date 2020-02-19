@@ -7,7 +7,7 @@ mod subprocess;
 use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Config, Direction, Repository};
+use git2::{BranchType, Config, Direction, ErrorCode, Repository};
 use log::*;
 
 use crate::args::{Category, DeleteFilter};
@@ -21,14 +21,47 @@ pub struct MergedOrGone {
     pub merged_locals: HashSet<String>,
     pub gone_locals: HashSet<String>,
 
-    pub kept_back_locals: HashSet<String>,
-
     /// remote refs
     pub merged_remotes: HashSet<String>,
     pub gone_remotes: HashSet<String>,
+
+    pub kept_back: HashMap<String, String>,
 }
 
 impl MergedOrGone {
+    pub fn keep_base(
+        &mut self,
+        repo: &Repository,
+        config: &Config,
+        bases: &[String],
+    ) -> Result<()> {
+        let base_refs = resolve_base_refs(repo, config, bases)?;
+        trace!("base_refs: {:#?}", base_refs);
+        self.kept_back.extend(keep_branches(
+            repo,
+            &base_refs,
+            "Merged local but kept back because it is a base",
+            &mut self.merged_locals,
+        )?);
+        self.kept_back.extend(keep_branches(
+            repo,
+            &base_refs,
+            "Gone local but kept back because it is a base",
+            &mut self.gone_locals,
+        )?);
+        self.kept_back.extend(keep_remote_refs(
+            &base_refs,
+            "Merged remotes but kept back because it is a base",
+            &mut self.merged_remotes,
+        ));
+        self.kept_back.extend(keep_remote_refs(
+            &base_refs,
+            "Gone remotes but kept back because it is a base",
+            &mut self.gone_remotes,
+        ));
+        Ok(())
+    }
+
     pub fn adjust_not_to_detach(&mut self, repo: &Repository) -> Result<()> {
         if repo.head_detached()? {
             return Ok(());
@@ -40,11 +73,17 @@ impl MergedOrGone {
 
         if self.merged_locals.contains(head_name) {
             self.merged_locals.remove(head_name);
-            self.kept_back_locals.insert(head_name.to_string());
+            self.kept_back.insert(
+                head_name.to_string(),
+                "Merged local but kept back not to make detached HEAD".to_string(),
+            );
         }
         if self.gone_locals.contains(head_name) {
             self.gone_locals.remove(head_name);
-            self.kept_back_locals.insert(head_name.to_string());
+            self.kept_back.insert(
+                head_name.to_string(),
+                "Gone local but kept back not to make detached HEAD".to_string(),
+            );
         }
         Ok(())
     }
@@ -66,15 +105,15 @@ impl MergedOrGone {
         print(&self.merged_locals, filter, Category::MergedLocal);
         print(&self.merged_remotes, filter, Category::MergedRemote);
 
-        if !self.kept_back_locals.is_empty() {
-            println!("Kept back not to become detached HEAD:");
-            for branch in &self.kept_back_locals {
-                println!("  {}", branch);
-            }
-        }
-
         print(&self.gone_locals, filter, Category::GoneLocal);
         print(&self.gone_remotes, filter, Category::GoneRemote);
+
+        if !self.kept_back.is_empty() {
+            println!("Kept back:");
+            for (branch, reason) in &self.kept_back {
+                println!("  {}\t{}", branch, reason);
+            }
+        }
     }
 
     pub fn get_local_branches_to_delete(&self, filter: &DeleteFilter) -> Vec<&str> {
@@ -100,12 +139,61 @@ impl MergedOrGone {
     }
 }
 
+fn keep_branches(
+    repo: &Repository,
+    protected_refs: &HashSet<String>,
+    reason: &str,
+    branches: &mut HashSet<String>,
+) -> Result<HashMap<String, String>> {
+    let mut kept_back = HashMap::new();
+    let mut bag = HashSet::new();
+    for branch_name in branches.iter() {
+        let branch = repo.find_branch(branch_name, BranchType::Local)?;
+        let reference = branch.into_reference();
+        let refname = reference.name().context("non utf-8 branch ref")?;
+        if protected_refs.contains(branch_name) {
+            bag.insert(branch_name.to_string());
+            bag.insert(refname.to_string());
+            kept_back.insert(branch_name.to_string(), reason.to_string());
+        } else if protected_refs.contains(refname) {
+            bag.insert(branch_name.to_string());
+            kept_back.insert(refname.to_string(), reason.to_string());
+        }
+    }
+    for branch in bag.into_iter() {
+        branches.remove(&branch);
+    }
+    Ok(kept_back)
+}
+
+fn keep_remote_refs(
+    protected_refs: &HashSet<String>,
+    reason: &str,
+    remote_refs: &mut HashSet<String>,
+) -> HashMap<String, String> {
+    let mut kept_back = HashMap::new();
+    for remote_ref in remote_refs.iter() {
+        if protected_refs.contains(remote_ref) {
+            kept_back.insert(remote_ref.to_string(), reason.to_string());
+        }
+    }
+    for remote_ref in kept_back.keys() {
+        remote_refs.remove(remote_ref);
+    }
+    kept_back
+}
+
 #[allow(clippy::cognitive_complexity)]
-pub fn get_merged_or_gone(repo: &Repository, config: &Config, base: &str) -> Result<MergedOrGone> {
-    let base_remote_ref = resolve_config_base_ref(repo, config, base)?;
+pub fn get_merged_or_gone(
+    repo: &Repository,
+    config: &Config,
+    bases: &[String],
+) -> Result<MergedOrGone> {
+    let base_remote_refs = resolve_base_remote_refs(repo, config, bases)?;
+    trace!("base_remote_refs: {:#?}", base_remote_refs);
     let mut result = MergedOrGone::default();
     // Fast filling ff merged branches
-    let noff_merged_locals = subprocess::get_noff_merged_locals(repo, config, &base_remote_ref)?;
+    let noff_merged_locals = subprocess::get_noff_merged_locals(repo, config, &base_remote_refs)?;
     result.merged_locals.extend(noff_merged_locals.clone());
 
     let mut merged_locals = HashSet::new();
@@ -123,7 +211,7 @@ pub fn get_merged_or_gone(repo: &Repository, config: &Config, base: &str) -> Res
             continue;
         }
         if let Some(remote_ref) = get_fetch_remote_ref(repo, config, branch_name)? {
-            if Some(&remote_ref) == Some(&base_remote_ref) {
+            if base_remote_refs.contains(&remote_ref) {
                 debug!("Skip: the branch is the base: {:?}", branch_name);
                 continue;
             }
@@ -134,7 +222,7 @@ pub fn get_merged_or_gone(repo: &Repository, config: &Config, base: &str) -> Res
             continue;
         }
         let merged = merged_locals.contains(branch_name)
-            || subprocess::is_merged(repo, &base_remote_ref, branch_name)?;
+            || subprocess::is_merged(repo, &base_remote_refs, branch_name)?;
         let fetch = get_fetch_remote_ref(repo, config, branch_name)?;
         let push = get_push_remote_ref(repo, config, branch_name)?;
         trace!("merged: {}", merged);
@@ -185,26 +273,72 @@ pub fn get_merged_or_gone(repo: &Repository, config: &Config, base: &str) -> Res
     Ok(result)
 }
 
-fn resolve_config_base_ref(repo: &Repository, config: &Config, base: &str) -> Result<String> {
-    // find "master -> refs/remotes/origin/master"
-    if let Some(remote_ref) = get_fetch_remote_ref(repo, config, base)? {
-        trace!("Found fetch remote ref for: {}, {}", base, remote_ref);
-        return Ok(remote_ref);
-    }
+/// if there are following references:
+/// refs/heads/master
+/// refs/remotes/origin/master
+/// refs/remotes/upstream/master
+/// and master's upstreams:
+/// fetch: upstream/release-v1.x
+/// push: origin/release-v1.x
+///
+/// master
+/// refs/heads/master because it shouldn't be removed from the local
+/// refs/remotes/origin/master because it shouldn't be removed from the push remote
+/// refs/remotes/upstream/master because it shouldn't be remvoed from the fetch remote
+fn resolve_base_refs(
+    repo: &Repository,
+    config: &Config,
+    bases: &[String],
+) -> Result<HashSet<String>> {
+    let mut result = HashSet::new();
+    for base in bases {
+        match repo.find_branch(base, BranchType::Local) {
+            Ok(branch) => {
+                let refname = branch.get().name().context("non utf-8 base branch ref")?;
+                result.insert(base.to_string());
+                result.insert(refname.to_string());
+            }
+            Err(err) if err.code() == ErrorCode::NotFound => continue,
+            Err(err) => return Err(err.into()),
+        }
 
-    // match "origin/master -> refs/remotes/origin/master"
-    if let Ok(remote_ref) = repo.find_reference(&format!("refs/remotes/{}", base)) {
-        let refname = remote_ref.name().context("non-utf8 reference name")?;
-        trace!("Found remote ref for: {}, {}", base, refname);
-        return Ok(refname.to_string());
-    }
+        if let Some(remote_ref) = get_fetch_remote_ref(repo, config, base)? {
+            result.insert(remote_ref);
+        }
 
-    trace!("Not found remote refs. fallback: {}", base);
-    Ok(repo
-        .find_reference(base)?
-        .name()
-        .context("non-utf8 ref")?
-        .to_string())
+        if let Some(remote_ref) = get_push_remote_ref(repo, config, base)? {
+            result.insert(remote_ref);
+        }
+    }
+    Ok(result)
+}
+
+fn resolve_base_remote_refs(
+    repo: &Repository,
+    config: &Config,
+    bases: &[String],
+) -> Result<Vec<String>> {
+    let mut result = Vec::new();
+    for base in bases {
+        // find "master -> refs/remotes/origin/master"
+        if let Some(remote_ref) = get_fetch_remote_ref(repo, config, base)? {
+            result.push(remote_ref);
+            continue;
+        }
+
+        // match "origin/master -> refs/remotes/origin/master"
+        if let Ok(remote_ref) = repo.find_reference(&format!("refs/remotes/{}", base)) {
+            let refname = remote_ref.name().context("non-utf8 reference name")?;
+            result.push(refname.to_string());
+            continue;
+        }
+
+        if base.starts_with("refs/remotes/") {
+            result.push(base.to_string());
+            continue;
+        }
+    }
+    Ok(result)
 }
 
 pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool) -> Result<()> {

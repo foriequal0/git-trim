@@ -1,5 +1,7 @@
 use std::collections::HashSet;
-use std::fmt::{Display, Error, Formatter};
+use std::fmt::{Debug, Display, Error, Formatter};
+use std::hash::Hash;
+use std::iter::FromIterator;
 use std::process::exit;
 use std::str::FromStr;
 
@@ -78,11 +80,73 @@ impl Display for DeleteFilterParseError {
 
 impl std::error::Error for DeleteFilterParseError {}
 
+#[derive(derive_deref::Deref, Debug, Clone, Default)]
+pub struct CommaSeparatedUniqueVec<T: Debug + Eq>(Vec<T>);
+
+impl<T> FromStr for CommaSeparatedUniqueVec<T>
+where
+    T: FromStr + Clone + Debug + Eq,
+{
+    type Err = T::Err;
+
+    fn from_str(args: &str) -> Result<Self, Self::Err> {
+        let mut result = Vec::new();
+        for arg in args.split(',') {
+            let parsed = arg.trim().parse()?;
+            if !result.contains(&parsed) {
+                result.push(parsed);
+            }
+        }
+        Ok(Self(result))
+    }
+}
+
+impl<T> FromIterator<T> for CommaSeparatedUniqueVec<T>
+where
+    T: Default + Debug + Eq,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut result = Vec::new();
+        for item in iter.into_iter() {
+            if !result.contains(&item) {
+                result.push(item);
+            }
+        }
+        Self(result)
+    }
+}
+
+impl<T> CommaSeparatedUniqueVec<T>
+where
+    T: Default + Debug + Eq + Hash,
+{
+    fn accumulate(mut self, other: Self) -> Self {
+        for item in other.0.into_iter() {
+            if !self.0.contains(&item) {
+                self.0.push(item);
+            }
+        }
+        Self(self.0)
+    }
+
+    pub fn flatten<I>(args: I) -> Option<Self>
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        let result = args.into_iter().fold(Self::default(), Self::accumulate);
+        if result.len() == 0 {
+            None
+        } else {
+            Some(result)
+        }
+    }
+}
+
 #[derive(structopt::StructOpt)]
 pub struct Args {
-    /// A ref that other refs are compared to determine whether it is merged or gone. [default: master] [config: trim.base]
+    /// Comma separated or a multiple arguments of refs that other refs are compared to determine whether it is merged or gone. [default: master] [config: trim.base]
     #[structopt(short, long)]
-    pub base: Option<String>,
+    pub bases: Vec<CommaSeparatedUniqueVec<String>>,
 
     /// Not update remotes [config: trim.update]
     #[structopt(long)]

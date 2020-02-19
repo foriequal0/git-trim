@@ -55,7 +55,7 @@ fn test_noff() -> Result<()> {
 
     let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, "master")?;
+    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()])?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -83,7 +83,7 @@ fn test_rebase() -> Result<()> {
 
     let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, "master")?;
+    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()])?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -109,7 +109,7 @@ fn test_squash() -> Result<()> {
 
     let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, "master")?;
+    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()])?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -185,7 +185,7 @@ fn test_mixed() -> Result<()> {
 
     let repo = Repository::open(guard.working_directory())?;
     let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, "master")?;
+    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()])?;
     assert_eq!(
         branches,
         MergedOrGone {
