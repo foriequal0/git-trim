@@ -1,5 +1,5 @@
-use anyhow::Result;
-use git2::{Config, Direction, Repository};
+use anyhow::{Context, Result};
+use git2::{BranchType, Config, Direction, Repository};
 
 use crate::config;
 use crate::config::ConfigValue;
@@ -66,7 +66,7 @@ pub fn get_push_remote_ref(
     if let Some(RefOnRemote {
         remote_name,
         refname,
-    }) = get_push_ref_on_remote(config, branch)?
+    }) = get_push_ref_on_remote(repo, config, branch)?
     {
         if let Some(remote_ref) = get_remote_ref(repo, config, &remote_name, &refname)? {
             return Ok(Some(remote_ref));
@@ -81,19 +81,25 @@ struct RefOnRemote {
     refname: String,
 }
 
-fn get_push_ref_on_remote(config: &Config, branch: &str) -> Result<Option<RefOnRemote>> {
+fn get_push_ref_on_remote(
+    repo: &Repository,
+    config: &Config,
+    branch: &str,
+) -> Result<Option<RefOnRemote>> {
     let remote_name = config::get_push_remote(config, branch)?;
-    // TODO: remote.<name>.push?
 
-    if let Some(merge) =
-        config::get(config, &format!("branch.{}.merge", branch)).parse_with(|ref_on_remote| {
-            Ok(RefOnRemote {
-                remote_name: remote_name.clone(),
-                refname: ref_on_remote.to_string(),
-            })
-        })?
+    let remote = repo.find_remote(&remote_name)?;
+    let reference = repo
+        .find_branch(branch, BranchType::Local)?
+        .into_reference();
+    let refname = reference.name().context("non utf-8 refname")?;
+    if let Some(push_on_remote) =
+        expand_refspec(&remote, refname, Direction::Push, ExpansionSide::Right)?
     {
-        return Ok(Some(merge.clone()));
+        return Ok(Some(RefOnRemote {
+            remote_name: remote_name.to_string(),
+            refname: push_on_remote,
+        }));
     }
 
     let push_default = config::get(config, "push.default")
@@ -107,7 +113,18 @@ fn get_push_ref_on_remote(config: &Config, branch: &str) -> Result<Option<RefOnR
             refname: branch.to_string(),
         })),
         "upstream" | "tracking" | "simple" => {
-            panic!("The current branch foo has no upstream branch.");
+            if let Some(merge) = config::get(config, &format!("branch.{}.merge", branch))
+                .parse_with(|ref_on_remote| {
+                    Ok(RefOnRemote {
+                        remote_name: remote_name.clone(),
+                        refname: ref_on_remote.to_string(),
+                    })
+                })?
+            {
+                Ok(Some(merge.clone()))
+            } else {
+                panic!("The current branch foo has no upstream branch.");
+            }
         }
         "nothing" | "matching" => {
             unimplemented!("push.default=nothing|matching is not implemented.")
