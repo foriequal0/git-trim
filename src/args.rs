@@ -145,7 +145,7 @@ where
 #[derive(structopt::StructOpt)]
 pub struct Args {
     /// Comma separated or a multiple arguments of refs that other refs are compared to determine whether it is merged or gone. [default: master] [config: trim.base]
-    #[structopt(short, long)]
+    #[structopt(short, long, aliases=&["base"])]
     pub bases: Vec<CommaSeparatedUniqueVec<String>>,
 
     /// Not update remotes [config: trim.update]
