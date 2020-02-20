@@ -90,12 +90,17 @@ impl MergedOrGone {
 
     pub fn print_summary(&self, filter: &DeleteFilter) {
         fn print(branches: &HashSet<String>, filter: &DeleteFilter, category: Category) {
-            if filter.contains(&category) && !branches.is_empty() {
+            if branches.is_empty() {
+                return;
+            }
+            let mut branches: Vec<_> = branches.iter().collect();
+            branches.sort();
+            if filter.contains(&category) {
                 println!("Delete {}:", category);
                 for branch in branches {
                     println!("  {}", branch);
                 }
-            } else if !branches.is_empty() {
+            } else {
                 println!("Skip {}:", category);
                 for branch in branches {
                     println!("  {}", branch);
@@ -109,8 +114,10 @@ impl MergedOrGone {
         print(&self.gone_remotes, filter, Category::GoneRemote);
 
         if !self.kept_back.is_empty() {
+            let mut kept_back: Vec<_> = self.kept_back.iter().collect();
+            kept_back.sort();
             println!("Kept back:");
-            for (branch, reason) in &self.kept_back {
+            for (branch, reason) in kept_back {
                 println!("  {}\t{}", branch, reason);
             }
         }
