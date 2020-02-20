@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::fmt::{Display, Error, Formatter};
 use std::process::exit;
-use std::result::Result::Err;
 use std::str::FromStr;
 
 #[derive(structopt::StructOpt, Hash, Eq, PartialEq, Copy, Clone, Debug)]
