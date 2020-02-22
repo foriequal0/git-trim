@@ -7,7 +7,7 @@ mod subprocess;
 use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Config, Direction, ErrorCode, Repository};
+use git2::{BranchType, Config, Direction, Error as GitError, ErrorCode, Repository};
 use glob::Pattern;
 use log::*;
 
@@ -15,6 +15,21 @@ use crate::args::{Category, DeleteFilter};
 use crate::remote_ref::{get_fetch_remote_ref, get_push_remote_ref};
 use crate::simple_glob::{expand_refspec, ExpansionSide};
 pub use crate::subprocess::remote_update;
+use std::convert::TryFrom;
+
+pub struct Git {
+    pub repo: Repository,
+    pub config: Config,
+}
+
+impl TryFrom<Repository> for Git {
+    type Error = GitError;
+
+    fn try_from(repo: Repository) -> Result<Self, Self::Error> {
+        let config = repo.config()?.snapshot()?;
+        Ok(Self { repo, config })
+    }
+}
 
 #[derive(Default, Eq, PartialEq, Debug)]
 pub struct MergedOrGone {
@@ -226,30 +241,30 @@ fn keep_remote_refs(
 
 #[allow(clippy::cognitive_complexity, clippy::implicit_hasher)]
 pub fn get_merged_or_gone(
-    repo: &Repository,
-    config: &Config,
+    git: &Git,
     bases: &[String],
     protected_branches: &HashSet<String>,
 ) -> Result<MergedOrGone> {
-    let base_remote_refs = resolve_base_remote_refs(repo, config, bases)?;
+    let base_remote_refs = resolve_base_remote_refs(&git.repo, &git.config, bases)?;
     trace!("base_remote_refs: {:#?}", base_remote_refs);
 
-    let protected_refs = resolve_protected_refs(repo, config, protected_branches)?;
+    let protected_refs = resolve_protected_refs(&git.repo, &git.config, protected_branches)?;
     trace!("protected_refs: {:#?}", protected_refs);
 
     let mut result = MergedOrGone::default();
     // Fast filling ff merged branches
-    let noff_merged_locals = subprocess::get_noff_merged_locals(repo, config, &base_remote_refs)?;
+    let noff_merged_locals =
+        subprocess::get_noff_merged_locals(&git.repo, &git.config, &base_remote_refs)?;
     result.merged_locals.extend(noff_merged_locals.clone());
 
     let mut merged_locals = HashSet::new();
     merged_locals.extend(noff_merged_locals);
 
-    for branch in repo.branches(Some(BranchType::Local))? {
+    for branch in git.repo.branches(Some(BranchType::Local))? {
         let (branch, _) = branch?;
         let branch_name = branch.name()?.context("non-utf8 branch name")?;
         debug!("Branch: {:?}", branch.name()?);
-        if config::get_remote(config, branch_name)?.is_implicit() {
+        if config::get_remote(&git.config, branch_name)?.is_implicit() {
             debug!(
                 "Skip: the branch doesn't have a tracking remote: {:?}",
                 branch_name
@@ -260,7 +275,7 @@ pub fn get_merged_or_gone(
             debug!("Skip: the branch is protected branch: {:?}", branch_name);
             continue;
         }
-        if let Some(remote_ref) = get_fetch_remote_ref(repo, config, branch_name)? {
+        if let Some(remote_ref) = get_fetch_remote_ref(&git.repo, &git.config, branch_name)? {
             if base_remote_refs.contains(&remote_ref) {
                 debug!("Skip: the branch is the base: {:?}", branch_name);
                 continue;
@@ -278,9 +293,9 @@ pub fn get_merged_or_gone(
             continue;
         }
         let merged = merged_locals.contains(branch_name)
-            || subprocess::is_merged(repo, &base_remote_refs, branch_name)?;
-        let fetch = get_fetch_remote_ref(repo, config, branch_name)?;
-        let push = get_push_remote_ref(repo, config, branch_name)?;
+            || subprocess::is_merged(&git.repo, &base_remote_refs, branch_name)?;
+        let fetch = get_fetch_remote_ref(&git.repo, &git.config, branch_name)?;
+        let push = get_push_remote_ref(&git.repo, &git.config, branch_name)?;
         trace!("merged: {}", merged);
         trace!("fetch: {:?}", fetch);
         trace!("push: {:?}", push);
@@ -307,11 +322,11 @@ pub fn get_merged_or_gone(
             }
 
             (None, Some(remote_ref)) if merged => {
-                debug!("merged remote: it might be a long running branch like 'develop' which is once pushed to the personal repo in the triangular workflow, but the branch is merged on the upstream");
+                debug!("merged remote: it might be a long running branch like 'develop' which is once pushed to the personal git.repo in the triangular workflow, but the branch is merged on the upstream");
                 result.merged_remotes.insert(remote_ref);
             }
             (None, Some(remote_ref)) => {
-                debug!("gone remote: it might be a long running branch like 'develop' which is once pushed to the personal repo in the triangular workflow, but the branch is gone on the upstream");
+                debug!("gone remote: it might be a long running branch like 'develop' which is once pushed to the personal git.repo in the triangular workflow, but the branch is gone on the upstream");
                 result.gone_remotes.insert(remote_ref);
             }
 

@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::iter::FromIterator;
 
 use dialoguer::Confirmation;
@@ -5,7 +6,7 @@ use git2::Repository;
 use log::*;
 
 use git_trim::args::{Args, CommaSeparatedSet, CommaSeparatedUniqueVec, DeleteFilter};
-use git_trim::config;
+use git_trim::{config, Git};
 use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_gone, remote_update};
 
 type Result<T> = ::std::result::Result<T, Error>;
@@ -19,10 +20,9 @@ fn main(args: Args) -> Result<()> {
     info!("COMMIT_DATE: {}", env!("VERGEN_COMMIT_DATE"));
     info!("TARGET_TRIPLE: {}", env!("VERGEN_TARGET_TRIPLE"));
 
-    let repo = Repository::open_from_env()?;
-    let config = repo.config()?.snapshot()?;
+    let git = Git::try_from(Repository::open_from_env()?)?;
 
-    let bases = config::get(&config, "trim.bases")
+    let bases = config::get(&git.config, "trim.bases")
         .with_explicit("cli", CommaSeparatedUniqueVec::flatten(args.bases.clone()))
         .with_default(&CommaSeparatedUniqueVec::from_iter(vec![
             String::from("develop"),
@@ -30,27 +30,27 @@ fn main(args: Args) -> Result<()> {
         ]))
         .parse()?
         .expect("has default");
-    let protected = config::get(&config, "trim.protected")
+    let protected = config::get(&git.config, "trim.protected")
         .with_explicit("cli", CommaSeparatedSet::flatten(args.protected.clone()))
         .with_default(&CommaSeparatedSet::from_iter(bases.iter().cloned()))
         .parse()?
         .expect("has default");
-    let update = config::get(&config, "trim.update")
+    let update = config::get(&git.config, "trim.update")
         .with_explicit("cli", args.update())
         .with_default(&true)
         .read()?
         .expect("has default");
-    let confirm = config::get(&config, "trim.confirm")
+    let confirm = config::get(&git.config, "trim.confirm")
         .with_explicit("cli", args.confirm())
         .with_default(&true)
         .read()?
         .expect("has default");
-    let detach = config::get(&config, "trim.detach")
+    let detach = config::get(&git.config, "trim.detach")
         .with_explicit("cli", args.detach())
         .with_default(&true)
         .read()?
         .expect("has default");
-    let filter = config::get(&config, "trim.delete")
+    let filter = config::get(&git.config, "trim.delete")
         .with_explicit("cli", args.delete)
         .with_default(&DeleteFilter::default())
         .parse()?
@@ -64,15 +64,16 @@ fn main(args: Args) -> Result<()> {
     info!("filter: {:?}", filter);
 
     if *update {
-        remote_update(&repo, args.dry_run)?;
+        remote_update(&git.repo, args.dry_run)?;
     }
 
-    let mut branches = get_merged_or_gone(&repo, &config, &bases, &protected)?;
+    let mut branches = get_merged_or_gone(&git, &bases, &protected)?;
 
-    branches.keep_base(&repo, &config, &bases)?;
-    branches.keep_protected(&repo, &config, &protected)?;
+    branches.keep_base(&git.repo, &git.config, &bases)?;
+    branches.keep_protected(&git.repo, &git.config, &protected)?;
+
     if !*detach {
-        branches.adjust_not_to_detach(&repo)?;
+        branches.adjust_not_to_detach(&git.repo)?;
     }
 
     branches.print_summary(&filter);
@@ -93,7 +94,7 @@ fn main(args: Args) -> Result<()> {
         return Ok(());
     }
 
-    delete_remote_branches(&repo, &remote_refs_to_delete, args.dry_run)?;
-    delete_local_branches(&repo, &local_branches_to_delete, args.dry_run)?;
+    delete_remote_branches(&git.repo, &remote_refs_to_delete, args.dry_run)?;
+    delete_local_branches(&git.repo, &local_branches_to_delete, args.dry_run)?;
     Ok(())
 }
