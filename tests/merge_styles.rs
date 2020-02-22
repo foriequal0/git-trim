@@ -1,9 +1,11 @@
 mod fixture;
 
+use std::convert::TryFrom;
+
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::{get_merged_or_gone, MergedOrGone};
+use git_trim::{get_merged_or_gone, Git, MergedOrGone};
 
 use fixture::{rc, Fixture};
 
@@ -53,9 +55,8 @@ fn test_noff() -> Result<()> {
         "#,
     )?;
 
-    let repo = Repository::open(guard.working_directory())?;
-    let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()], &set! {})?;
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -81,9 +82,8 @@ fn test_rebase() -> Result<()> {
         "#,
     )?;
 
-    let repo = Repository::open(guard.working_directory())?;
-    let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()], &set! {})?;
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -107,9 +107,8 @@ fn test_squash() -> Result<()> {
         "#,
     )?;
 
-    let repo = Repository::open(guard.working_directory())?;
-    let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()], &set! {})?;
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -183,9 +182,8 @@ fn test_mixed() -> Result<()> {
         "#,
     )?;
 
-    let repo = Repository::open(guard.working_directory())?;
-    let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()], &set! {})?;
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
     assert_eq!(
         branches,
         MergedOrGone {

@@ -1,9 +1,11 @@
 mod fixture;
 
+use std::convert::TryFrom;
+
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::{get_merged_or_gone, MergedOrGone};
+use git_trim::{get_merged_or_gone, Git, MergedOrGone};
 
 use fixture::{rc, Fixture};
 
@@ -50,9 +52,8 @@ fn test_accepted() -> Result<()> {
         "#,
     )?;
 
-    let repo = Repository::open(guard.working_directory())?;
-    let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()], &set! {})?;
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -80,9 +81,8 @@ fn test_accepted_but_edited() -> Result<()> {
         EOF
         "#,
     )?;
-    let repo = Repository::open(guard.working_directory())?;
-    let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()], &set! {})?;
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -104,9 +104,8 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
         EOF
         "#,
     )?;
-    let repo = Repository::open(guard.working_directory())?;
-    let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()], &set! {})?;
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -134,9 +133,8 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
         EOF
         "#,
     )?;
-    let repo = Repository::open(guard.working_directory())?;
-    let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()], &set! {})?;
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
@@ -151,9 +149,8 @@ fn test_rejected() -> Result<()> {
         EOF
     "#,
     )?;
-    let repo = Repository::open(guard.working_directory())?;
-    let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()], &set! {})?;
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -179,9 +176,8 @@ fn test_rejected_but_edited() -> Result<()> {
         EOF
     "#,
     )?;
-    let repo = Repository::open(guard.working_directory())?;
-    let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()], &set! {})?;
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -195,9 +191,8 @@ fn test_rejected_but_edited() -> Result<()> {
 #[test]
 fn test_rejected_but_forgot_to_delete() -> Result<()> {
     let guard = fixture().prepare("local", r#""#)?;
-    let repo = Repository::open(guard.working_directory())?;
-    let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()], &set! {})?;
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
@@ -214,9 +209,8 @@ fn test_rejected_but_forgot_to_delete_and_edited() -> Result<()> {
         EOF
     "#,
     )?;
-    let repo = Repository::open(guard.working_directory())?;
-    let config = repo.config()?.snapshot()?;
-    let branches = get_merged_or_gone(&repo, &config, &["master".to_string()], &set! {})?;
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
