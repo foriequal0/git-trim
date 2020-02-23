@@ -6,11 +6,13 @@ mod subprocess;
 
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
+use std::ops::Deref;
 
 use anyhow::{Context, Result};
 use git2::{BranchType, Config as GitConfig, Direction, Error as GitError, ErrorCode, Repository};
 use glob::Pattern;
 use log::*;
+use rayon::prelude::*;
 
 use crate::args::{Category, DeleteFilter};
 use crate::remote_ref::{get_fetch_remote_ref, get_push_remote_ref};
@@ -338,9 +340,16 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGone> {
     }
 
     let classifications = base_and_branch_to_compare
-        .into_iter()
-        .map(|(base_remote_ref, branch_name)| {
-            classify(git, &merged_locals, &base_remote_ref, &branch_name)
+        .into_par_iter()
+        .map({
+            // git's fields are semantically Send + Sync in the `classify`.
+            // They are read only in `classify` function.
+            // It is denoted that it is safe in that case
+            // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
+            let git = ForceSendSync(git);
+            move |(base_remote_ref, branch_name)| {
+                classify(git, &merged_locals, &base_remote_ref, &branch_name)
+            }
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -372,8 +381,9 @@ struct Classification {
     result: MergedOrGone,
 }
 
+/// Make sure repo and config are semantically Send + Sync.
 fn classify(
-    git: &Git,
+    git: ForceSendSync<&Git>,
     merged_locals: &HashSet<String>,
     base_remote_ref: &str,
     branch_name: &str,
@@ -433,6 +443,23 @@ fn classify(
     }
 
     Ok(c)
+}
+
+/// Use with caution.
+/// It makes wrapping type T to be Send + Sync.
+/// Make sure T is semantically Send + Sync
+#[derive(Copy, Clone)]
+struct ForceSendSync<T>(T);
+
+unsafe impl<T> Sync for ForceSendSync<T> {}
+unsafe impl<T> Send for ForceSendSync<T> {}
+
+impl<T> Deref for ForceSendSync<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 /// if there are following references:
