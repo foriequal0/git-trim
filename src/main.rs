@@ -32,7 +32,7 @@ fn main(args: Args) -> Result<()> {
         .expect("has default");
     let protected = config::get(&config, "trim.protected")
         .with_explicit("cli", CommaSeparatedSet::flatten(args.protected.clone()))
-        .with_default(&CommaSeparatedSet::default())
+        .with_default(&CommaSeparatedSet::from_iter(bases.iter().cloned()))
         .parse()?
         .expect("has default");
     let update = config::get(&config, "trim.update")

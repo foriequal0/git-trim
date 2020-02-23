@@ -160,6 +160,19 @@ where
     }
 }
 
+impl<T> FromIterator<T> for CommaSeparatedSet<T>
+where
+    T: Debug + Eq + Hash,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut result = HashSet::new();
+        for item in iter.into_iter() {
+            result.insert(item);
+        }
+        Self(result)
+    }
+}
+
 impl<T> CommaSeparatedSet<T>
 where
     T: Default + Debug + Eq + Hash,
