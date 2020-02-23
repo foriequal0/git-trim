@@ -42,6 +42,14 @@ fn fixture() -> Fixture {
     )
 }
 
+fn config() -> Config<'static> {
+    Config {
+        bases: vec!["master"],
+        protected_branches: set! {},
+        detach: true,
+    }
+}
+
 #[test]
 fn test_noff() -> Result<()> {
     let guard = fixture().prepare(
@@ -56,14 +64,7 @@ fn test_noff() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(
-        &git,
-        &Config {
-            bases: vec!["master"],
-            protected_branches: set! {},
-            detach: true,
-        },
-    )?;
+    let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -90,14 +91,7 @@ fn test_rebase() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(
-        &git,
-        &Config {
-            bases: vec!["master"],
-            protected_branches: set! {},
-            detach: true,
-        },
-    )?;
+    let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -122,14 +116,7 @@ fn test_squash() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(
-        &git,
-        &Config {
-            bases: vec!["master"],
-            protected_branches: set! {},
-            detach: true,
-        },
-    )?;
+    let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -204,14 +191,7 @@ fn test_mixed() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(
-        &git,
-        &Config {
-            bases: vec!["master"],
-            protected_branches: set! {},
-            detach: true,
-        },
-    )?;
+    let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
         branches,
         MergedOrGone {
