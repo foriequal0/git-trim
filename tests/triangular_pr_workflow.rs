@@ -48,6 +48,14 @@ fn fixture() -> Fixture {
     )
 }
 
+fn config() -> Config<'static> {
+    Config {
+        bases: vec!["master"],
+        protected_branches: set! {},
+        detach: true,
+    }
+}
+
 #[test]
 fn test_accepted() -> Result<()> {
     let guard = fixture().prepare(
@@ -67,14 +75,7 @@ fn test_accepted() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(
-        &git,
-        &Config {
-            bases: vec!["master"],
-            protected_branches: set! {},
-            detach: true,
-        },
-    )?;
+    let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -109,14 +110,7 @@ fn test_accepted_but_edited() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(
-        &git,
-        &Config {
-            bases: vec!["master"],
-            protected_branches: set! {},
-            detach: true,
-        },
-    )?;
+    let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -142,14 +136,7 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(
-        &git,
-        &Config {
-            bases: vec!["master"],
-            protected_branches: set! {},
-            detach: true,
-        },
-    )?;
+    let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -181,14 +168,7 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(
-        &git,
-        &Config {
-            bases: vec!["master"],
-            protected_branches: set! {},
-            detach: true,
-        },
-    )?;
+    let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
@@ -206,14 +186,7 @@ fn test_rejected() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(
-        &git,
-        &Config {
-            bases: vec!["master"],
-            protected_branches: set! {},
-            detach: true,
-        },
-    )?;
+    let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -242,14 +215,7 @@ fn test_rejected_but_edited() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(
-        &git,
-        &Config {
-            bases: vec!["master"],
-            protected_branches: set! {},
-            detach: true,
-        },
-    )?;
+    let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -272,14 +238,7 @@ fn test_rejected_but_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(
-        &git,
-        &Config {
-            bases: vec!["master"],
-            protected_branches: set! {},
-            detach: true,
-        },
-    )?;
+    let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
@@ -301,14 +260,7 @@ fn test_rejected_but_forgot_to_delete_and_edited() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(
-        &git,
-        &Config {
-            bases: vec!["master"],
-            protected_branches: set! {},
-            detach: true,
-        },
-    )?;
+    let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
