@@ -34,6 +34,7 @@ impl TryFrom<Repository> for Git {
 pub struct Config<'a> {
     pub bases: &'a [String],
     pub protected_branches: &'a HashSet<String>,
+    pub detach: bool,
 }
 
 #[derive(Default, Eq, PartialEq, Debug)]
@@ -50,12 +51,7 @@ pub struct MergedOrGone {
 }
 
 impl MergedOrGone {
-    pub fn keep_base(
-        &mut self,
-        repo: &Repository,
-        config: &GitConfig,
-        bases: &[String],
-    ) -> Result<()> {
+    fn keep_base(&mut self, repo: &Repository, config: &GitConfig, bases: &[String]) -> Result<()> {
         let base_refs = resolve_base_refs(repo, config, bases)?;
         trace!("base_refs: {:#?}", base_refs);
         self.kept_back.extend(keep_branches(
@@ -83,7 +79,7 @@ impl MergedOrGone {
         Ok(())
     }
 
-    pub fn keep_protected(
+    fn keep_protected(
         &mut self,
         repo: &Repository,
         config: &GitConfig,
@@ -116,7 +112,7 @@ impl MergedOrGone {
         Ok(())
     }
 
-    pub fn adjust_not_to_detach(&mut self, repo: &Repository) -> Result<()> {
+    fn adjust_not_to_detach(&mut self, repo: &Repository) -> Result<()> {
         if repo.head_detached()? {
             return Ok(());
         }
@@ -340,6 +336,13 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGone> {
                 result.gone_locals.insert(branch_name.to_string());
             }
         }
+    }
+
+    result.keep_base(&git.repo, &git.config, config.bases)?;
+    result.keep_protected(&git.repo, &git.config, config.protected_branches)?;
+
+    if !config.detach {
+        result.adjust_not_to_detach(&git.repo)?;
     }
 
     Ok(result)

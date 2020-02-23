@@ -61,6 +61,7 @@ fn test_noff() -> Result<()> {
         &Config {
             bases: &["master".to_string()],
             protected_branches: &set! {},
+            detach: true,
         },
     )?;
     assert_eq!(
@@ -94,6 +95,7 @@ fn test_rebase() -> Result<()> {
         &Config {
             bases: &["master".to_string()],
             protected_branches: &set! {},
+            detach: true,
         },
     )?;
     assert_eq!(
@@ -125,6 +127,7 @@ fn test_squash() -> Result<()> {
         &Config {
             bases: &["master".to_string()],
             protected_branches: &set! {},
+            detach: true,
         },
     )?;
     assert_eq!(
@@ -206,6 +209,7 @@ fn test_mixed() -> Result<()> {
         &Config {
             bases: &["master".to_string()],
             protected_branches: &set! {},
+            detach: true,
         },
     )?;
     assert_eq!(
