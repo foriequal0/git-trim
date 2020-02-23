@@ -67,20 +67,14 @@ fn main(args: Args) -> Result<()> {
         remote_update(&git.repo, args.dry_run)?;
     }
 
-    let mut branches = get_merged_or_gone(
+    let branches = get_merged_or_gone(
         &git,
         &Config {
             bases: &bases,
             protected_branches: &protected,
+            detach: *detach,
         },
     )?;
-
-    branches.keep_base(&git.repo, &git.config, &bases)?;
-    branches.keep_protected(&git.repo, &git.config, &protected)?;
-
-    if !*detach {
-        branches.adjust_not_to_detach(&git.repo)?;
-    }
 
     branches.print_summary(&filter);
 

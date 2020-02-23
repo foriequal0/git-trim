@@ -72,6 +72,7 @@ fn test_accepted() -> Result<()> {
         &Config {
             bases: &["master".to_string()],
             protected_branches: &set! {},
+            detach: true,
         },
     )?;
     assert_eq!(
@@ -113,6 +114,7 @@ fn test_accepted_but_edited() -> Result<()> {
         &Config {
             bases: &["master".to_string()],
             protected_branches: &set! {},
+            detach: true,
         },
     )?;
     assert_eq!(
@@ -145,6 +147,7 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
         &Config {
             bases: &["master".to_string()],
             protected_branches: &set! {},
+            detach: true,
         },
     )?;
     assert_eq!(
@@ -183,6 +186,7 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
         &Config {
             bases: &["master".to_string()],
             protected_branches: &set! {},
+            detach: true,
         },
     )?;
     assert_eq!(branches, MergedOrGone::default(),);
@@ -207,6 +211,7 @@ fn test_rejected() -> Result<()> {
         &Config {
             bases: &["master".to_string()],
             protected_branches: &set! {},
+            detach: true,
         },
     )?;
     assert_eq!(
@@ -242,6 +247,7 @@ fn test_rejected_but_edited() -> Result<()> {
         &Config {
             bases: &["master".to_string()],
             protected_branches: &set! {},
+            detach: true,
         },
     )?;
     assert_eq!(
@@ -271,6 +277,7 @@ fn test_rejected_but_forgot_to_delete() -> Result<()> {
         &Config {
             bases: &["master".to_string()],
             protected_branches: &set! {},
+            detach: true,
         },
     )?;
     assert_eq!(branches, MergedOrGone::default(),);
@@ -299,6 +306,7 @@ fn test_rejected_but_forgot_to_delete_and_edited() -> Result<()> {
         &Config {
             bases: &["master".to_string()],
             protected_branches: &set! {},
+            detach: true,
         },
     )?;
     assert_eq!(branches, MergedOrGone::default(),);
