@@ -148,13 +148,15 @@ impl MergedOrGone {
             if filter.contains(&category) {
                 println!("Delete {}:", category);
                 for branch in branches {
-                    println!("  {}", branch);
+                    println!("  - {}", branch);
                 }
+                println!();
             } else {
                 println!("Skip {}:", category);
                 for branch in branches {
-                    println!("  {}", branch);
+                    println!("    {}", branch);
                 }
+                println!();
             }
         }
         print(&self.merged_locals, filter, Category::MergedLocal);
@@ -168,23 +170,37 @@ impl MergedOrGone {
             kept_back.sort();
             println!("Kept back:");
             for (branch, reason) in kept_back {
-                println!("  {}\t{}", branch, reason);
+                println!("    {}\t{}", branch, reason);
             }
+            println!();
         }
 
         println!("The branches that will remain:");
-        println!(" local branches:");
+        println!("  local branches:");
+        let local_branches_to_delete: HashSet<_> = self
+            .get_local_branches_to_delete(filter)
+            .into_iter()
+            .collect();
         for local_branch in repo.branches(Some(BranchType::Local))? {
             let (branch, _) = local_branch?;
             let name = branch.name()?.context("non utf-8 local branch name")?;
-            println!("  {}", name);
+            if local_branches_to_delete.contains(name) {
+                continue;
+            }
+            println!("    {}", name);
         }
-        println!(" remote branches:");
-        for remote_branch in repo.branches(Some(BranchType::Remote))? {
-            let (branch, _) = remote_branch?;
-            let name = branch.name()?.context("non utf-8 remote branch name")?;
-            println!("  {}", name);
+        println!("  remote references:");
+        let remote_refs_to_delete: HashSet<_> =
+            self.get_remote_refs_to_delete(filter).into_iter().collect();
+        for remote_ref in repo.branches(Some(BranchType::Remote))? {
+            let (branch, _) = remote_ref?;
+            let name = branch.get().name().context("non utf-8 remote ref name")?;
+            if remote_refs_to_delete.contains(name) {
+                continue;
+            }
+            println!("    {}", name);
         }
+        println!();
         Ok(())
     }
 
