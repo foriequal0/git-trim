@@ -32,8 +32,8 @@ impl TryFrom<Repository> for Git {
 }
 
 pub struct Config<'a> {
-    pub bases: &'a [String],
-    pub protected_branches: &'a HashSet<String>,
+    pub bases: Vec<&'a str>,
+    pub protected_branches: HashSet<&'a str>,
     pub detach: bool,
 }
 
@@ -51,7 +51,7 @@ pub struct MergedOrGone {
 }
 
 impl MergedOrGone {
-    fn keep_base(&mut self, repo: &Repository, config: &GitConfig, bases: &[String]) -> Result<()> {
+    fn keep_base(&mut self, repo: &Repository, config: &GitConfig, bases: &[&str]) -> Result<()> {
         let base_refs = resolve_base_refs(repo, config, bases)?;
         trace!("base_refs: {:#?}", base_refs);
         self.kept_back.extend(keep_branches(
@@ -83,7 +83,7 @@ impl MergedOrGone {
         &mut self,
         repo: &Repository,
         config: &GitConfig,
-        protected_branches: &HashSet<String>,
+        protected_branches: &HashSet<&str>,
     ) -> Result<()> {
         let protected_refs = resolve_protected_refs(repo, config, protected_branches)?;
         trace!("protected_refs: {:#?}", protected_refs);
@@ -242,10 +242,11 @@ fn keep_remote_refs(
 
 #[allow(clippy::cognitive_complexity, clippy::implicit_hasher)]
 pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGone> {
-    let base_remote_refs = resolve_base_remote_refs(&git.repo, &git.config, config.bases)?;
+    let base_remote_refs = resolve_base_remote_refs(&git.repo, &git.config, &config.bases)?;
     trace!("base_remote_refs: {:#?}", base_remote_refs);
 
-    let protected_refs = resolve_protected_refs(&git.repo, &git.config, config.protected_branches)?;
+    let protected_refs =
+        resolve_protected_refs(&git.repo, &git.config, &config.protected_branches)?;
     trace!("protected_refs: {:#?}", protected_refs);
 
     let mut result = MergedOrGone::default();
@@ -338,8 +339,8 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGone> {
         }
     }
 
-    result.keep_base(&git.repo, &git.config, config.bases)?;
-    result.keep_protected(&git.repo, &git.config, config.protected_branches)?;
+    result.keep_base(&git.repo, &git.config, &config.bases)?;
+    result.keep_protected(&git.repo, &git.config, &config.protected_branches)?;
 
     if !config.detach {
         result.adjust_not_to_detach(&git.repo)?;
@@ -363,15 +364,15 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGone> {
 fn resolve_base_refs(
     repo: &Repository,
     config: &GitConfig,
-    bases: &[String],
+    bases: &[&str],
 ) -> Result<HashSet<String>> {
     let mut result = HashSet::new();
     for base in bases {
         match repo.find_branch(base, BranchType::Local) {
             Ok(branch) => {
                 let refname = branch.get().name().context("non utf-8 base branch ref")?;
-                result.insert(base.to_string());
-                result.insert(refname.to_string());
+                result.insert((*base).to_string());
+                result.insert((*refname).to_string());
             }
             Err(err) if err.code() == ErrorCode::NotFound => continue,
             Err(err) => return Err(err.into()),
@@ -391,7 +392,7 @@ fn resolve_base_refs(
 fn resolve_base_remote_refs(
     repo: &Repository,
     config: &GitConfig,
-    bases: &[String],
+    bases: &[&str],
 ) -> Result<Vec<String>> {
     let mut result = Vec::new();
     for base in bases {
@@ -409,7 +410,7 @@ fn resolve_base_remote_refs(
         }
 
         if base.starts_with("refs/remotes/") {
-            result.push(base.to_string());
+            result.push((*base).to_string());
             continue;
         }
     }
@@ -436,7 +437,7 @@ fn resolve_base_remote_refs(
 fn resolve_protected_refs(
     repo: &Repository,
     config: &GitConfig,
-    protected_branches: &HashSet<String>,
+    protected_branches: &HashSet<&str>,
 ) -> Result<HashSet<String>> {
     let mut result = HashSet::default();
     for protected in protected_branches {

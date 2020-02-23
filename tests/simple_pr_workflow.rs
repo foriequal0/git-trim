@@ -56,8 +56,8 @@ fn test_accepted() -> Result<()> {
     let branches = get_merged_or_gone(
         &git,
         &Config {
-            bases: &["master".to_string()],
-            protected_branches: &set! {},
+            bases: vec!["master"],
+            protected_branches: set! {},
             detach: true,
         },
     )?;
@@ -92,8 +92,8 @@ fn test_accepted_but_edited() -> Result<()> {
     let branches = get_merged_or_gone(
         &git,
         &Config {
-            bases: &["master".to_string()],
-            protected_branches: &set! {},
+            bases: vec!["master"],
+            protected_branches: set! {},
             detach: true,
         },
     )?;
@@ -122,8 +122,8 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
     let branches = get_merged_or_gone(
         &git,
         &Config {
-            bases: &["master".to_string()],
-            protected_branches: &set! {},
+            bases: vec!["master"],
+            protected_branches: set! {},
             detach: true,
         },
     )?;
@@ -158,8 +158,8 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
     let branches = get_merged_or_gone(
         &git,
         &Config {
-            bases: &["master".to_string()],
-            protected_branches: &set! {},
+            bases: vec!["master"],
+            protected_branches: set! {},
             detach: true,
         },
     )?;
@@ -181,8 +181,8 @@ fn test_rejected() -> Result<()> {
     let branches = get_merged_or_gone(
         &git,
         &Config {
-            bases: &["master".to_string()],
-            protected_branches: &set! {},
+            bases: vec!["master"],
+            protected_branches: set! {},
             detach: true,
         },
     )?;
@@ -215,8 +215,8 @@ fn test_rejected_but_edited() -> Result<()> {
     let branches = get_merged_or_gone(
         &git,
         &Config {
-            bases: &["master".to_string()],
-            protected_branches: &set! {},
+            bases: vec!["master"],
+            protected_branches: set! {},
             detach: true,
         },
     )?;
@@ -237,8 +237,8 @@ fn test_rejected_but_forgot_to_delete() -> Result<()> {
     let branches = get_merged_or_gone(
         &git,
         &Config {
-            bases: &["master".to_string()],
-            protected_branches: &set! {},
+            bases: vec!["master"],
+            protected_branches: set! {},
             detach: true,
         },
     )?;
@@ -262,8 +262,8 @@ fn test_rejected_but_forgot_to_delete_and_edited() -> Result<()> {
     let branches = get_merged_or_gone(
         &git,
         &Config {
-            bases: &["master".to_string()],
-            protected_branches: &set! {},
+            bases: vec!["master"],
+            protected_branches: set! {},
             detach: true,
         },
     )?;

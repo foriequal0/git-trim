@@ -70,8 +70,8 @@ fn main(args: Args) -> Result<()> {
     let branches = get_merged_or_gone(
         &git,
         &Config {
-            bases: &bases,
-            protected_branches: &protected,
+            bases: bases.iter().map(String::as_str).collect(),
+            protected_branches: protected.iter().map(String::as_str).collect(),
             detach: *detach,
         },
     )?;
