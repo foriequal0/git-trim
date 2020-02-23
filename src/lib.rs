@@ -138,7 +138,7 @@ impl MergedOrGone {
         Ok(())
     }
 
-    pub fn print_summary(&self, filter: &DeleteFilter) {
+    pub fn print_summary(&self, repo: &Repository, filter: &DeleteFilter) -> Result<()> {
         fn print(branches: &HashSet<String>, filter: &DeleteFilter, category: Category) {
             if branches.is_empty() {
                 return;
@@ -171,6 +171,21 @@ impl MergedOrGone {
                 println!("  {}\t{}", branch, reason);
             }
         }
+
+        println!("The branches that will remain:");
+        println!(" local branches:");
+        for local_branch in repo.branches(Some(BranchType::Local))? {
+            let (branch, _) = local_branch?;
+            let name = branch.name()?.context("non utf-8 local branch name")?;
+            println!("  {}", name);
+        }
+        println!(" remote branches:");
+        for remote_branch in repo.branches(Some(BranchType::Remote))? {
+            let (branch, _) = remote_branch?;
+            let name = branch.name()?.context("non utf-8 remote branch name")?;
+            println!("  {}", name);
+        }
+        Ok(())
     }
 
     pub fn get_local_branches_to_delete(&self, filter: &DeleteFilter) -> Vec<&str> {

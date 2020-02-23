@@ -76,7 +76,7 @@ fn main(args: Args) -> Result<()> {
         },
     )?;
 
-    branches.print_summary(&filter);
+    branches.print_summary(&git.repo, &filter)?;
 
     let remote_refs_to_delete = branches.get_remote_refs_to_delete(&filter);
     let local_branches_to_delete = branches.get_local_branches_to_delete(&filter);
