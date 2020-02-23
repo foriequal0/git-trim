@@ -64,7 +64,7 @@ fn main(args: Args) -> Result<()> {
     let mut branches = get_merged_or_gone(&repo, &config, &bases)?;
 
     branches.keep_base(&repo, &config, &bases)?;
-    if *detach {
+    if !*detach {
         branches.adjust_not_to_detach(&repo)?;
     }
 
