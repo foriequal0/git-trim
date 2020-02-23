@@ -177,7 +177,7 @@ impl MergedOrGone {
             println!();
         }
 
-        println!("The branches that will remain:");
+        println!("Branches that will remain:");
         println!("  local branches:");
         let local_branches_to_delete: HashSet<_> = self
             .get_local_branches_to_delete(filter)
