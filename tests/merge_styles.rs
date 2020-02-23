@@ -59,8 +59,8 @@ fn test_noff() -> Result<()> {
     let branches = get_merged_or_gone(
         &git,
         &Config {
-            bases: &["master".to_string()],
-            protected_branches: &set! {},
+            bases: vec!["master"],
+            protected_branches: set! {},
             detach: true,
         },
     )?;
@@ -93,8 +93,8 @@ fn test_rebase() -> Result<()> {
     let branches = get_merged_or_gone(
         &git,
         &Config {
-            bases: &["master".to_string()],
-            protected_branches: &set! {},
+            bases: vec!["master"],
+            protected_branches: set! {},
             detach: true,
         },
     )?;
@@ -125,8 +125,8 @@ fn test_squash() -> Result<()> {
     let branches = get_merged_or_gone(
         &git,
         &Config {
-            bases: &["master".to_string()],
-            protected_branches: &set! {},
+            bases: vec!["master"],
+            protected_branches: set! {},
             detach: true,
         },
     )?;
@@ -207,8 +207,8 @@ fn test_mixed() -> Result<()> {
     let branches = get_merged_or_gone(
         &git,
         &Config {
-            bases: &["master".to_string()],
-            protected_branches: &set! {},
+            bases: vec!["master"],
+            protected_branches: set! {},
             detach: true,
         },
     )?;
