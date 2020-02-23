@@ -65,6 +65,7 @@ fn main(args: Args) -> Result<()> {
 
     if *update {
         remote_update(&git.repo, args.dry_run)?;
+        println!();
     }
 
     let branches = get_merged_or_gone(
