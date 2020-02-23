@@ -40,7 +40,6 @@ fn git_output(repo: &Repository, args: &[&str]) -> Result<String> {
     }
 
     let str = std::str::from_utf8(&output.stdout)?.trim();
-    trace!("output:");
     for line in str.lines() {
         trace!("{}", line);
     }
