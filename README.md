@@ -7,6 +7,8 @@ git-trim
 
 `git-trim` automatically trims your git remote tracking branches that are merged or gone.
 
+[Instruction](#instruction) | [Configurations](#configurations) | [FAQ](#faq)
+
 ## Instruction
 
 ### Installation
@@ -21,7 +23,7 @@ You might need to install `libssl-dev` and `pkg-config` packages if you build fr
 1. Don't forget to set an upstream for a branch that you want to trim automatically.
    `git push -u <remote> <branch>` will set an upstream for you on push.
 1. Run `git trim` if you need to trim branches especially after PR reviews. It'll automatically recognize merged or gone branches, and delete it.
-1. If you need more power, try `git trim --filter all`
+1. If you need more power, try `git trim --delete all`
 1. You can also `git trim --dry-run` when you don't trust me.
 
 ## Why have you made this? Show me how it works.
@@ -66,13 +68,79 @@ It can even `push --delete` when you forgot to delete the remote branch if neede
 
 ![gvsc after](images/gvsc-1.png)
 
-## What kind of merge styles that `git-trim` support?
+## Configurations
+
+### `git config trim.bases`
+
+Comma seperated multiple names of branches. All the other branches are compared with those branch's remote reference.
+Base branches are never be deleted.
+
+The default value is `develop,master`.
+
+You can override it with CLI option `--base develop --base master` or `--bases develop,master`
+
+### `git config trim.protected`
+
+Comma seperated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches or local/remote references that should never be deleted.
+You don't have to put bases to the `trim.protected` since they are never be deleted by default.
+
+The default value is ``.
+
+You can override it with CLI option with `--protected release-*`
+
+### `git config trim.delete`
+
+Comma separated values of `all`, `merged`, `gone`, `local`, `remote`, `merged-local`, `merged-remote`, `gone-local`, `gone-remote`.
+`all` is equivalent to `merged-local,merged-remote,gone-local,gone-remote`.
+`merged` is equivalent to `merged-local,merged-remote`.
+`gone` is equivalent to `gone-local,gone-remote`.
+`local` is equivalent to `merged-local,gone-local`.
+`remote` is equivalent to `merged-remote,gone-remote`.
+
+The default value is `merged`.
+
+You can override it with CLI flag with `--delete local`
+
+### `git config trim.update`
+
+A boolean value. `git-trim` will automatically call `git remote update --prune` if it is true.
+
+The default value is `true`.
+
+You can override it with CLI flag with `--update` or `--no-update`.
+
+### `git config trim.update`
+
+A boolean value. `git-trim` will automatically call `git remote update --prune` if it is true.
+
+The default value is `true`.
+
+You can override it with CLI flag with `--update` or `--no-update`.
+
+### `git config trim.confirm`
+
+A boolean value. `git-trim` will require you to put 'y/n' before destructive actions.
+
+The default value is `true`.
+
+You can override it with CLI flag with `--confirm` or `--no-confirm`.
+
+### `git config trim.detach`
+
+A boolean value. `git-trim` will let the local repo in the detached HEAD state when it is true and the current branch will be deleted.
+
+The default value is `true`.
+
+You can override it with CLI flag with `--detach` or `--no-detach`.
+
+## FAQ
+### What kind of merge styles that `git-trim` support?
 
 * A classic merge with a merge commit with `git merge --no-ff`
 * A rebase merge with `git merge --ff-only`
 * A squash merge with `git merge --squash` (With this method: https://stackoverflow.com/a/56026209)
 
-## What is the difference between the `merged` and `gone` branch?
+### What is the difference between the `merged` and `gone` branch?
 
 A merged branch is a branch that you can safely remove them.
 It is already merged into the base branch, so you're not going to lose the changes.
