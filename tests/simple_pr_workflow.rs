@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::{get_merged_or_gone, Git, MergedOrGone};
+use git_trim::{get_merged_or_gone, Config, Git, MergedOrGone};
 
 use fixture::{rc, Fixture};
 
@@ -53,7 +53,13 @@ fn test_accepted() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
+    let branches = get_merged_or_gone(
+        &git,
+        &Config {
+            bases: &["master".to_string()],
+            protected_branches: &set! {},
+        },
+    )?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -82,7 +88,13 @@ fn test_accepted_but_edited() -> Result<()> {
         "#,
     )?;
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
+    let branches = get_merged_or_gone(
+        &git,
+        &Config {
+            bases: &["master".to_string()],
+            protected_branches: &set! {},
+        },
+    )?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -105,7 +117,13 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
         "#,
     )?;
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
+    let branches = get_merged_or_gone(
+        &git,
+        &Config {
+            bases: &["master".to_string()],
+            protected_branches: &set! {},
+        },
+    )?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -134,7 +152,13 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
         "#,
     )?;
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
+    let branches = get_merged_or_gone(
+        &git,
+        &Config {
+            bases: &["master".to_string()],
+            protected_branches: &set! {},
+        },
+    )?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
@@ -150,7 +174,13 @@ fn test_rejected() -> Result<()> {
     "#,
     )?;
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
+    let branches = get_merged_or_gone(
+        &git,
+        &Config {
+            bases: &["master".to_string()],
+            protected_branches: &set! {},
+        },
+    )?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -177,7 +207,13 @@ fn test_rejected_but_edited() -> Result<()> {
     "#,
     )?;
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
+    let branches = get_merged_or_gone(
+        &git,
+        &Config {
+            bases: &["master".to_string()],
+            protected_branches: &set! {},
+        },
+    )?;
     assert_eq!(
         branches,
         MergedOrGone {
@@ -192,7 +228,13 @@ fn test_rejected_but_edited() -> Result<()> {
 fn test_rejected_but_forgot_to_delete() -> Result<()> {
     let guard = fixture().prepare("local", r#""#)?;
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
+    let branches = get_merged_or_gone(
+        &git,
+        &Config {
+            bases: &["master".to_string()],
+            protected_branches: &set! {},
+        },
+    )?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
@@ -210,7 +252,13 @@ fn test_rejected_but_forgot_to_delete_and_edited() -> Result<()> {
     "#,
     )?;
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(&git, &["master".to_string()], &set! {})?;
+    let branches = get_merged_or_gone(
+        &git,
+        &Config {
+            bases: &["master".to_string()],
+            protected_branches: &set! {},
+        },
+    )?;
     assert_eq!(branches, MergedOrGone::default(),);
     Ok(())
 }
