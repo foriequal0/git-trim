@@ -6,7 +6,7 @@ use git2::Repository;
 use log::*;
 
 use git_trim::args::{Args, CommaSeparatedSet, CommaSeparatedUniqueVec, DeleteFilter};
-use git_trim::{config, Git};
+use git_trim::{config, Config, Git};
 use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_gone, remote_update};
 
 type Result<T> = ::std::result::Result<T, Error>;
@@ -67,7 +67,13 @@ fn main(args: Args) -> Result<()> {
         remote_update(&git.repo, args.dry_run)?;
     }
 
-    let mut branches = get_merged_or_gone(&git, &bases, &protected)?;
+    let mut branches = get_merged_or_gone(
+        &git,
+        &Config {
+            bases: &bases,
+            protected_branches: &protected,
+        },
+    )?;
 
     branches.keep_base(&git.repo, &git.config, &bases)?;
     branches.keep_protected(&git.repo, &git.config, &protected)?;
