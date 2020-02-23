@@ -46,8 +46,13 @@ fn git_output(repo: &Repository, args: &[&str]) -> Result<String> {
     Ok(str.to_string())
 }
 
-pub fn remote_update(repo: &Repository) -> Result<()> {
-    git(repo, &["remote", "update", "--prune"])
+pub fn remote_update(repo: &Repository, dry_run: bool) -> Result<()> {
+    if !dry_run {
+        git(repo, &["remote", "update", "--prune"])
+    } else {
+        info!("> git remote update --prune (dry-run)");
+        Ok(())
+    }
 }
 
 pub fn is_merged(repo: &Repository, base_remote_refs: &[String], branch: &str) -> Result<bool> {
