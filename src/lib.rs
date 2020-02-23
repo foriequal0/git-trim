@@ -311,7 +311,6 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGone> {
             // But our `get_push_remote_ref` doesn't.
             (Some(fetch_ref), None) if merged => {
                 debug!("merged local, merged remote: the branch is merged, but forgot to delete");
-                // TODO: it might be a long running branch like 'develop' in a git-flow
                 result.merged_locals.insert(branch_name.to_string());
                 result.merged_remotes.insert(fetch_ref);
             }
