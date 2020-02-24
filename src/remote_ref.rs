@@ -123,7 +123,7 @@ fn get_push_ref_on_remote(
             {
                 Ok(Some(merge.clone()))
             } else {
-                panic!("The current branch foo has no upstream branch.");
+                panic!("The current branch {} has no upstream branch.", branch);
             }
         }
         "nothing" | "matching" => {
