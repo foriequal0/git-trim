@@ -348,7 +348,12 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGone> {
             // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
             let git = ForceSendSync(git);
             move |(base_remote_ref, branch_name)| {
-                classify(git, &merged_locals, &base_remote_ref, &branch_name)
+                classify(git, &merged_locals, &base_remote_ref, &branch_name).with_context(|| {
+                    format!(
+                        "base_remote_ref={}, branch_name={}",
+                        base_remote_ref, branch_name
+                    )
+                })
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
