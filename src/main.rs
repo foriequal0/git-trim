@@ -23,7 +23,7 @@ fn main(args: Args) -> Result<()> {
     let git = Git::try_from(Repository::open_from_env()?)?;
 
     let bases = config::get(&git.config, "trim.bases")
-        .with_explicit("cli", CommaSeparatedUniqueVec::flatten(args.bases.clone()))
+        .with_explicit("cli", flatten_collect(args.bases.clone()).into_option())
         .with_default(&CommaSeparatedUniqueVec::from_iter(vec![
             String::from("develop"),
             String::from("master"),
@@ -31,7 +31,7 @@ fn main(args: Args) -> Result<()> {
         .parse()?
         .expect("has default");
     let protected = config::get(&git.config, "trim.protected")
-        .with_explicit("cli", CommaSeparatedSet::flatten(args.protected.clone()))
+        .with_explicit("cli", flatten_collect(args.protected.clone()).into_option())
         .with_default(&CommaSeparatedSet::from_iter(bases.iter().cloned()))
         .parse()?
         .expect("has default");
@@ -98,4 +98,13 @@ fn main(args: Args) -> Result<()> {
     delete_remote_branches(&git.repo, &remote_refs_to_delete, args.dry_run)?;
     delete_local_branches(&git.repo, &local_branches_to_delete, args.dry_run)?;
     Ok(())
+}
+
+fn flatten_collect<I, C, T>(iter: I) -> C
+where
+    I: IntoIterator<Item = C>,
+    C: FromIterator<T> + IntoIterator<Item = T>,
+{
+    let containers = iter.into_iter();
+    containers.flatten().collect()
 }
