@@ -81,11 +81,11 @@ impl Display for DeleteFilterParseError {
 impl std::error::Error for DeleteFilterParseError {}
 
 #[derive(derive_deref::Deref, Debug, Clone, Default)]
-pub struct CommaSeparatedUniqueVec<T: Debug + Eq>(Vec<T>);
+pub struct CommaSeparatedUniqueVec<T>(Vec<T>);
 
 impl<T> FromStr for CommaSeparatedUniqueVec<T>
 where
-    T: FromStr + Clone + Debug + Eq,
+    T: FromStr + PartialEq,
 {
     type Err = T::Err;
 
@@ -93,19 +93,20 @@ where
         let mut result = Vec::new();
         for arg in args.split(',') {
             let parsed = arg.trim().parse()?;
-            if !result.contains(&parsed) {
-                result.push(parsed);
-            }
+            result.push(parsed);
         }
-        Ok(Self(result))
+        Ok(Self::from_iter(result))
     }
 }
 
 impl<T> FromIterator<T> for CommaSeparatedUniqueVec<T>
 where
-    T: Default + Debug + Eq,
+    T: PartialEq,
 {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
         let mut result = Vec::new();
         for item in iter.into_iter() {
             if !result.contains(&item) {
@@ -116,28 +117,21 @@ where
     }
 }
 
-impl<T> CommaSeparatedUniqueVec<T>
-where
-    T: Default + Debug + Eq + Hash,
-{
-    fn accumulate(mut self, other: Self) -> Self {
-        for item in other.0.into_iter() {
-            if !self.0.contains(&item) {
-                self.0.push(item);
-            }
-        }
-        Self(self.0)
-    }
+impl<T> IntoIterator for CommaSeparatedUniqueVec<T> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<T>;
 
-    pub fn flatten<I>(args: I) -> Option<Self>
-    where
-        I: IntoIterator<Item = Self>,
-    {
-        let result = args.into_iter().fold(Self::default(), Self::accumulate);
-        if result.len() == 0 {
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<T> CommaSeparatedUniqueVec<T> {
+    pub fn into_option(self) -> Option<Self> {
+        if self.0.len() == 0 {
             None
         } else {
-            Some(result)
+            Some(self)
         }
     }
 }
@@ -147,16 +141,16 @@ pub struct CommaSeparatedSet<T: Debug + Eq + Hash>(HashSet<T>);
 
 impl<T> FromStr for CommaSeparatedSet<T>
 where
-    T: FromStr + Clone + Debug + Eq + Hash,
+    T: FromStr + Debug + Eq + Hash,
 {
     type Err = T::Err;
 
     fn from_str(args: &str) -> Result<Self, Self::Err> {
-        let mut result = HashSet::new();
+        let mut result = Vec::new();
         for arg in args.split(',') {
-            result.insert(arg.trim().parse()?);
+            result.push(arg.trim().parse()?);
         }
-        Ok(Self(result))
+        Ok(Self::from_iter(result))
     }
 }
 
@@ -165,31 +159,31 @@ where
     T: Debug + Eq + Hash,
 {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut result = HashSet::new();
-        for item in iter.into_iter() {
-            result.insert(item);
-        }
-        Self(result)
+        Self(HashSet::from_iter(iter))
+    }
+}
+
+impl<T> IntoIterator for CommaSeparatedSet<T>
+where
+    T: Debug + Eq + Hash,
+{
+    type Item = T;
+    type IntoIter = std::collections::hash_set::IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
 impl<T> CommaSeparatedSet<T>
 where
-    T: Default + Debug + Eq + Hash,
+    T: Debug + Eq + Hash,
 {
-    fn accumulate(self, other: Self) -> Self {
-        Self(self.0.into_iter().chain(other.0.into_iter()).collect())
-    }
-
-    pub fn flatten<I>(args: I) -> Option<Self>
-    where
-        I: IntoIterator<Item = Self>,
-    {
-        let result = args.into_iter().fold(Self::default(), Self::accumulate);
-        if result.len() == 0 {
+    pub fn into_option(self) -> Option<Self> {
+        if self.0.len() == 0 {
             None
         } else {
-            Some(result)
+            Some(self)
         }
     }
 }
