@@ -90,12 +90,18 @@ You can override it with CLI option with `--protected release-*`
 
 ### `git config trim.delete`
 
-Comma separated values of `all`, `merged`, `gone`, `local`, `remote`, `merged-local`, `merged-remote`, `gone-local`, `gone-remote`.
-`all` is equivalent to `merged-local,merged-remote,gone-local,gone-remote`.
-`merged` is equivalent to `merged-local,merged-remote`.
-`gone` is equivalent to `gone-local,gone-remote`.
-`local` is equivalent to `merged-local,gone-local`.
-`remote` is equivalent to `merged-remote,gone-remote`.
+Comma separated values of `<filter unit>[:<remote name>]`.
+Filter unit is one of the `all`, `merged`, `gone`, `local`, `remote`, `merged-local`, `merged-remote`, `gone-local`, `gone-remote`.
+`all` implies `merged-local,merged-remote,gone-local,gone-remote`.
+`merged` implies `merged-local,merged-remote`.
+`gone` implies `gone-local,gone-remote`.
+`local` implies `merged-local,gone-local`.
+`remote` implies `merged-remote,gone-remote`.
+
+You can scope a filter unit to specific remote `:<remote name>` to a `filter unit`
+if the filter unit implies `merged-remote` or `gone-remote`.
+If there are filter units that is scoped, it trims merged or gone remote branches in the specified remote branch.
+If there are any filter unit that isn't scoped, it trims all merged or gone remote branches.
 
 The default value is `merged`.
 
