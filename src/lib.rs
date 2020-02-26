@@ -78,21 +78,41 @@ impl MergedOrGone {
             .collect()
     }
 
-    pub fn apply_filter(&self, filter: &DeleteFilter) -> Result<MergedOrGone> {
-        let mut result = MergedOrGone::default();
-        if filter.filter_merged_local() {
-            result.merged_locals.extend(self.merged_locals.clone())
+    fn apply_filter(&mut self, repo: &Repository, filter: &DeleteFilter) -> Result<()> {
+        trace!("Before filter: {:#?}", self);
+        trace!("Applying filter: {:?}", filter);
+        if !filter.filter_merged_local() {
+            trace!("filter-out: merged local branches {:?}", self.merged_locals);
+            self.merged_locals.clear();
         }
-        if filter.filter_gone_local() {
-            result.gone_locals.extend(self.gone_locals.clone())
+        if !filter.filter_gone_local() {
+            trace!("filter-out: gone local branches {:?}", self.merged_locals);
+            self.gone_locals.clear();
         }
-        if filter.filter_merged_remote() {
-            result.merged_remotes.extend(self.merged_remotes.clone())
+
+        let mut merged_remotes = HashSet::new();
+        for remote_ref in &self.merged_remotes {
+            let ref_on_remote = get_ref_on_remote_from_remote_ref(repo, remote_ref)?;
+            if filter.filter_merged_remote(&ref_on_remote.remote_name) {
+                merged_remotes.insert(remote_ref.clone());
+            } else {
+                trace!("filter-out: merged remote ref {}", remote_ref);
+            }
         }
-        if filter.filter_gone_remote() {
-            result.gone_remotes.extend(self.gone_remotes.clone())
+        self.merged_remotes = merged_remotes;
+
+        let mut gone_remotes = HashSet::new();
+        for remote_ref in &self.gone_remotes {
+            let ref_on_remote = get_ref_on_remote_from_remote_ref(repo, remote_ref)?;
+            if filter.filter_gone_remote(&ref_on_remote.remote_name) {
+                gone_remotes.insert(remote_ref.clone());
+            } else {
+                trace!("filter-out: gone_remotes remote ref {}", remote_ref);
+            }
         }
-        Ok(result)
+        self.gone_remotes = gone_remotes;
+
+        Ok(())
     }
 }
 
@@ -373,9 +393,10 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
         debug!("message: {}", classification.message);
         merged_or_gone = merged_or_gone.accumulate(classification.result);
     }
+    merged_or_gone.apply_filter(&git.repo, &config.filter)?;
 
     let mut result = MergedOrGoneAndKeptBacks {
-        to_delete: merged_or_gone.apply_filter(&config.filter)?,
+        to_delete: merged_or_gone,
         kept_back: HashMap::new(),
     };
     result.keep_base(&git.repo, &git.config, &config.bases)?;
