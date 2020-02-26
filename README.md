@@ -109,14 +109,6 @@ The default value is `true`.
 
 You can override it with CLI flag with `--update` or `--no-update`.
 
-### `git config trim.update`
-
-A boolean value. `git-trim` will automatically call `git remote update --prune` if it is true.
-
-The default value is `true`.
-
-You can override it with CLI flag with `--update` or `--no-update`.
-
 ### `git config trim.confirm`
 
 A boolean value. `git-trim` will require you to put 'y/n' before destructive actions.
