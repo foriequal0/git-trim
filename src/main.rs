@@ -5,7 +5,7 @@ use dialoguer::Confirmation;
 use git2::Repository;
 use log::*;
 
-use git_trim::args::{Args, CommaSeparatedSet, CommaSeparatedUniqueVec, DeleteFilter};
+use git_trim::args::{Args, CommaSeparatedSet, DeleteFilter};
 use git_trim::{config, Config, Git};
 use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_gone, remote_update};
 
@@ -24,7 +24,7 @@ fn main(args: Args) -> Result<()> {
 
     let bases = config::get(&git.config, "trim.bases")
         .with_explicit("cli", flatten_collect(args.bases.clone()).into_option())
-        .with_default(&CommaSeparatedUniqueVec::from_iter(vec![
+        .with_default(&CommaSeparatedSet::from_iter(vec![
             String::from("develop"),
             String::from("master"),
         ]))

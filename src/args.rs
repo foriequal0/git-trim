@@ -81,9 +81,9 @@ impl Display for DeleteFilterParseError {
 impl std::error::Error for DeleteFilterParseError {}
 
 #[derive(derive_deref::Deref, Debug, Clone, Default)]
-pub struct CommaSeparatedUniqueVec<T>(Vec<T>);
+pub struct CommaSeparatedSet<T>(Vec<T>);
 
-impl<T> FromStr for CommaSeparatedUniqueVec<T>
+impl<T> FromStr for CommaSeparatedSet<T>
 where
     T: FromStr + PartialEq,
 {
@@ -99,7 +99,7 @@ where
     }
 }
 
-impl<T> FromIterator<T> for CommaSeparatedUniqueVec<T>
+impl<T> FromIterator<T> for CommaSeparatedSet<T>
 where
     T: PartialEq,
 {
@@ -117,7 +117,7 @@ where
     }
 }
 
-impl<T> IntoIterator for CommaSeparatedUniqueVec<T> {
+impl<T> IntoIterator for CommaSeparatedSet<T> {
     type Item = T;
     type IntoIter = std::vec::IntoIter<T>;
 
@@ -126,61 +126,9 @@ impl<T> IntoIterator for CommaSeparatedUniqueVec<T> {
     }
 }
 
-impl<T> CommaSeparatedUniqueVec<T> {
+impl<T> CommaSeparatedSet<T> {
     pub fn into_option(self) -> Option<Self> {
-        if self.0.len() == 0 {
-            None
-        } else {
-            Some(self)
-        }
-    }
-}
-
-#[derive(derive_deref::Deref, Debug, Clone, Default)]
-pub struct CommaSeparatedSet<T: Debug + Eq + Hash>(HashSet<T>);
-
-impl<T> FromStr for CommaSeparatedSet<T>
-where
-    T: FromStr + Debug + Eq + Hash,
-{
-    type Err = T::Err;
-
-    fn from_str(args: &str) -> Result<Self, Self::Err> {
-        let mut result = Vec::new();
-        for arg in args.split(',') {
-            result.push(arg.trim().parse()?);
-        }
-        Ok(Self::from_iter(result))
-    }
-}
-
-impl<T> FromIterator<T> for CommaSeparatedSet<T>
-where
-    T: Debug + Eq + Hash,
-{
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        Self(HashSet::from_iter(iter))
-    }
-}
-
-impl<T> IntoIterator for CommaSeparatedSet<T>
-where
-    T: Debug + Eq + Hash,
-{
-    type Item = T;
-    type IntoIter = std::collections::hash_set::IntoIter<T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-impl<T> CommaSeparatedSet<T>
-where
-    T: Debug + Eq + Hash,
-{
-    pub fn into_option(self) -> Option<Self> {
-        if self.0.len() == 0 {
+        if self.0.is_empty() {
             None
         } else {
             Some(self)
@@ -192,7 +140,7 @@ where
 pub struct Args {
     /// Comma separated or a multiple arguments of refs that other refs are compared to determine whether it is merged or gone. [default: master] [config: trim.base]
     #[structopt(short, long, aliases=&["base"])]
-    pub bases: Vec<CommaSeparatedUniqueVec<String>>,
+    pub bases: Vec<CommaSeparatedSet<String>>,
 
     // Comma separated or a multiple arguments of glob pattern of branches that never be deleted.
     #[structopt(short, long)]
