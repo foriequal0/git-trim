@@ -9,14 +9,15 @@ use std::convert::TryFrom;
 use std::ops::Deref;
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Config as GitConfig, Direction, Error as GitError, ErrorCode, Repository};
+use git2::{BranchType, Config as GitConfig, Error as GitError, ErrorCode, Repository};
 use glob::Pattern;
 use log::*;
 use rayon::prelude::*;
 
 use crate::args::{Category, DeleteFilter};
-use crate::remote_ref::{get_fetch_remote_ref, get_push_remote_ref};
-use crate::simple_glob::{expand_refspec, ExpansionSide};
+use crate::remote_ref::{
+    get_fetch_remote_ref, get_push_remote_ref, get_ref_on_remote_from_remote_ref,
+};
 pub use crate::subprocess::remote_update;
 
 pub struct Git {
@@ -623,32 +624,14 @@ pub fn delete_remote_branches(
     }
     let mut per_remote = HashMap::new();
     for remote_ref in remote_refs {
-        let (remote_name, ref_on_remote) = get_remote_name_and_ref_on_remote(repo, remote_ref)?;
-        let entry = per_remote.entry(remote_name).or_insert_with(Vec::new);
-        entry.push(ref_on_remote);
+        let ref_on_remote = get_ref_on_remote_from_remote_ref(repo, remote_ref)?;
+        let entry = per_remote
+            .entry(ref_on_remote.remote_name)
+            .or_insert_with(Vec::new);
+        entry.push(ref_on_remote.refname);
     }
     for (remote_name, remote_refnames) in per_remote.iter() {
         subprocess::push_delete(repo, remote_name, remote_refnames, dry_run)?;
     }
     Ok(())
-}
-
-fn get_remote_name_and_ref_on_remote(
-    repo: &Repository,
-    remote_ref: &str,
-) -> Result<(String, String)> {
-    assert!(remote_ref.starts_with("refs/remotes/"));
-    for remote_name in repo.remotes()?.iter() {
-        let remote_name = remote_name.context("non-utf8 remote name")?;
-        let remote = repo.find_remote(&remote_name)?;
-        if let Some(expanded) =
-            expand_refspec(&remote, remote_ref, Direction::Fetch, ExpansionSide::Left)?
-        {
-            return Ok((
-                remote.name().context("non-utf8 remote name")?.to_string(),
-                expanded,
-            ));
-        }
-    }
-    unreachable!("matching refspec is not found");
 }

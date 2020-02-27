@@ -77,9 +77,9 @@ pub fn get_push_remote_ref(
 }
 
 #[derive(Eq, PartialEq, Clone)]
-struct RefOnRemote {
-    remote_name: String,
-    refname: String,
+pub struct RefOnRemote {
+    pub remote_name: String,
+    pub refname: String,
 }
 
 fn get_push_ref_on_remote(
@@ -133,4 +133,24 @@ fn get_push_ref_on_remote(
         }
         _ => panic!("unexpected config push.default"),
     }
+}
+
+pub fn get_ref_on_remote_from_remote_ref(
+    repo: &Repository,
+    remote_ref: &str,
+) -> Result<RefOnRemote> {
+    assert!(remote_ref.starts_with("refs/remotes/"));
+    for remote_name in repo.remotes()?.iter() {
+        let remote_name = remote_name.context("non-utf8 remote name")?;
+        let remote = repo.find_remote(&remote_name)?;
+        if let Some(expanded) =
+            expand_refspec(&remote, remote_ref, Direction::Fetch, ExpansionSide::Left)?
+        {
+            return Ok(RefOnRemote {
+                remote_name: remote.name().context("non-utf8 remote name")?.to_string(),
+                refname: expanded,
+            });
+        }
+    }
+    unreachable!("matching refspec is not found");
 }
