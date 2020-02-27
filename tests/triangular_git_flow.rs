@@ -8,7 +8,6 @@ use git2::Repository;
 use git_trim::{get_merged_or_gone, Config, Git, MergedOrGone};
 
 use fixture::{rc, Fixture};
-use std::collections::HashMap;
 
 fn fixture() -> Fixture {
     rc().append_fixture_trace(
@@ -55,13 +54,6 @@ fn config() -> Config<'static> {
     }
 }
 
-fn clean_kept_back(merged_or_gone: MergedOrGone) -> MergedOrGone {
-    MergedOrGone {
-        kept_back: HashMap::default(),
-        ..merged_or_gone
-    }
-}
-
 #[test]
 fn test_feature_to_develop() -> Result<()> {
     let guard = fixture().prepare(
@@ -96,7 +88,7 @@ fn test_feature_to_develop() -> Result<()> {
     let branches = get_merged_or_gone(&git, &config())?;
 
     assert_eq!(
-        clean_kept_back(branches),
+        branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"feature"},
             ..Default::default()
@@ -134,7 +126,7 @@ fn test_feature_to_develop_but_forgot_to_delete() -> Result<()> {
     let branches = get_merged_or_gone(&git, &config())?;
 
     assert_eq!(
-        clean_kept_back(branches),
+        branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"feature"},
             merged_remotes: set! {"refs/remotes/origin/feature"},
@@ -181,7 +173,7 @@ fn test_develop_to_master() -> Result<()> {
     let branches = get_merged_or_gone(&git, &config())?;
 
     assert_eq!(
-        clean_kept_back(branches),
+        branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"feature"},
             ..Default::default()
@@ -222,7 +214,7 @@ fn test_develop_to_master_but_forgot_to_delete() -> Result<()> {
     let branches = get_merged_or_gone(&git, &config())?;
 
     assert_eq!(
-        clean_kept_back(branches),
+        branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"feature"},
             merged_remotes: set! {"refs/remotes/origin/feature"},
@@ -268,7 +260,7 @@ fn test_hotfix_to_master() -> Result<()> {
     let branches = get_merged_or_gone(&git, &config())?;
 
     assert_eq!(
-        clean_kept_back(branches),
+        branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"hotfix"},
             ..Default::default()
@@ -308,7 +300,7 @@ fn test_hotfix_to_master_forgot_to_delete() -> Result<()> {
     let branches = get_merged_or_gone(&git, &config())?;
 
     assert_eq!(
-        clean_kept_back(branches),
+        branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"hotfix"},
             merged_remotes: set! {"refs/remotes/origin/hotfix"},
@@ -347,7 +339,7 @@ fn test_rejected_feature_to_develop() -> Result<()> {
     let branches = get_merged_or_gone(&git, &config())?;
 
     assert_eq!(
-        clean_kept_back(branches),
+        branches.to_delete,
         MergedOrGone {
             gone_locals: set! {"feature"},
             ..Default::default()
@@ -387,7 +379,7 @@ fn test_rejected_hotfix_to_master() -> Result<()> {
     let branches = get_merged_or_gone(&git, &config())?;
 
     assert_eq!(
-        clean_kept_back(branches),
+        branches.to_delete,
         MergedOrGone {
             gone_locals: set! {"hotfix"},
             ..Default::default()
@@ -435,7 +427,7 @@ fn test_protected_feature_to_develop() -> Result<()> {
         },
     )?;
 
-    assert_eq!(clean_kept_back(branches), MergedOrGone::default(),);
+    assert_eq!(branches.to_delete, MergedOrGone::default(),);
     Ok(())
 }
 
@@ -481,7 +473,7 @@ fn test_protected_feature_to_master() -> Result<()> {
         },
     )?;
 
-    assert_eq!(clean_kept_back(branches), MergedOrGone::default(),);
+    assert_eq!(branches.to_delete, MergedOrGone::default(),);
     Ok(())
 }
 
@@ -519,6 +511,6 @@ fn test_rejected_protected_feature_to_develop() -> Result<()> {
         },
     )?;
 
-    assert_eq!(clean_kept_back(branches), MergedOrGone::default(),);
+    assert_eq!(branches.to_delete, MergedOrGone::default(),);
     Ok(())
 }
