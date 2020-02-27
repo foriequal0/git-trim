@@ -8,6 +8,7 @@ use git2::Repository;
 use git_trim::{get_merged_or_gone, Config, Git, MergedOrGone};
 
 use fixture::{rc, Fixture};
+use git_trim::args::DeleteFilter;
 
 fn fixture() -> Fixture {
     rc().append_fixture_trace(
@@ -46,6 +47,7 @@ fn config() -> Config<'static> {
     Config {
         bases: vec!["master"],
         protected_branches: set! {},
+        filter: DeleteFilter::all(),
         detach: true,
     }
 }
