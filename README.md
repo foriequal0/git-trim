@@ -142,6 +142,20 @@ Or you might forget the fact that the PR is merged.
 So you might have been mistakenly amended or rebased the branch and the patch is now completely different from the patch that is merged.
 Then it is `gone`, which means that you might lose your changes. The term is borrowed from the git's remote tracking states.
 
+### I'm even more lazy to type `git trim`
+
+Try this `post-merge` hook. It automatically calls `git trim --no-update` everytime you `git pull` on `master` or `develop`. `git config fetch.prune true` is recommended with this hook.
+```shell
+#!/bin/bash
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+case "$HEAD_BRANCH" in
+    "master"|"develop") ;;
+    *) exit ;;
+esac
+
+git trim --no-update
+```
+
 ## Disclaimers
 Git and the Git logo are either registered trademarks or trademarks of Software Freedom Conservancy, Inc., corporate home of the Git Project, in the United States and/or other countries.
 
