@@ -51,8 +51,8 @@ fn main(args: Args) -> Result<()> {
         .read()?
         .expect("has default");
     let filter = config::get(&git.config, "trim.delete")
-        .with_explicit("cli", args.delete)
-        .with_default(&DeleteFilter::default())
+        .with_explicit("cli", flatten_collect(args.delete.clone()).into_option())
+        .with_default(&DeleteFilter::merged())
         .parse()?
         .expect("has default");
 
@@ -73,16 +73,16 @@ fn main(args: Args) -> Result<()> {
         &Config {
             bases: bases.iter().map(String::as_str).collect(),
             protected_branches: protected.iter().map(String::as_str).collect(),
+            filter: filter.clone(),
             detach: *detach,
         },
     )?;
 
-    branches.print_summary(&git.repo, &filter)?;
+    branches.print_summary(&git.repo)?;
 
-    let remote_refs_to_delete = branches.get_remote_refs_to_delete(&filter);
-    let local_branches_to_delete = branches.get_local_branches_to_delete(&filter);
-    let any_branches_to_remove =
-        !(remote_refs_to_delete.is_empty() && local_branches_to_delete.is_empty());
+    let to_delete = branches.to_delete;
+    let any_branches_to_remove = !(to_delete.locals().is_empty() && to_delete.remotes().is_empty());
+
     if !args.dry_run
         && *confirm
         && any_branches_to_remove
@@ -95,8 +95,8 @@ fn main(args: Args) -> Result<()> {
         return Ok(());
     }
 
-    delete_remote_branches(&git.repo, &remote_refs_to_delete, args.dry_run)?;
-    delete_local_branches(&git.repo, &local_branches_to_delete, args.dry_run)?;
+    delete_remote_branches(&git.repo, &to_delete.remotes(), args.dry_run)?;
+    delete_local_branches(&git.repo, &to_delete.locals(), args.dry_run)?;
     Ok(())
 }
 

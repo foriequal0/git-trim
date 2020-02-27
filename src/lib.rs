@@ -14,7 +14,7 @@ use glob::Pattern;
 use log::*;
 use rayon::prelude::*;
 
-use crate::args::{Category, DeleteFilter};
+use crate::args::DeleteFilter;
 use crate::remote_ref::{
     get_fetch_remote_ref, get_push_remote_ref, get_ref_on_remote_from_remote_ref,
 };
@@ -37,6 +37,7 @@ impl TryFrom<Repository> for Git {
 pub struct Config<'a> {
     pub bases: Vec<&'a str>,
     pub protected_branches: HashSet<&'a str>,
+    pub filter: DeleteFilter,
     pub detach: bool,
 }
 
@@ -59,6 +60,39 @@ impl MergedOrGone {
         self.gone_remotes.extend(other.gone_remotes.drain());
 
         self
+    }
+
+    pub fn locals(&self) -> Vec<&str> {
+        self.merged_locals
+            .iter()
+            .chain(self.gone_locals.iter())
+            .map(String::as_str)
+            .collect()
+    }
+
+    pub fn remotes(&self) -> Vec<&str> {
+        self.merged_remotes
+            .iter()
+            .chain(self.gone_remotes.iter())
+            .map(String::as_str)
+            .collect()
+    }
+
+    pub fn apply_filter(&self, filter: &DeleteFilter) -> Result<MergedOrGone> {
+        let mut result = MergedOrGone::default();
+        if filter.filter_merged_local() {
+            result.merged_locals.extend(self.merged_locals.clone())
+        }
+        if filter.filter_gone_local() {
+            result.gone_locals.extend(self.gone_locals.clone())
+        }
+        if filter.filter_merged_remote() {
+            result.merged_remotes.extend(self.merged_remotes.clone())
+        }
+        if filter.filter_gone_remote() {
+            result.gone_remotes.extend(self.gone_remotes.clone())
+        }
+        Ok(result)
     }
 }
 
@@ -156,36 +190,23 @@ impl MergedOrGoneAndKeptBacks {
         Ok(())
     }
 
-    pub fn print_summary(&self, repo: &Repository, filter: &DeleteFilter) -> Result<()> {
-        fn print(branches: &HashSet<String>, filter: &DeleteFilter, category: Category) {
+    pub fn print_summary(&self, repo: &Repository) -> Result<()> {
+        fn print(label: &str, branches: &HashSet<String>) {
             if branches.is_empty() {
                 return;
             }
             let mut branches: Vec<_> = branches.iter().collect();
             branches.sort();
-            if filter.contains(&category) {
-                println!("Delete {}:", category);
-                for branch in branches {
-                    println!("  - {}", branch);
-                }
-                println!();
-            } else {
-                println!("Skip {}:", category);
-                for branch in branches {
-                    println!("    {}", branch);
-                }
-                println!();
+            println!("Delete {}:", label);
+            for branch in branches {
+                println!("  - {}", branch);
             }
         }
-        print(&self.to_delete.merged_locals, filter, Category::MergedLocal);
-        print(
-            &self.to_delete.merged_remotes,
-            filter,
-            Category::MergedRemote,
-        );
 
-        print(&self.to_delete.gone_locals, filter, Category::GoneLocal);
-        print(&self.to_delete.gone_remotes, filter, Category::GoneRemote);
+        print("merged local branches", &self.to_delete.merged_locals);
+        print("merged remote refs", &self.to_delete.merged_remotes);
+        print("gone local branches", &self.to_delete.gone_locals);
+        print("gone remote refs", &self.to_delete.gone_remotes);
 
         if !self.kept_back.is_empty() {
             let mut kept_back: Vec<_> = self.kept_back.iter().collect();
@@ -199,10 +220,7 @@ impl MergedOrGoneAndKeptBacks {
 
         println!("Branches that will remain:");
         println!("  local branches:");
-        let local_branches_to_delete: HashSet<_> = self
-            .get_local_branches_to_delete(filter)
-            .into_iter()
-            .collect();
+        let local_branches_to_delete: HashSet<_> = self.to_delete.locals().into_iter().collect();
         for local_branch in repo.branches(Some(BranchType::Local))? {
             let (branch, _) = local_branch?;
             let name = branch.name()?.context("non utf-8 local branch name")?;
@@ -212,8 +230,7 @@ impl MergedOrGoneAndKeptBacks {
             println!("    {}", name);
         }
         println!("  remote references:");
-        let remote_refs_to_delete: HashSet<_> =
-            self.get_remote_refs_to_delete(filter).into_iter().collect();
+        let remote_refs_to_delete: HashSet<_> = self.to_delete.remotes().into_iter().collect();
         for remote_ref in repo.branches(Some(BranchType::Remote))? {
             let (branch, _) = remote_ref?;
             let name = branch.get().name().context("non utf-8 remote ref name")?;
@@ -224,28 +241,6 @@ impl MergedOrGoneAndKeptBacks {
         }
         println!();
         Ok(())
-    }
-
-    pub fn get_local_branches_to_delete(&self, filter: &DeleteFilter) -> Vec<&str> {
-        let mut result = Vec::new();
-        if filter.contains(&Category::MergedLocal) {
-            result.extend(self.to_delete.merged_locals.iter().map(String::as_str))
-        }
-        if filter.contains(&Category::GoneLocal) {
-            result.extend(self.to_delete.gone_locals.iter().map(String::as_str))
-        }
-        result
-    }
-
-    pub fn get_remote_refs_to_delete(&self, filter: &DeleteFilter) -> Vec<&str> {
-        let mut result = Vec::new();
-        if filter.contains(&Category::MergedRemote) {
-            result.extend(self.to_delete.merged_remotes.iter().map(String::as_str))
-        }
-        if filter.contains(&Category::GoneLocal) {
-            result.extend(self.to_delete.gone_remotes.iter().map(String::as_str))
-        }
-        result
     }
 }
 
@@ -380,7 +375,7 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
     }
 
     let mut result = MergedOrGoneAndKeptBacks {
-        to_delete: merged_or_gone,
+        to_delete: merged_or_gone.apply_filter(&config.filter)?,
         kept_back: HashMap::new(),
     };
     result.keep_base(&git.repo, &git.config, &config.bases)?;

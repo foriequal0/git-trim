@@ -1,11 +1,11 @@
 use std::collections::HashSet;
-use std::fmt::{Debug, Display, Error, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::iter::FromIterator;
 use std::process::exit;
 use std::str::FromStr;
 
-#[derive(structopt::StructOpt, Hash, Eq, PartialEq, Copy, Clone, Debug)]
+#[derive(Hash, Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Category {
     MergedLocal,
     MergedRemote,
@@ -13,19 +13,54 @@ pub enum Category {
     GoneRemote,
 }
 
-impl Display for Category {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        match self {
-            Category::MergedLocal => write!(f, "merged local branch"),
-            Category::MergedRemote => write!(f, "merged remote ref"),
-            Category::GoneLocal => write!(f, "gone local branch"),
-            Category::GoneRemote => write!(f, "gone_remote ref"),
+#[derive(Debug, Clone)]
+pub struct DeleteFilter(HashSet<Category>);
+
+impl DeleteFilter {
+    pub fn merged() -> Self {
+        use Category::*;
+        DeleteFilter::from_iter(vec![MergedLocal, MergedRemote])
+    }
+
+    pub fn all() -> Self {
+        use Category::*;
+        DeleteFilter::from_iter(vec![MergedLocal, MergedRemote, GoneLocal, GoneRemote])
+    }
+
+    pub fn filter_merged_local(&self) -> bool {
+        self.0.contains(&Category::MergedLocal)
+    }
+
+    pub fn filter_merged_remote(&self) -> bool {
+        for filter in self.0.iter() {
+            if let Category::MergedRemote = filter {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn filter_gone_local(&self) -> bool {
+        self.0.contains(&Category::GoneLocal)
+    }
+
+    pub fn filter_gone_remote(&self) -> bool {
+        for filter in self.0.iter() {
+            if let Category::GoneRemote = filter {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn into_option(self) -> Option<Self> {
+        if self.0.is_empty() {
+            None
+        } else {
+            Some(self)
         }
     }
 }
-
-#[derive(derive_deref::Deref, Debug, Clone)]
-pub struct DeleteFilter(HashSet<Category>);
 
 impl FromStr for DeleteFilter {
     type Err = DeleteFilterParseError;
@@ -58,10 +93,21 @@ impl FromStr for DeleteFilter {
     }
 }
 
-impl Default for DeleteFilter {
-    fn default() -> Self {
-        use Category::*;
-        DeleteFilter(vec![MergedLocal, MergedRemote].into_iter().collect())
+impl FromIterator<Category> for DeleteFilter {
+    fn from_iter<T>(iter: T) -> Self
+    where
+        T: IntoIterator<Item = Category>,
+    {
+        Self(HashSet::from_iter(iter))
+    }
+}
+
+impl IntoIterator for DeleteFilter {
+    type Item = Category;
+    type IntoIter = std::collections::hash_set::IntoIter<Category>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
@@ -170,8 +216,8 @@ pub struct Args {
     /// 'gone' is equivalent to 'gone-local,gone-remote'.
     /// 'local' is equivalent to 'merged-local,gone-local'.
     /// 'remote' is equivalent to 'merged-remote,gone-remote'. [default : 'merged'] [config: trim.filter]
-    #[structopt(short, long, parse(try_from_str))]
-    pub delete: Option<DeleteFilter>,
+    #[structopt(short, long)]
+    pub delete: Vec<DeleteFilter>,
 
     #[structopt(long)]
     pub dry_run: bool,
