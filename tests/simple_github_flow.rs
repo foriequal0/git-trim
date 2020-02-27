@@ -63,7 +63,7 @@ fn test_accepted() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
-        branches,
+        branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"feature"},
             ..Default::default()
@@ -92,7 +92,7 @@ fn test_accepted_but_edited() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
-        branches,
+        branches.to_delete,
         MergedOrGone {
             gone_locals: set! {"feature"},
             ..Default::default()
@@ -115,7 +115,7 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
-        branches,
+        branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"feature"},
             merged_remotes: set! {"refs/remotes/origin/feature"},
@@ -143,7 +143,7 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
     )?;
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let branches = get_merged_or_gone(&git, &config())?;
-    assert_eq!(branches, MergedOrGone::default(),);
+    assert_eq!(branches.to_delete, MergedOrGone::default(),);
     Ok(())
 }
 
@@ -160,7 +160,7 @@ fn test_rejected() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
-        branches,
+        branches.to_delete,
         MergedOrGone {
             gone_locals: set! {"feature"},
             ..Default::default()
@@ -187,7 +187,7 @@ fn test_rejected_but_edited() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
-        branches,
+        branches.to_delete,
         MergedOrGone {
             gone_locals: set! {"feature"},
             ..Default::default()
@@ -201,7 +201,7 @@ fn test_rejected_but_forgot_to_delete() -> Result<()> {
     let guard = fixture().prepare("local", r#""#)?;
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let branches = get_merged_or_gone(&git, &config())?;
-    assert_eq!(branches, MergedOrGone::default(),);
+    assert_eq!(branches.to_delete, MergedOrGone::default(),);
     Ok(())
 }
 
@@ -219,6 +219,6 @@ fn test_rejected_but_forgot_to_delete_and_edited() -> Result<()> {
     )?;
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let branches = get_merged_or_gone(&git, &config())?;
-    assert_eq!(branches, MergedOrGone::default(),);
+    assert_eq!(branches.to_delete, MergedOrGone::default(),);
     Ok(())
 }

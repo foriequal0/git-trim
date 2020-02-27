@@ -49,11 +49,26 @@ pub struct MergedOrGone {
     /// remote refs
     pub merged_remotes: HashSet<String>,
     pub gone_remotes: HashSet<String>,
-
-    pub kept_back: HashMap<String, String>,
 }
 
 impl MergedOrGone {
+    pub fn accumulate(mut self, mut other: Self) -> Self {
+        self.merged_locals.extend(other.merged_locals.drain());
+        self.gone_locals.extend(other.gone_locals.drain());
+        self.merged_remotes.extend(other.merged_remotes.drain());
+        self.gone_remotes.extend(other.gone_remotes.drain());
+
+        self
+    }
+}
+
+#[derive(Default, Eq, PartialEq, Debug)]
+pub struct MergedOrGoneAndKeptBacks {
+    pub to_delete: MergedOrGone,
+    pub kept_back: HashMap<String, String>,
+}
+
+impl MergedOrGoneAndKeptBacks {
     fn keep_base(&mut self, repo: &Repository, config: &GitConfig, bases: &[&str]) -> Result<()> {
         let base_refs = resolve_base_refs(repo, config, bases)?;
         trace!("base_refs: {:#?}", base_refs);
@@ -61,23 +76,23 @@ impl MergedOrGone {
             repo,
             &base_refs,
             "Merged local but kept back because it is a base",
-            &mut self.merged_locals,
+            &mut self.to_delete.merged_locals,
         )?);
         self.kept_back.extend(keep_branches(
             repo,
             &base_refs,
             "Gone local but kept back because it is a base",
-            &mut self.gone_locals,
+            &mut self.to_delete.gone_locals,
         )?);
         self.kept_back.extend(keep_remote_refs(
             &base_refs,
             "Merged remotes but kept back because it is a base",
-            &mut self.merged_remotes,
+            &mut self.to_delete.merged_remotes,
         ));
         self.kept_back.extend(keep_remote_refs(
             &base_refs,
             "Gone remotes but kept back because it is a base",
-            &mut self.gone_remotes,
+            &mut self.to_delete.gone_remotes,
         ));
         Ok(())
     }
@@ -94,23 +109,23 @@ impl MergedOrGone {
             repo,
             &protected_refs,
             "Merged local but kept back because it is protected",
-            &mut self.merged_locals,
+            &mut self.to_delete.merged_locals,
         )?);
         self.kept_back.extend(keep_branches(
             repo,
             &protected_refs,
             "Gone local but kept back because it is protected",
-            &mut self.gone_locals,
+            &mut self.to_delete.gone_locals,
         )?);
         self.kept_back.extend(keep_remote_refs(
             &protected_refs,
             "Merged remotes but kept back because it is protected",
-            &mut self.merged_remotes,
+            &mut self.to_delete.merged_remotes,
         ));
         self.kept_back.extend(keep_remote_refs(
             &protected_refs,
             "Gone remotes but kept back because it is protected",
-            &mut self.gone_remotes,
+            &mut self.to_delete.gone_remotes,
         ));
         Ok(())
     }
@@ -124,15 +139,15 @@ impl MergedOrGone {
         assert!(head_name.starts_with("refs/heads/"));
         let head_name = &head_name["refs/heads/".len()..];
 
-        if self.merged_locals.contains(head_name) {
-            self.merged_locals.remove(head_name);
+        if self.to_delete.merged_locals.contains(head_name) {
+            self.to_delete.merged_locals.remove(head_name);
             self.kept_back.insert(
                 head_name.to_string(),
                 "Merged local but kept back not to make detached HEAD".to_string(),
             );
         }
-        if self.gone_locals.contains(head_name) {
-            self.gone_locals.remove(head_name);
+        if self.to_delete.gone_locals.contains(head_name) {
+            self.to_delete.gone_locals.remove(head_name);
             self.kept_back.insert(
                 head_name.to_string(),
                 "Gone local but kept back not to make detached HEAD".to_string(),
@@ -162,11 +177,15 @@ impl MergedOrGone {
                 println!();
             }
         }
-        print(&self.merged_locals, filter, Category::MergedLocal);
-        print(&self.merged_remotes, filter, Category::MergedRemote);
+        print(&self.to_delete.merged_locals, filter, Category::MergedLocal);
+        print(
+            &self.to_delete.merged_remotes,
+            filter,
+            Category::MergedRemote,
+        );
 
-        print(&self.gone_locals, filter, Category::GoneLocal);
-        print(&self.gone_remotes, filter, Category::GoneRemote);
+        print(&self.to_delete.gone_locals, filter, Category::GoneLocal);
+        print(&self.to_delete.gone_remotes, filter, Category::GoneRemote);
 
         if !self.kept_back.is_empty() {
             let mut kept_back: Vec<_> = self.kept_back.iter().collect();
@@ -210,10 +229,10 @@ impl MergedOrGone {
     pub fn get_local_branches_to_delete(&self, filter: &DeleteFilter) -> Vec<&str> {
         let mut result = Vec::new();
         if filter.contains(&Category::MergedLocal) {
-            result.extend(self.merged_locals.iter().map(String::as_str))
+            result.extend(self.to_delete.merged_locals.iter().map(String::as_str))
         }
         if filter.contains(&Category::GoneLocal) {
-            result.extend(self.gone_locals.iter().map(String::as_str))
+            result.extend(self.to_delete.gone_locals.iter().map(String::as_str))
         }
         result
     }
@@ -221,22 +240,12 @@ impl MergedOrGone {
     pub fn get_remote_refs_to_delete(&self, filter: &DeleteFilter) -> Vec<&str> {
         let mut result = Vec::new();
         if filter.contains(&Category::MergedRemote) {
-            result.extend(self.merged_remotes.iter().map(String::as_str))
+            result.extend(self.to_delete.merged_remotes.iter().map(String::as_str))
         }
         if filter.contains(&Category::GoneLocal) {
-            result.extend(self.gone_remotes.iter().map(String::as_str))
+            result.extend(self.to_delete.gone_remotes.iter().map(String::as_str))
         }
         result
-    }
-
-    pub fn accumulate(mut self, mut other: Self) -> Self {
-        self.merged_locals.extend(other.merged_locals.drain());
-        self.gone_locals.extend(other.gone_locals.drain());
-        self.kept_back.extend(other.kept_back.drain());
-        self.merged_remotes.extend(other.merged_remotes.drain());
-        self.gone_remotes.extend(other.gone_remotes.drain());
-
-        self
     }
 }
 
@@ -285,7 +294,7 @@ fn keep_remote_refs(
 }
 
 #[allow(clippy::cognitive_complexity, clippy::implicit_hasher)]
-pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGone> {
+pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndKeptBacks> {
     let base_remote_refs = resolve_base_remote_refs(&git.repo, &git.config, &config.bases)?;
     trace!("base_remote_refs: {:#?}", base_remote_refs);
 
@@ -293,11 +302,13 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGone> {
         resolve_protected_refs(&git.repo, &git.config, &config.protected_branches)?;
     trace!("protected_refs: {:#?}", protected_refs);
 
-    let mut result = MergedOrGone::default();
+    let mut merged_or_gone = MergedOrGone::default();
     // Fast filling ff merged branches
     let noff_merged_locals =
         subprocess::get_noff_merged_locals(&git.repo, &git.config, &base_remote_refs)?;
-    result.merged_locals.extend(noff_merged_locals.clone());
+    merged_or_gone
+        .merged_locals
+        .extend(noff_merged_locals.clone());
 
     let mut merged_locals = HashSet::new();
     merged_locals.extend(noff_merged_locals);
@@ -365,9 +376,13 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGone> {
         trace!("push: {:?}", classification.fetch);
         trace!("fetch: {:?}", classification.push);
         debug!("message: {}", classification.message);
-        result = result.accumulate(classification.result);
+        merged_or_gone = merged_or_gone.accumulate(classification.result);
     }
 
+    let mut result = MergedOrGoneAndKeptBacks {
+        to_delete: merged_or_gone,
+        kept_back: HashMap::new(),
+    };
     result.keep_base(&git.repo, &git.config, &config.bases)?;
     result.keep_protected(&git.repo, &git.config, &config.protected_branches)?;
 

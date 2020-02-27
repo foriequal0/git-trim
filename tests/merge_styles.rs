@@ -66,7 +66,7 @@ fn test_noff() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
-        branches,
+        branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"feature"},
             ..Default::default()
@@ -93,7 +93,7 @@ fn test_rebase() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
-        branches,
+        branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"feature"},
             ..Default::default()
@@ -118,7 +118,7 @@ fn test_squash() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
-        branches,
+        branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"feature"},
             ..Default::default()
@@ -193,7 +193,7 @@ fn test_mixed() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let branches = get_merged_or_gone(&git, &config())?;
     assert_eq!(
-        branches,
+        branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"squashme", "rebaseme", "noffme"},
             ..Default::default()
