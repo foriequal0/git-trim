@@ -150,11 +150,11 @@ where
         }
 
         let result = match Vec::<String>::get_config_value(self.config, self.key) {
-            Ok(values) => Some(ConfigValue::Explicit {
+            Ok(values) if !values.is_empty() => Some(ConfigValue::Explicit {
                 value: parse(&values)?,
                 source: self.key.to_string(),
             }),
-            Err(err) if config_not_exist(&err) => {
+            Ok(_) => {
                 if let Some(default) = self.default {
                     Some(ConfigValue::Implicit(default.clone()))
                 } else {
