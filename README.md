@@ -36,7 +36,7 @@ After some working with the repository, you'll execute `git fetch --prune` or `g
 
 ![before](images/0-before.png)
 
-They are tedious to remove manually. `git branch --merged`'ll likely to betray you it is rebase merged or squash merged
+They are tedious to remove manually. `git branch --merged`'ll likely to betray you when branches are rebase merged or squash merged.
 
 ![git branch --merged doesn't help](images/1-branch-merged.png)
 
