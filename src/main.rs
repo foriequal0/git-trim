@@ -28,12 +28,12 @@ fn main(args: Args) -> Result<()> {
             String::from("develop"),
             String::from("master"),
         ]))
-        .parse()?
+        .parse_flatten()?
         .expect("has default");
     let protected = config::get(&git.config, "trim.protected")
         .with_explicit("cli", flatten_collect(args.protected.clone()).into_option())
         .with_default(&CommaSeparatedSet::from_iter(bases.iter().cloned()))
-        .parse()?
+        .parse_flatten()?
         .expect("has default");
     let update = config::get(&git.config, "trim.update")
         .with_explicit("cli", args.update())
@@ -53,7 +53,7 @@ fn main(args: Args) -> Result<()> {
     let filter = config::get(&git.config, "trim.delete")
         .with_explicit("cli", flatten_collect(args.delete.clone()).into_option())
         .with_default(&DeleteFilter::merged())
-        .parse()?
+        .parse_flatten()?
         .expect("has default");
 
     info!("bases: {:?}", bases);

@@ -1,8 +1,10 @@
+use std::iter::FromIterator;
 use std::ops::Deref;
 use std::str::FromStr;
 
 use anyhow::Result;
 use git2::{Config, ErrorClass, ErrorCode};
+use log::*;
 
 type GitResult<T> = std::result::Result<T, git2::Error>;
 
@@ -135,15 +137,57 @@ where
         };
         Ok(result)
     }
+
+    pub fn parse_multi_with<F>(self, parse: F) -> Result<Option<ConfigValue<T>>>
+    where
+        F: FnOnce(&[String]) -> Result<T>,
+    {
+        if let Some((source, value)) = self.explicit {
+            return Ok(Some(ConfigValue::Explicit {
+                value,
+                source: source.to_string(),
+            }));
+        }
+
+        let result = match Vec::<String>::get_config_value(self.config, self.key) {
+            Ok(values) => Some(ConfigValue::Explicit {
+                value: parse(&values)?,
+                source: self.key.to_string(),
+            }),
+            Err(err) if config_not_exist(&err) => {
+                if let Some(default) = self.default {
+                    Some(ConfigValue::Implicit(default.clone()))
+                } else {
+                    None
+                }
+            }
+            Err(err) => return Err(err.into()),
+        };
+        Ok(result)
+    }
 }
 
-impl<'a, T> ConfigBuilder<'a, T>
-where
-    T: FromStr + Clone,
-    T::Err: std::error::Error + Send + Sync + 'static,
-{
-    pub fn parse(self) -> Result<Option<ConfigValue<T>>> {
+impl<'a, T> ConfigBuilder<'a, T> {
+    pub fn parse(self) -> Result<Option<ConfigValue<T>>>
+    where
+        T: FromStr + Clone,
+        T::Err: std::error::Error + Send + Sync + 'static,
+    {
         self.parse_with(|str| Ok(str.parse()?))
+    }
+
+    pub fn parse_flatten<U>(self) -> Result<Option<ConfigValue<T>>>
+    where
+        T: FromStr + IntoIterator<Item = U> + FromIterator<U> + Clone,
+        T::Err: std::error::Error + Send + Sync + 'static,
+    {
+        self.parse_multi_with(|strings| {
+            let mut result = Vec::new();
+            for x in strings {
+                result.push(T::from_str(x)?.into_iter())
+            }
+            Ok(T::from_iter(result.into_iter().flatten()))
+        })
     }
 }
 
@@ -156,6 +200,24 @@ pub trait ConfigValues {
 impl ConfigValues for String {
     fn get_config_value(config: &Config, key: &str) -> Result<Self, git2::Error> {
         config.get_string(key)
+    }
+}
+
+impl ConfigValues for Vec<String> {
+    fn get_config_value(config: &Config, key: &str) -> Result<Self, git2::Error> {
+        let mut result = Vec::new();
+        for entry in &config.entries(Some(key))? {
+            let entry = entry?;
+            if let Some(value) = entry.value() {
+                result.push(value.to_string());
+            } else {
+                warn!(
+                    "non utf-8 config entry {}",
+                    String::from_utf8_lossy(entry.name_bytes())
+                );
+            }
+        }
+        Ok(result)
     }
 }
 
