@@ -211,33 +211,6 @@ impl MergedOrGoneAndKeptBacks {
     }
 
     pub fn print_summary(&self, repo: &Repository) -> Result<()> {
-        fn print(label: &str, branches: &HashSet<String>) {
-            if branches.is_empty() {
-                return;
-            }
-            let mut branches: Vec<_> = branches.iter().collect();
-            branches.sort();
-            println!("Delete {}:", label);
-            for branch in branches {
-                println!("  - {}", branch);
-            }
-        }
-
-        print("merged local branches", &self.to_delete.merged_locals);
-        print("merged remote refs", &self.to_delete.merged_remotes);
-        print("gone local branches", &self.to_delete.gone_locals);
-        print("gone remote refs", &self.to_delete.gone_remotes);
-
-        if !self.kept_back.is_empty() {
-            let mut kept_back: Vec<_> = self.kept_back.iter().collect();
-            kept_back.sort();
-            println!("Kept back:");
-            for (branch, reason) in kept_back {
-                println!("    {}\t{}", branch, reason);
-            }
-            println!();
-        }
-
         println!("Branches that will remain:");
         println!("  local branches:");
         let local_branches_to_delete: HashSet<_> = self.to_delete.locals().into_iter().collect();
@@ -260,6 +233,34 @@ impl MergedOrGoneAndKeptBacks {
             println!("    {}", name);
         }
         println!();
+
+        if !self.kept_back.is_empty() {
+            let mut kept_back: Vec<_> = self.kept_back.iter().collect();
+            kept_back.sort();
+            println!("Kept back:");
+            for (branch, reason) in kept_back {
+                println!("    {}\t{}", branch, reason);
+            }
+            println!();
+        }
+
+        fn print(label: &str, branches: &HashSet<String>) {
+            if branches.is_empty() {
+                return;
+            }
+            let mut branches: Vec<_> = branches.iter().collect();
+            branches.sort();
+            println!("Delete {}:", label);
+            for branch in branches {
+                println!("  - {}", branch);
+            }
+        }
+
+        print("merged local branches", &self.to_delete.merged_locals);
+        print("merged remote refs", &self.to_delete.merged_remotes);
+        print("gone local branches", &self.to_delete.gone_locals);
+        print("gone remote refs", &self.to_delete.gone_remotes);
+
         Ok(())
     }
 }
