@@ -249,7 +249,7 @@ pub struct Args {
     #[structopt(short, long, aliases=&["base"])]
     pub bases: Vec<CommaSeparatedSet<String>>,
 
-    // Comma separated or a multiple arguments of glob pattern of branches that never be deleted.
+    /// Comma separated or a multiple arguments of glob pattern of branches that never be deleted.
     #[structopt(short, long)]
     pub protected: Vec<CommaSeparatedSet<String>>,
 
