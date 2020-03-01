@@ -1,0 +1,60 @@
+.\" generated with Ronn-NG/v0.8.0
+.\" http://github.com/apjanke/ronn-ng/tree/0.8.0
+.TH "GIT\-TRIM" "1" "March 2020" "" ""
+.SH "NAME"
+\fBgit\-trim\fR \- Trim git remote tracking branches
+.SH "SYNOPSIS"
+\fBgit\-trim\fR
+.P
+\fBgit\-trim \-\-delete all \-\-dry\-run\fR
+.SH "DESCRIPTION"
+\fBgit\-trim\fR automatically trims your git remote tracking branches that are merged or gone\.
+.SH "FLAGS"
+\-\-dry\-run
+.P
+Do not delete branches, show what branches will be deleted\.
+.P
+\-h, \-\-help
+.P
+Prints help information\.
+.P
+\-\-no\-confirm
+.P
+Do not ask confirm\. [config: trim\.confirm]
+.P
+\-\-no\-detach
+.P
+Do not detach when HEAD is about to be deleted\. [config: trim\.detach]
+.P
+\-\-no\-update
+.P
+Not update remotes\. [config: trim\.update]
+.P
+\-V, \-\-version
+.P
+Prints version information
+.SH "OPTIONS"
+\-b, \-\-bases <bases>\|\.\|\.\|\.
+.P
+Comma separated or multiple arguments of refs that other refs are compared to determine whether it is merged or gone\. [default: master][config: trim\.base]
+.P
+\-d, \-\-delete <delete>
+.P
+Comma separated values of \'<filter unit>[:<remote name>]\'\. Filter unit is one of the \'all, merged, gone, local, remote, merged\-local, merged\-remote, gone\-local, gone\-remote\'\.
+.IP "\[ci]" 4
+\'all\' implies \'merged\-local,merged\-remote,gone\-local,gone\-remote\'\.
+.IP "\[ci]" 4
+\'merged\' implies \'merged\-local,merged\-remote\'\.
+.IP "\[ci]" 4
+\'gone\' implies \'gone\-local,gone\-remote\'\.
+.IP "\[ci]" 4
+\'local\' implies \'merged\-local,gone\-local\'\.
+.IP "\[ci]" 4
+\'remote\' implies \'merged\-remote,gone\-remote\'\.
+.IP "" 0
+.P
+You can scope a filter unit to specific remote \':<remote name>\' to a \'filter unit\' if the filter unit implies \'merged\-remote\' or \'gone\-remote\'\. If there are filter units that are scoped, it trims merged or gone remote branches in the specified remote branch\. If there are any filter unit that isn\'t scoped, it trims all merged or gone remote branches\. [default : \'merged\'] [config: trim\.filter]
+.P
+\-p, \-\-protected <protected>\|\.\|\.\|\.
+.P
+Comma separated or multiple arguments of glob pattern of branches that never be deleted
