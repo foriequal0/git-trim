@@ -245,11 +245,11 @@ impl<T> CommaSeparatedSet<T> {
 
 #[derive(structopt::StructOpt)]
 pub struct Args {
-    /// Comma separated or a multiple arguments of refs that other refs are compared to determine whether it is merged or gone. [default: master] [config: trim.base]
+    /// Comma separated or multiple arguments of refs that other refs are compared to determine whether it is merged or gone. [default: master] [config: trim.base]
     #[structopt(short, long, aliases=&["base"])]
     pub bases: Vec<CommaSeparatedSet<String>>,
 
-    /// Comma separated or a multiple arguments of glob pattern of branches that never be deleted.
+    /// Comma separated or multiple arguments of glob pattern of branches that never be deleted.
     #[structopt(short, long)]
     pub protected: Vec<CommaSeparatedSet<String>>,
 
@@ -281,7 +281,7 @@ pub struct Args {
     ///
     /// You can scope a filter unit to specific remote ':<remote name>' to a 'filter unit'
     /// if the filter unit implies 'merged-remote' or 'gone-remote'.
-    /// If there are filter units that is scoped, it trims merged or gone remote branches in the specified remote branch.
+    /// If there are filter units that are scoped, it trims merged or gone remote branches in the specified remote branch.
     /// If there are any filter unit that isn't scoped, it trims all merged or gone remote branches.
     /// [default : 'merged'] [config: trim.filter]
     #[structopt(short, long)]
