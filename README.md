@@ -52,6 +52,10 @@ I hate to wait for the prompt even it is a fraction of a second when I have mult
 
 ![gvsc before](images/gvsc-0.png)
 
+### Why don't you just use `git fetch --prune` or `git <bash oneliner HERE> | xargs git branch -D`
+
+See [FAQ](#faq)
+
 ### See how `git-trim` works!
 
 It is enough to type just `git trim` and hit the `y` key once.
@@ -132,6 +136,25 @@ The default value is `true`.
 You can override it with CLI flag with `--detach` or `--no-detach`.
 
 ## FAQ
+
+### What is different to `git fetch --prune`?
+
+git fetch --prune only deletes remote refs (`refs/remotes/...`) that deleted from the remotes.
+
+It doesn't touch local branches that track the remote refs even if the remote refs are merged into the branch and deleted by somehow. You should manually delete corresponding local branches in that case. If you use rebase merge, you might have to use scary `--force` flag such as git branch --delete --force feature.
+
+`git-trim` does detect whether the corresponding branches are merged into the base remote branch. It knows whether it is safe to delete, and even knows that you forgot to clean the branch in the remote after merge.
+
+### What is different to `<bash one-liner HERE> | xargs git branch -D`
+
+Just deleting a branch that tracking remote is gone with `-D`, which implies `--force`, needs an extra caution since it might delete contents that are not fully merged into the base or modified after being merged. It not because `--force` is dangerous. Just `gone` doesn't mean it is fully merged to the base. So I gave it a steroid.
+
+ * It inspects branches whether they are 'fully' merged, not just whether their tracking branch is gone. About half of the code is the common git scenario tests. I wanted to make sure that it doesn't delete unmerged contents accidentally in any case.
+ * It supports github flow (master-feature tiered branch strategy), git flow (master-develop-feature tiered branch strategy), and simple workflow (with a remote repo and local clone), and triangular workflow (with two remote repos and one local clone).
+ * It is a merge styles agnostic. It can detect common merge styles such as merge with a merge commit, rebase/ff merge, squash merge.
+ * It can also inspect remote refs so it deletes remotes in case you forgot to delete the remotes.
+ * Moreover, it runs in parallel. Otherwise, large repos with hundreds of stale branches would have took a couple of minutes to inspect whether they are merged.
+
 ### What kind of merge styles that `git-trim` support?
 
 * A classic merge with a merge commit with `git merge --no-ff`
