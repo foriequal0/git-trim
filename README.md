@@ -5,7 +5,7 @@ git-trim
 
 ![git-trim Logo](images/logo.png)
 
-`git-trim` automatically trims your git remote tracking branches that are merged or gone.
+`git-trim` automatically trims your branches whose tracking remote refs are merged or gone
 
 [Instruction](#instruction) | [Configurations](#configurations) | [FAQ](#faq)
 
