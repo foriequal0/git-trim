@@ -287,6 +287,7 @@ pub struct Args {
     #[structopt(short, long)]
     pub delete: Vec<DeleteFilter>,
 
+    /// Do not delete branches, show what branches will be deleted.
     #[structopt(long)]
     pub dry_run: bool,
 }
