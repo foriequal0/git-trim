@@ -1,12 +1,14 @@
+use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::iter::FromIterator;
 
+use anyhow::Context;
 use dialoguer::Confirmation;
-use git2::Repository;
+use git2::{BranchType, Repository};
 use log::*;
 
 use git_trim::args::{Args, CommaSeparatedSet, DeleteFilter};
-use git_trim::{config, Config, Git};
+use git_trim::{config, Config, Git, MergedOrGoneAndKeptBacks};
 use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_gone, remote_update};
 
 type Result<T> = ::std::result::Result<T, Error>;
@@ -78,7 +80,7 @@ fn main(args: Args) -> Result<()> {
         },
     )?;
 
-    branches.print_summary(&git.repo)?;
+    print_summary(&branches, &git.repo)?;
 
     let to_delete = branches.to_delete;
     let any_branches_to_remove = !(to_delete.locals().is_empty() && to_delete.remotes().is_empty());
@@ -107,4 +109,58 @@ where
 {
     let containers = iter.into_iter();
     containers.flatten().collect()
+}
+
+pub fn print_summary(branches: &MergedOrGoneAndKeptBacks, repo: &Repository) -> Result<()> {
+    println!("Branches that will remain:");
+    println!("  local branches:");
+    let local_branches_to_delete: HashSet<_> = branches.to_delete.locals().into_iter().collect();
+    for local_branch in repo.branches(Some(BranchType::Local))? {
+        let (branch, _) = local_branch?;
+        let name = branch.name()?.context("non utf-8 local branch name")?;
+        if local_branches_to_delete.contains(name) {
+            continue;
+        }
+        println!("    {}", name);
+    }
+    println!("  remote references:");
+    let remote_refs_to_delete: HashSet<_> = branches.to_delete.remotes().into_iter().collect();
+    for remote_ref in repo.branches(Some(BranchType::Remote))? {
+        let (branch, _) = remote_ref?;
+        let name = branch.get().name().context("non utf-8 remote ref name")?;
+        if remote_refs_to_delete.contains(name) {
+            continue;
+        }
+        println!("    {}", name);
+    }
+    println!();
+
+    if !branches.kept_back.is_empty() {
+        let mut kept_back: Vec<_> = branches.kept_back.iter().collect();
+        kept_back.sort();
+        println!("Kept back:");
+        for (branch, reason) in kept_back {
+            println!("    {}\t{}", branch, reason);
+        }
+        println!();
+    }
+
+    fn print(label: &str, branches: &HashSet<String>) {
+        if branches.is_empty() {
+            return;
+        }
+        let mut branches: Vec<_> = branches.iter().collect();
+        branches.sort();
+        println!("Delete {}:", label);
+        for branch in branches {
+            println!("  - {}", branch);
+        }
+    }
+
+    print("merged local branches", &branches.to_delete.merged_locals);
+    print("merged remote refs", &branches.to_delete.merged_remotes);
+    print("gone local branches", &branches.to_delete.gone_locals);
+    print("gone remote refs", &branches.to_delete.gone_remotes);
+
+    Ok(())
 }
