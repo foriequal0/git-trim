@@ -1,6 +1,6 @@
 pub mod args;
+mod branch;
 pub mod config;
-mod remote_ref;
 mod simple_glob;
 mod subprocess;
 
@@ -15,9 +15,7 @@ use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-use crate::remote_ref::{
-    get_fetch_remote_ref, get_push_remote_ref, get_ref_on_remote_from_remote_ref,
-};
+use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote_branch_from_ref};
 pub use crate::subprocess::remote_update;
 
 pub struct Git {
@@ -92,8 +90,8 @@ impl MergedOrGone {
 
         let mut merged_remotes = HashSet::new();
         for remote_ref in &self.merged_remotes {
-            let ref_on_remote = get_ref_on_remote_from_remote_ref(repo, remote_ref)?;
-            if filter.filter_merged_remote(&ref_on_remote.remote_name) {
+            let remote_branch = get_remote_branch_from_ref(repo, remote_ref)?;
+            if filter.filter_merged_remote(&remote_branch.remote_name) {
                 merged_remotes.insert(remote_ref.clone());
             } else {
                 trace!("filter-out: merged remote ref {}", remote_ref);
@@ -103,7 +101,7 @@ impl MergedOrGone {
 
         let mut gone_remotes = HashSet::new();
         for remote_ref in &self.gone_remotes {
-            let ref_on_remote = get_ref_on_remote_from_remote_ref(repo, remote_ref)?;
+            let ref_on_remote = get_remote_branch_from_ref(repo, remote_ref)?;
             if filter.filter_gone_remote(&ref_on_remote.remote_name) {
                 gone_remotes.insert(remote_ref.clone());
             } else {
@@ -311,8 +309,8 @@ fn keep_remote_refs(
 
 #[allow(clippy::cognitive_complexity, clippy::implicit_hasher)]
 pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndKeptBacks> {
-    let base_remote_refs = resolve_base_remote_refs(&git.repo, &git.config, &config.bases)?;
-    trace!("base_remote_refs: {:#?}", base_remote_refs);
+    let base_upstreams = resolve_base_upstream(&git.repo, &git.config, &config.bases)?;
+    trace!("base_upstreams: {:#?}", base_upstreams);
 
     let protected_refs =
         resolve_protected_refs(&git.repo, &git.config, &config.protected_branches)?;
@@ -321,7 +319,7 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
     let mut merged_or_gone = MergedOrGone::default();
     // Fast filling ff merged branches
     let noff_merged_locals =
-        subprocess::get_noff_merged_locals(&git.repo, &git.config, &base_remote_refs)?;
+        subprocess::get_noff_merged_locals(&git.repo, &git.config, &base_upstreams)?;
     merged_or_gone
         .merged_locals
         .extend(noff_merged_locals.clone());
@@ -345,12 +343,12 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
             debug!("Skip: the branch is protected branch: {:?}", branch_name);
             continue;
         }
-        if let Some(remote_ref) = get_fetch_remote_ref(&git.repo, &git.config, branch_name)? {
-            if base_remote_refs.contains(&remote_ref) {
+        if let Some(upstream) = get_fetch_upstream(&git.repo, &git.config, branch_name)? {
+            if base_upstreams.contains(&upstream) {
                 debug!("Skip: the branch is the base: {:?}", branch_name);
                 continue;
             }
-            if protected_refs.contains(&remote_ref) {
+            if protected_refs.contains(&upstream) {
                 debug!(
                     "Skip: the branch tracks protected branch: {:?}",
                     branch_name
@@ -362,8 +360,8 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
             debug!("Skip: the branch is a symbolic ref: {:?}", branch_name);
             continue;
         }
-        for base_remote_ref in &base_remote_refs {
-            base_and_branch_to_compare.push((base_remote_ref.to_string(), branch_name.to_string()));
+        for base_upstream in &base_upstreams {
+            base_and_branch_to_compare.push((base_upstream.to_string(), branch_name.to_string()));
         }
     }
 
@@ -375,11 +373,11 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
             // It is denoted that it is safe in that case
             // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
             let git = ForceSendSync(git);
-            move |(base_remote_ref, branch_name)| {
-                classify(git, &merged_locals, &base_remote_ref, &branch_name).with_context(|| {
+            move |(base_upstream, branch_name)| {
+                classify(git, &merged_locals, &base_upstream, &branch_name).with_context(|| {
                     format!(
-                        "base_remote_ref={}, branch_name={}",
-                        base_remote_ref, branch_name
+                        "base_upstream={}, branch_name={}",
+                        base_upstream, branch_name
                     )
                 })
             }
@@ -423,13 +421,13 @@ struct Classification {
 fn classify(
     git: ForceSendSync<&Git>,
     merged_locals: &HashSet<String>,
-    base_remote_ref: &str,
+    base_upstream: &str,
     branch_name: &str,
 ) -> Result<Classification> {
     let merged = merged_locals.contains(branch_name)
-        || subprocess::is_merged(&git.repo, base_remote_ref, branch_name)?;
-    let fetch = get_fetch_remote_ref(&git.repo, &git.config, branch_name)?;
-    let push = get_push_remote_ref(&git.repo, &git.config, branch_name)?;
+        || subprocess::is_merged(&git.repo, base_upstream, branch_name)?;
+    let fetch = get_fetch_upstream(&git.repo, &git.config, branch_name)?;
+    let push = get_push_upstream(&git.repo, &git.config, branch_name)?;
 
     let mut c = Classification {
         branch_name: branch_name.to_string(),
@@ -441,10 +439,10 @@ fn classify(
     };
 
     match (fetch, push) {
-        (Some(_), Some(remote_ref)) if merged => {
+        (Some(_), Some(upstream)) if merged => {
             c.message = "merged local, merged remote: the branch is merged, but forgot to delete";
             c.result.merged_locals.insert(branch_name.to_string());
-            c.result.merged_remotes.insert(remote_ref);
+            c.result.merged_remotes.insert(upstream);
         }
         (Some(_), Some(_)) => {
             c.message = "skip: live branch. not merged, not gone";
@@ -452,22 +450,22 @@ fn classify(
 
         // `git branch`'s shows `%(upstream)` as s `%(push)` fallback if there isn't a specified push remote.
         // But our `get_push_remote_ref` doesn't.
-        (Some(fetch_ref), None) if merged => {
+        (Some(upstream), None) if merged => {
             c.message = "merged local, merged remote: the branch is merged, but forgot to delete";
             c.result.merged_locals.insert(branch_name.to_string());
-            c.result.merged_remotes.insert(fetch_ref);
+            c.result.merged_remotes.insert(upstream);
         }
         (Some(_), None) => {
             c.message = "skip: it might be a long running branch like 'develop' in a git-flow";
         }
 
-        (None, Some(remote_ref)) if merged => {
+        (None, Some(upstream)) if merged => {
             c.message = "merged remote: it might be a long running branch like 'develop' which is once pushed to the personal git.repo in the triangular workflow, but the branch is merged on the upstream";
-            c.result.merged_remotes.insert(remote_ref);
+            c.result.merged_remotes.insert(upstream);
         }
-        (None, Some(remote_ref)) => {
+        (None, Some(upstream)) => {
             c.message = "gone remote: it might be a long running branch like 'develop' which is once pushed to the personal git.repo in the triangular workflow, but the branch is gone on the upstream";
-            c.result.gone_remotes.insert(remote_ref);
+            c.result.gone_remotes.insert(upstream);
         }
 
         (None, None) if merged => {
@@ -529,18 +527,18 @@ fn resolve_base_refs(
             Err(err) => return Err(err.into()),
         }
 
-        if let Some(remote_ref) = get_fetch_remote_ref(repo, config, base)? {
-            result.insert(remote_ref);
+        if let Some(upstream) = get_fetch_upstream(repo, config, base)? {
+            result.insert(upstream);
         }
 
-        if let Some(remote_ref) = get_push_remote_ref(repo, config, base)? {
-            result.insert(remote_ref);
+        if let Some(upstream) = get_push_upstream(repo, config, base)? {
+            result.insert(upstream);
         }
     }
     Ok(result)
 }
 
-fn resolve_base_remote_refs(
+fn resolve_base_upstream(
     repo: &Repository,
     config: &GitConfig,
     bases: &[&str],
@@ -548,8 +546,8 @@ fn resolve_base_remote_refs(
     let mut result = Vec::new();
     for base in bases {
         // find "master -> refs/remotes/origin/master"
-        if let Some(remote_ref) = get_fetch_remote_ref(repo, config, base)? {
-            result.push(remote_ref);
+        if let Some(upstream) = get_fetch_upstream(repo, config, base)? {
+            result.push(upstream);
             continue;
         }
 
@@ -607,8 +605,8 @@ fn resolve_protected_refs(
             let branch_name = branch.name()?.context("non utf-8 branch name")?;
             if Pattern::new(protected)?.matches(branch_name) {
                 result.insert(branch_name.to_string());
-                if let Some(remote_ref) = get_fetch_remote_ref(repo, config, branch_name)? {
-                    result.insert(remote_ref);
+                if let Some(upstream) = get_fetch_upstream(repo, config, branch_name)? {
+                    result.insert(upstream);
                 }
                 let reference = branch.into_reference();
                 let refname = reference.name().context("non utf-8 ref")?;
@@ -656,7 +654,7 @@ pub fn delete_remote_branches(
     }
     let mut per_remote = HashMap::new();
     for remote_ref in remote_refs {
-        let ref_on_remote = get_ref_on_remote_from_remote_ref(repo, remote_ref)?;
+        let ref_on_remote = get_remote_branch_from_ref(repo, remote_ref)?;
         let entry = per_remote
             .entry(ref_on_remote.remote_name)
             .or_insert_with(Vec::new);

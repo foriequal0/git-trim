@@ -9,16 +9,16 @@ use crate::simple_glob::{expand_refspec, ExpansionSide};
 // given refspec for a remote: refs/heads/*:refs/remotes/origin
 // master -> refs/remotes/origin/master
 // refs/head/master -> refs/remotes/origin/master
-pub fn get_fetch_remote_ref(
+pub fn get_fetch_upstream(
     repo: &Repository,
     config: &Config,
     branch: &str,
 ) -> Result<Option<String>> {
     let remote_name = config::get_remote(config, branch)?;
-    get_remote_ref(repo, config, &remote_name, branch)
+    get_upstream(repo, config, &remote_name, branch)
 }
 
-fn get_remote_ref(
+fn get_upstream(
     repo: &Repository,
     config: &Config,
     remote_name: &str,
@@ -59,34 +59,34 @@ fn get_remote_ref(
 // given refspec for a remote: refs/heads/*:refs/heads/*
 // master -> refs/remotes/origin/master
 // refs/head/master -> refs/remotes/origin/master
-pub fn get_push_remote_ref(
+pub fn get_push_upstream(
     repo: &Repository,
     config: &Config,
     branch: &str,
 ) -> Result<Option<String>> {
-    if let Some(RefOnRemote {
+    if let Some(RemoteBranch {
         remote_name,
         refname,
-    }) = get_push_ref_on_remote(repo, config, branch)?
+    }) = get_push_remote_branch(repo, config, branch)?
     {
-        if let Some(remote_ref) = get_remote_ref(repo, config, &remote_name, &refname)? {
-            return Ok(Some(remote_ref));
+        if let Some(upstream) = get_upstream(repo, config, &remote_name, &refname)? {
+            return Ok(Some(upstream));
         }
     }
     Ok(None)
 }
 
 #[derive(Eq, PartialEq, Clone)]
-pub struct RefOnRemote {
+pub struct RemoteBranch {
     pub remote_name: String,
     pub refname: String,
 }
 
-fn get_push_ref_on_remote(
+fn get_push_remote_branch(
     repo: &Repository,
     config: &Config,
     branch: &str,
-) -> Result<Option<RefOnRemote>> {
+) -> Result<Option<RemoteBranch>> {
     let remote_name = config::get_push_remote(config, branch)?;
 
     let remote = repo.find_remote(&remote_name)?;
@@ -94,12 +94,12 @@ fn get_push_ref_on_remote(
         .find_branch(branch, BranchType::Local)?
         .into_reference();
     let refname = reference.name().context("non utf-8 refname")?;
-    if let Some(push_on_remote) =
+    if let Some(remote_branch) =
         expand_refspec(&remote, refname, Direction::Push, ExpansionSide::Right)?
     {
-        return Ok(Some(RefOnRemote {
+        return Ok(Some(RemoteBranch {
             remote_name: remote_name.to_string(),
-            refname: push_on_remote,
+            refname: remote_branch,
         }));
     }
 
@@ -109,14 +109,14 @@ fn get_push_ref_on_remote(
         .expect("has default");
 
     match push_default.as_str() {
-        "current" => Ok(Some(RefOnRemote {
+        "current" => Ok(Some(RemoteBranch {
             remote_name: remote_name.to_string(),
             refname: branch.to_string(),
         })),
         "upstream" | "tracking" | "simple" => {
             if let Some(merge) = config::get(config, &format!("branch.{}.merge", branch))
                 .parse_with(|ref_on_remote| {
-                    Ok(RefOnRemote {
+                    Ok(RemoteBranch {
                         remote_name: remote_name.clone(),
                         refname: ref_on_remote.to_string(),
                     })
@@ -135,10 +135,7 @@ fn get_push_ref_on_remote(
     }
 }
 
-pub fn get_ref_on_remote_from_remote_ref(
-    repo: &Repository,
-    remote_ref: &str,
-) -> Result<RefOnRemote> {
+pub fn get_remote_branch_from_ref(repo: &Repository, remote_ref: &str) -> Result<RemoteBranch> {
     assert!(remote_ref.starts_with("refs/remotes/"));
     for remote_name in repo.remotes()?.iter() {
         let remote_name = remote_name.context("non-utf8 remote name")?;
@@ -146,7 +143,7 @@ pub fn get_ref_on_remote_from_remote_ref(
         if let Some(expanded) =
             expand_refspec(&remote, remote_ref, Direction::Fetch, ExpansionSide::Left)?
         {
-            return Ok(RefOnRemote {
+            return Ok(RemoteBranch {
                 remote_name: remote.name().context("non-utf8 remote name")?.to_string(),
                 refname: expanded,
             });
