@@ -1,4 +1,4 @@
-# git-trim(1) -- Trim git remote tracking branches
+# git-trim(1) -- Trim git tracking branches
 
 ## SYNOPSIS
 
@@ -8,7 +8,7 @@
 
 ## DESCRIPTION
 
-`git-trim` automatically trims your git remote tracking branches that are merged or gone.
+`git-trim` trims your tracking branches whose upstream branches are merged or gone.
 
 ## FLAGS
 
@@ -55,9 +55,8 @@ local, remote, merged-local, merged-remote, gone-local, gone-remote'.
 - 'remote' implies 'merged-remote,gone-remote'.
 
 You can scope a filter unit to specific remote ':&lt;remote name&gt;' to a 'filter unit' if the filter unit
-implies 'merged-remote' or 'gone-remote'. If there are filter units that are scoped, it trims merged or gone
-remote branches in the specified remote branch. If there are any filter unit that isn't scoped, it trims all
-merged or gone remote branches. [default : 'merged'] [config: trim.filter]
+implies 'merged-remote' or 'gone-remote'. If there are filter units that are scoped, it trims remote branches only in the specified remote.
+If there are any filter unit that isn't scoped, it trims all remote branches. [default : 'merged'] [config: trim.filter]
 
 -p, --protected &lt;protected&gt;...
 
