@@ -51,7 +51,7 @@ pub struct MergedOrGone {
 }
 
 impl MergedOrGone {
-    pub fn accumulate(mut self, mut other: Self) -> Self {
+    fn accumulate(mut self, mut other: Self) -> Self {
         self.merged_locals.extend(other.merged_locals.drain());
         self.gone_locals.extend(other.gone_locals.drain());
         self.merged_remotes.extend(other.merged_remotes.drain());
@@ -205,60 +205,6 @@ impl MergedOrGoneAndKeptBacks {
                 "Gone local but kept back not to make detached HEAD".to_string(),
             );
         }
-        Ok(())
-    }
-
-    pub fn print_summary(&self, repo: &Repository) -> Result<()> {
-        println!("Branches that will remain:");
-        println!("  local branches:");
-        let local_branches_to_delete: HashSet<_> = self.to_delete.locals().into_iter().collect();
-        for local_branch in repo.branches(Some(BranchType::Local))? {
-            let (branch, _) = local_branch?;
-            let name = branch.name()?.context("non utf-8 local branch name")?;
-            if local_branches_to_delete.contains(name) {
-                continue;
-            }
-            println!("    {}", name);
-        }
-        println!("  remote references:");
-        let remote_refs_to_delete: HashSet<_> = self.to_delete.remotes().into_iter().collect();
-        for remote_ref in repo.branches(Some(BranchType::Remote))? {
-            let (branch, _) = remote_ref?;
-            let name = branch.get().name().context("non utf-8 remote ref name")?;
-            if remote_refs_to_delete.contains(name) {
-                continue;
-            }
-            println!("    {}", name);
-        }
-        println!();
-
-        if !self.kept_back.is_empty() {
-            let mut kept_back: Vec<_> = self.kept_back.iter().collect();
-            kept_back.sort();
-            println!("Kept back:");
-            for (branch, reason) in kept_back {
-                println!("    {}\t{}", branch, reason);
-            }
-            println!();
-        }
-
-        fn print(label: &str, branches: &HashSet<String>) {
-            if branches.is_empty() {
-                return;
-            }
-            let mut branches: Vec<_> = branches.iter().collect();
-            branches.sort();
-            println!("Delete {}:", label);
-            for branch in branches {
-                println!("  - {}", branch);
-            }
-        }
-
-        print("merged local branches", &self.to_delete.merged_locals);
-        print("merged remote refs", &self.to_delete.merged_remotes);
-        print("gone local branches", &self.to_delete.gone_locals);
-        print("gone remote refs", &self.to_delete.gone_remotes);
-
         Ok(())
     }
 }
