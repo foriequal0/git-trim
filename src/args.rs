@@ -245,11 +245,11 @@ impl<T> CommaSeparatedSet<T> {
 
 #[derive(structopt::StructOpt)]
 pub struct Args {
-    /// Comma separated or multiple arguments of refs that other refs are compared to determine whether it is merged or gone. [default: master] [config: trim.base]
+    /// Comma separated multiple names of branches. All the other branches are compared with the upstream branches of those branches. [default: master] [config: trim.base]
     #[structopt(short, long, aliases=&["base"])]
     pub bases: Vec<CommaSeparatedSet<String>>,
 
-    /// Comma separated or multiple arguments of glob pattern of branches that never be deleted.
+    /// Comma separated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches that should never be deleted.
     #[structopt(short, long)]
     pub protected: Vec<CommaSeparatedSet<String>>,
 
@@ -279,10 +279,9 @@ pub struct Args {
     /// 'local' implies 'merged-local,gone-local'.
     /// 'remote' implies 'merged-remote,gone-remote'.
     ///
-    /// You can scope a filter unit to specific remote ':<remote name>' to a 'filter unit'
-    /// if the filter unit implies 'merged-remote' or 'gone-remote'.
-    /// If there are filter units that are scoped, it trims merged or gone remote branches in the specified remote branch.
-    /// If there are any filter unit that isn't scoped, it trims all merged or gone remote branches.
+    /// You can scope a filter unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies `merged-remote` or `gone-remote`.
+    /// If there are filter units that are scoped, it trims remote branches only in the specified remote.
+    /// If there are any filter unit that isn't scoped, it trims all remote branches.
     /// [default : 'merged'] [config: trim.filter]
     #[structopt(short, long)]
     pub delete: Vec<DeleteFilter>,
