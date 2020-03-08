@@ -15,7 +15,9 @@ use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote_branch_from_ref};
+use crate::branch::{
+    get_fetch_upstream, get_push_upstream, get_remote, get_remote_branch_from_ref,
+};
 pub use crate::subprocess::remote_update;
 
 pub struct Git {
@@ -278,13 +280,22 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
         let (branch, _) = branch?;
         let branch_name = branch.name()?.context("non-utf8 branch name")?;
         debug!("Branch: {:?}", branch.name()?);
-        if config::get_remote(&git.config, branch_name)?.is_implicit() {
+        let config_remote = config::get_remote(&git.config, branch_name)?;
+        if config_remote.is_implicit() {
             debug!(
                 "Skip: the branch doesn't have a tracking remote: {:?}",
                 branch_name
             );
             continue;
         }
+        if get_remote(&git.repo, &config_remote)?.is_none() {
+            debug!(
+                "Skip: the branch's remote is assumed to be an URL: {}",
+                config_remote.as_str()
+            );
+            continue;
+        }
+
         if protected_refs.contains(branch_name) {
             debug!("Skip: the branch is protected branch: {:?}", branch_name);
             continue;
