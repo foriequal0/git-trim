@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use git2::{BranchType, Config, Direction, Repository};
+use git2::{BranchType, Config, Direction, Error, ErrorClass, ErrorCode, Remote, Repository};
 use log::*;
 
 use crate::config;
@@ -17,13 +17,29 @@ pub fn get_fetch_upstream(
     get_upstream(repo, config, &remote_name, branch)
 }
 
+pub fn get_remote<'a>(repo: &'a Repository, remote_name: &str) -> Result<Option<Remote<'a>>> {
+    fn error_is_missing_remote(err: &Error) -> bool {
+        err.class() == ErrorClass::Config && err.code() == ErrorCode::InvalidSpec
+    }
+
+    match repo.find_remote(remote_name) {
+        Ok(remote) => Ok(Some(remote)),
+        Err(err) if error_is_missing_remote(&err) => Ok(None),
+        Err(err) => Err(err.into()),
+    }
+}
+
 fn get_upstream(
     repo: &Repository,
     config: &Config,
     remote_name: &str,
     branch: &str,
 ) -> Result<Option<String>> {
-    let remote = repo.find_remote(remote_name)?;
+    let remote = if let Some(remote) = get_remote(repo, remote_name)? {
+        remote
+    } else {
+        return Ok(None);
+    };
     let merge: String = if let Some(merge) = config::get_merge(config, &branch)? {
         merge
     } else {
@@ -82,7 +98,11 @@ fn get_push_remote_branch(
 ) -> Result<Option<RemoteBranch>> {
     let remote_name = config::get_push_remote(config, branch)?;
 
-    let remote = repo.find_remote(&remote_name)?;
+    let remote = if let Some(remote) = get_remote(repo, &remote_name)? {
+        remote
+    } else {
+        return Ok(None);
+    };
     let reference = repo
         .find_branch(branch, BranchType::Local)?
         .into_reference();
