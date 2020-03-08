@@ -333,8 +333,8 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
     for classification in classifications.into_iter() {
         debug!("branch: {}", classification.branch_name);
         trace!("merged: {}", classification.branch_is_merged);
-        trace!("push: {:?}", classification.fetch);
-        trace!("fetch: {:?}", classification.push);
+        trace!("fetch: {:?}", classification.fetch);
+        trace!("push: {:?}", classification.push);
         debug!("message: {}", classification.message);
         merged_or_gone = merged_or_gone.accumulate(classification.result);
     }
