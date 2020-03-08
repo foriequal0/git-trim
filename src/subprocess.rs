@@ -139,6 +139,15 @@ pub fn get_noff_merged_locals(
     Ok(result)
 }
 
+pub fn ls_remote_heads(repo: &Repository, remote: &str) -> Result<HashSet<String>> {
+    let mut result = HashSet::new();
+    for line in git_output(repo, &["ls-remote", "--heads", remote])?.lines() {
+        let records = line.split_whitespace().collect::<Vec<_>>();
+        result.insert(records[1].to_string());
+    }
+    Ok(result)
+}
+
 pub fn checkout(repo: &Repository, head: Reference, dry_run: bool) -> Result<()> {
     let head_refname = head.name().context("non-utf8 head ref name")?;
     if !dry_run {
