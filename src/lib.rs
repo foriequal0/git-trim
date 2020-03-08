@@ -18,6 +18,7 @@ use crate::args::DeleteFilter;
 use crate::branch::{
     get_fetch_upstream, get_push_upstream, get_remote, get_remote_branch_from_ref,
 };
+use crate::subprocess::ls_remote_heads;
 pub use crate::subprocess::remote_update;
 
 pub struct Git {
@@ -276,6 +277,7 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
     merged_locals.extend(noff_merged_locals);
 
     let mut base_and_branch_to_compare = Vec::new();
+    let mut remote_urls = Vec::new();
     for branch in git.repo.branches(Some(BranchType::Local))? {
         let (branch, _) = branch?;
         let branch_name = branch.name()?.context("non-utf8 branch name")?;
@@ -290,10 +292,10 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
         }
         if get_remote(&git.repo, &config_remote)?.is_none() {
             debug!(
-                "Skip: the branch's remote is assumed to be an URL: {}",
+                "The branch's remote is assumed to be an URL: {}",
                 config_remote.as_str()
             );
-            continue;
+            remote_urls.push(config_remote.to_string());
         }
 
         if protected_refs.contains(branch_name) {
@@ -322,6 +324,18 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
         }
     }
 
+    let remote_heads_per_url = remote_urls
+        .into_par_iter()
+        .map({
+            let git = ForceSendSync(git);
+            move |remote_url| {
+                ls_remote_heads(&git.repo, &remote_url)
+                    .with_context(|| format!("remote_url={}", remote_url))
+                    .map(|remote_heads| (remote_url.to_string(), remote_heads))
+            }
+        })
+        .collect::<Result<HashMap<String, HashSet<String>>, _>>()?;
+
     let classifications = base_and_branch_to_compare
         .into_par_iter()
         .map({
@@ -331,7 +345,14 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
             // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
             let git = ForceSendSync(git);
             move |(base_upstream, branch_name)| {
-                classify(git, &merged_locals, &base_upstream, &branch_name).with_context(|| {
+                classify(
+                    git,
+                    &merged_locals,
+                    &remote_heads_per_url,
+                    &base_upstream,
+                    &branch_name,
+                )
+                .with_context(|| {
                     format!(
                         "base_upstream={}, branch_name={}",
                         base_upstream, branch_name
@@ -378,6 +399,7 @@ struct Classification {
 fn classify(
     git: ForceSendSync<&Git>,
     merged_locals: &HashSet<String>,
+    remote_heads_per_url: &HashMap<String, HashSet<String>>,
     base_upstream: &str,
     branch_name: &str,
 ) -> Result<Classification> {
@@ -430,8 +452,19 @@ fn classify(
             c.result.merged_locals.insert(branch_name.to_string());
         }
         (None, None) => {
-            c.message = "gone local: the branch is not merged but gone somehow";
-            c.result.gone_locals.insert(branch_name.to_string());
+            // `origin` or `git@github.com:someone/fork.git`
+            let remote = config::get_remote_raw(&git.config, branch_name)?
+                .expect("should have it if it has an upstream");
+            let merge = config::get_merge(&git.config, branch_name)?
+                .expect("should have it if it has an upstream");
+            if remote_heads_per_url.contains_key(&remote)
+                && remote_heads_per_url[&remote].contains(&merge)
+            {
+                c.message = "skip: the branch is alive";
+            } else {
+                c.message = "gone local: the branch is not merged but from the remote";
+                c.result.gone_locals.insert(branch_name.to_string());
+            }
         }
     }
 
