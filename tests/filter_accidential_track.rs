@@ -6,7 +6,7 @@ use anyhow::Result;
 use git2::Repository;
 
 use git_trim::args::{DeleteFilter, FilterUnit, Scope};
-use git_trim::{get_merged_or_gone, Config, Git, MergedOrGone};
+use git_trim::{get_merged_or_gone, Config, Git, MergedOrGone, RemoteBranch};
 
 use fixture::{rc, Fixture};
 use std::iter::FromIterator;
@@ -95,7 +95,12 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
         branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"feature"},
-            merged_remotes: set! {"refs/remotes/contributer/feature"},
+            merged_remotes: set! {
+                RemoteBranch {
+                    remote: "contributer".to_string(),
+                    refname: "refs/heads/feature".to_string()
+                },
+            },
             ..Default::default()
         },
     );

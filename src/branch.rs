@@ -85,13 +85,34 @@ pub fn get_push_upstream(
     Ok(None)
 }
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug)]
 pub struct RemoteBranch {
     pub remote: String,
     pub refname: String,
 }
 
+impl std::fmt::Display for RemoteBranch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}, {}", self.remote, self.refname)
+    }
+}
+
 impl RemoteBranch {
+    pub fn to_remote_tracking(&self, repo: &Repository) -> Result<Option<String>> {
+        let remote = get_remote(repo, &self.remote)?;
+        if let Some(remote) = remote {
+            if let Some(expanded) = expand_refspec(
+                &remote,
+                &self.refname,
+                Direction::Fetch,
+                ExpansionSide::Right,
+            )? {
+                return Ok(Some(expanded));
+            }
+        }
+        Ok(None)
+    }
+
     pub fn from_remote_tracking(repo: &Repository, remote_tracking: &str) -> Result<RemoteBranch> {
         assert!(remote_tracking.starts_with("refs/remotes/"));
         for remote_name in repo.remotes()?.iter() {

@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::{get_merged_or_gone, Config, Git, MergedOrGone};
+use git_trim::{get_merged_or_gone, Config, Git, MergedOrGone, RemoteBranch};
 
 use fixture::{rc, Fixture};
 use git_trim::args::DeleteFilter;
@@ -120,7 +120,12 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
         branches.to_delete,
         MergedOrGone {
             merged_locals: set! {"feature"},
-            merged_remotes: set! {"refs/remotes/origin/feature"},
+            merged_remotes: set! {
+                RemoteBranch {
+                    remote: "origin".to_string(),
+                    refname: "refs/heads/feature".to_string()
+                },
+            },
             ..Default::default()
         },
     );
