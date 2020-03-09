@@ -74,7 +74,7 @@ pub fn get_push_upstream(
     branch: &str,
 ) -> Result<Option<String>> {
     if let Some(RemoteBranch {
-        remote_name,
+        remote: remote_name,
         refname,
     }) = get_push_remote_branch(repo, config, branch)?
     {
@@ -87,7 +87,7 @@ pub fn get_push_upstream(
 
 #[derive(Eq, PartialEq, Clone)]
 pub struct RemoteBranch {
-    pub remote_name: String,
+    pub remote: String,
     pub refname: String,
 }
 
@@ -111,7 +111,7 @@ fn get_push_remote_branch(
         expand_refspec(&remote, refname, Direction::Push, ExpansionSide::Right)?
     {
         return Ok(Some(RemoteBranch {
-            remote_name: remote_name.to_string(),
+            remote: remote_name.to_string(),
             refname: remote_branch,
         }));
     }
@@ -123,13 +123,13 @@ fn get_push_remote_branch(
 
     match push_default.as_str() {
         "current" => Ok(Some(RemoteBranch {
-            remote_name: remote_name.to_string(),
+            remote: remote_name.to_string(),
             refname: branch.to_string(),
         })),
         "upstream" | "tracking" | "simple" | "matching" => {
             if let Some(merge) = config::get_merge(config, &branch)? {
                 Ok(Some(RemoteBranch {
-                    remote_name: remote_name.clone(),
+                    remote: remote_name.clone(),
                     refname: merge,
                 }))
             } else {
@@ -151,7 +151,7 @@ pub fn get_remote_branch_from_ref(repo: &Repository, remote_ref: &str) -> Result
             expand_refspec(&remote, remote_ref, Direction::Fetch, ExpansionSide::Left)?
         {
             return Ok(RemoteBranch {
-                remote_name: remote.name().context("non-utf8 remote name")?.to_string(),
+                remote: remote.name().context("non-utf8 remote name")?.to_string(),
                 refname: expanded,
             });
         }

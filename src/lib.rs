@@ -236,7 +236,7 @@ impl MergedOrGoneAndKeptBacks {
         let mut merged_remotes = HashSet::new();
         for remote_ref in &self.to_delete.merged_remotes {
             let remote_branch = get_remote_branch_from_ref(repo, remote_ref)?;
-            if filter.filter_merged_remote(&remote_branch.remote_name) {
+            if filter.filter_merged_remote(&remote_branch.remote) {
                 merged_remotes.insert(remote_ref.clone());
             } else {
                 trace!("filter-out: merged remote ref {}", remote_ref);
@@ -254,7 +254,7 @@ impl MergedOrGoneAndKeptBacks {
         let mut gone_remotes = HashSet::new();
         for remote_ref in &self.to_delete.gone_remotes {
             let ref_on_remote = get_remote_branch_from_ref(repo, remote_ref)?;
-            if filter.filter_gone_remote(&ref_on_remote.remote_name) {
+            if filter.filter_gone_remote(&ref_on_remote.remote) {
                 gone_remotes.insert(remote_ref.clone());
             } else {
                 trace!("filter-out: gone_remotes remote ref {}", remote_ref);
@@ -739,7 +739,7 @@ pub fn delete_remote_branches(
     for remote_ref in remote_refs {
         let ref_on_remote = get_remote_branch_from_ref(repo, remote_ref)?;
         let entry = per_remote
-            .entry(ref_on_remote.remote_name)
+            .entry(ref_on_remote.remote)
             .or_insert_with(Vec::new);
         entry.push(ref_on_remote.refname);
     }
