@@ -113,7 +113,7 @@ fn get_push_remote_branch(
             remote_name: remote_name.to_string(),
             refname: branch.to_string(),
         })),
-        "upstream" | "tracking" | "simple" => {
+        "upstream" | "tracking" | "simple" | "matching" => {
             if let Some(merge) = config::get(config, &format!("branch.{}.merge", branch))
                 .parse_with(|ref_on_remote| {
                     Ok(RemoteBranch {
@@ -128,9 +128,7 @@ fn get_push_remote_branch(
                 Ok(None)
             }
         }
-        "nothing" | "matching" => {
-            unimplemented!("push.default=nothing|matching is not implemented.")
-        }
+        "nothing" => unimplemented!("push.default=nothing is not implemented."),
         _ => panic!("unexpected config push.default"),
     }
 }
