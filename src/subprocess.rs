@@ -15,7 +15,10 @@ fn git(repo: &Repository, args: &[&str]) -> Result<()> {
 
     let mut cd_args = vec!["-C", workdir];
     cd_args.extend_from_slice(args);
-    let exit_status = Command::new("git").args(cd_args).status()?;
+    let exit_status = Command::new("git")
+        .args(cd_args)
+        .stdin(Stdio::inherit())
+        .status()?;
     if !exit_status.success() {
         Err(std::io::Error::from_raw_os_error(exit_status.code().unwrap_or(-1)).into())
     } else {
@@ -32,7 +35,7 @@ fn git_output(repo: &Repository, args: &[&str]) -> Result<String> {
     cd_args.extend_from_slice(args);
     let output = Command::new("git")
         .args(cd_args)
-        .stdin(Stdio::null())
+        .stdin(Stdio::inherit())
         .stdout(Stdio::piped())
         .output()?;
     if !output.status.success() {
