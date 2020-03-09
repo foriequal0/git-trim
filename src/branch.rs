@@ -3,7 +3,6 @@ use git2::{BranchType, Config, Direction, Repository};
 use log::*;
 
 use crate::config;
-use crate::config::ConfigValue;
 use crate::simple_glob::{expand_refspec, ExpansionSide};
 
 // given refspec for a remote: refs/heads/*:refs/remotes/origin
@@ -25,25 +24,19 @@ fn get_upstream(
     branch: &str,
 ) -> Result<Option<String>> {
     let remote = repo.find_remote(remote_name)?;
-    let key = format!("branch.{}.merge", branch);
-    let ref_on_remote: ConfigValue<String> =
-        if let Some(ref_on_remote) = config::get(config, &key).read()? {
-            ref_on_remote
-        } else {
-            return Ok(None);
-        };
+    let merge: String = if let Some(merge) = config::get_merge(config, &branch)? {
+        merge
+    } else {
+        return Ok(None);
+    };
     assert!(
-        ref_on_remote.starts_with("refs/"),
+        merge.starts_with("refs/"),
         "'git config branch.{}.merge' should start with 'refs/'",
         branch
     );
 
-    if let Some(expanded) = expand_refspec(
-        &remote,
-        &ref_on_remote,
-        Direction::Fetch,
-        ExpansionSide::Right,
-    )? {
+    if let Some(expanded) = expand_refspec(&remote, &merge, Direction::Fetch, ExpansionSide::Right)?
+    {
         // TODO: is this necessary?
         let exists = repo.find_reference(&expanded).is_ok();
         if exists {
@@ -114,15 +107,11 @@ fn get_push_remote_branch(
             refname: branch.to_string(),
         })),
         "upstream" | "tracking" | "simple" | "matching" => {
-            if let Some(merge) = config::get(config, &format!("branch.{}.merge", branch))
-                .parse_with(|ref_on_remote| {
-                    Ok(RemoteBranch {
-                        remote_name: remote_name.clone(),
-                        refname: ref_on_remote.to_string(),
-                    })
-                })?
-            {
-                Ok(Some(merge.clone()))
+            if let Some(merge) = config::get_merge(config, &branch)? {
+                Ok(Some(RemoteBranch {
+                    remote_name: remote_name.clone(),
+                    refname: merge,
+                }))
             } else {
                 warn!("The current branch {} has no upstream branch.", branch);
                 Ok(None)
