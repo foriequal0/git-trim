@@ -182,17 +182,12 @@ pub fn branch_delete(repo: &Repository, branches: &[&str], dry_run: bool) -> Res
     }
 }
 
-pub fn push_delete(
-    repo: &Repository,
-    remote_name: &str,
-    remote_refnames: &[String],
-    dry_run: bool,
-) -> Result<()> {
+pub fn push_delete(repo: &Repository, remote: &str, refs: &[&String], dry_run: bool) -> Result<()> {
     let mut command = vec!["push", "--delete"];
     if dry_run {
         command.push("--dry-run");
     }
-    command.push(remote_name);
-    command.extend(remote_refnames.iter().map(String::as_str));
+    command.push(remote);
+    command.extend(refs.iter().map(|reference| reference.as_str()));
     git(repo, &command)
 }

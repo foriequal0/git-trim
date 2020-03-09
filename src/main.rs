@@ -8,7 +8,7 @@ use git2::{BranchType, Repository};
 use log::*;
 
 use git_trim::args::{Args, CommaSeparatedSet, DeleteFilter};
-use git_trim::{config, Config, Git, MergedOrGoneAndKeptBacks};
+use git_trim::{config, Config, Git, MergedOrGoneAndKeptBacks, RemoteBranch};
 use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_gone, remote_update};
 
 type Result<T> = ::std::result::Result<T, Error>;
@@ -128,7 +128,8 @@ pub fn print_summary(branches: &MergedOrGoneAndKeptBacks, repo: &Repository) -> 
     for remote_ref in repo.branches(Some(BranchType::Remote))? {
         let (branch, _) = remote_ref?;
         let name = branch.get().name().context("non utf-8 remote ref name")?;
-        if remote_refs_to_delete.contains(name) {
+        let remote_branch = RemoteBranch::from_remote_tracking(repo, name)?;
+        if remote_refs_to_delete.contains(&remote_branch) {
             continue;
         }
         println!("    {}", name);
@@ -155,7 +156,10 @@ pub fn print_summary(branches: &MergedOrGoneAndKeptBacks, repo: &Repository) -> 
         println!();
     }
 
-    fn print(label: &str, branches: &HashSet<String>) {
+    fn print<T>(label: &str, branches: &HashSet<T>)
+    where
+        T: std::fmt::Display + std::cmp::Ord,
+    {
         if branches.is_empty() {
             return;
         }

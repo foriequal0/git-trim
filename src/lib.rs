@@ -15,7 +15,8 @@ use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote, RemoteBranch};
+pub use crate::branch::RemoteBranch;
+use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote};
 use crate::subprocess::ls_remote_heads;
 pub use crate::subprocess::remote_update;
 
@@ -47,8 +48,8 @@ pub struct MergedOrGone {
     pub gone_locals: HashSet<String>,
 
     /// remote refs
-    pub merged_remotes: HashSet<String>,
-    pub gone_remotes: HashSet<String>,
+    pub merged_remotes: HashSet<RemoteBranch>,
+    pub gone_remotes: HashSet<RemoteBranch>,
 }
 
 impl MergedOrGone {
@@ -69,11 +70,10 @@ impl MergedOrGone {
             .collect()
     }
 
-    pub fn remotes(&self) -> Vec<&str> {
+    pub fn remotes(&self) -> Vec<&RemoteBranch> {
         self.merged_remotes
             .iter()
             .chain(self.gone_remotes.iter())
-            .map(String::as_str)
             .collect()
     }
 }
@@ -131,22 +131,24 @@ impl MergedOrGoneAndKeptBacks {
             },
             &mut self.to_delete.gone_locals,
         )?);
-        self.kept_back.extend(keep_remote_refs(
+        self.kept_back.extend(keep_remote_branches(
+            repo,
             &base_refs,
             Reason {
                 original_classification: OriginalClassification::MergedRemotes,
                 reason: "a base",
             },
             &mut self.to_delete.merged_remotes,
-        ));
-        self.kept_back.extend(keep_remote_refs(
+        )?);
+        self.kept_back.extend(keep_remote_branches(
+            repo,
             &base_refs,
             Reason {
                 original_classification: OriginalClassification::GoneRemotes,
                 reason: "a base",
             },
             &mut self.to_delete.gone_remotes,
-        ));
+        )?);
         Ok(())
     }
 
@@ -176,26 +178,28 @@ impl MergedOrGoneAndKeptBacks {
             },
             &mut self.to_delete.gone_locals,
         )?);
-        self.kept_back.extend(keep_remote_refs(
+        self.kept_back.extend(keep_remote_branches(
+            repo,
             &protected_refs,
             Reason {
                 original_classification: OriginalClassification::MergedRemotes,
                 reason: "protected",
             },
             &mut self.to_delete.merged_remotes,
-        ));
-        self.kept_back.extend(keep_remote_refs(
+        )?);
+        self.kept_back.extend(keep_remote_branches(
+            repo,
             &protected_refs,
             Reason {
                 original_classification: OriginalClassification::GoneRemotes,
                 reason: "protected",
             },
             &mut self.to_delete.gone_remotes,
-        ));
+        )?);
         Ok(())
     }
 
-    fn apply_filter(&mut self, repo: &Repository, filter: &DeleteFilter) -> Result<()> {
+    fn apply_filter(&mut self, filter: &DeleteFilter) -> Result<()> {
         trace!("Before filter: {:#?}", self);
         trace!("Applying filter: {:?}", filter);
         if !filter.filter_merged_local() {
@@ -232,14 +236,13 @@ impl MergedOrGoneAndKeptBacks {
         }
 
         let mut merged_remotes = HashSet::new();
-        for remote_ref in &self.to_delete.merged_remotes {
-            let remote_branch = RemoteBranch::from_remote_tracking(repo, remote_ref)?;
+        for remote_branch in &self.to_delete.merged_remotes {
             if filter.filter_merged_remote(&remote_branch.remote) {
-                merged_remotes.insert(remote_ref.clone());
+                merged_remotes.insert(remote_branch.clone());
             } else {
-                trace!("filter-out: merged remote ref {}", remote_ref);
+                trace!("filter-out: merged remote ref {}", remote_branch);
                 self.kept_back.insert(
-                    remote_ref.to_string(),
+                    remote_branch.to_string(),
                     Reason {
                         original_classification: OriginalClassification::MergedRemotes,
                         reason: "filtered out",
@@ -250,14 +253,13 @@ impl MergedOrGoneAndKeptBacks {
         self.to_delete.merged_remotes = merged_remotes;
 
         let mut gone_remotes = HashSet::new();
-        for remote_ref in &self.to_delete.gone_remotes {
-            let ref_on_remote = RemoteBranch::from_remote_tracking(repo, remote_ref)?;
-            if filter.filter_gone_remote(&ref_on_remote.remote) {
-                gone_remotes.insert(remote_ref.clone());
+        for remote_branch in &self.to_delete.gone_remotes {
+            if filter.filter_gone_remote(&remote_branch.remote) {
+                gone_remotes.insert(remote_branch.clone());
             } else {
-                trace!("filter-out: gone_remotes remote ref {}", remote_ref);
+                trace!("filter-out: gone_remotes remote ref {}", remote_branch);
                 self.kept_back.insert(
-                    remote_ref.to_string(),
+                    remote_branch.to_string(),
                     Reason {
                         original_classification: OriginalClassification::GoneRemotes,
                         reason: "filtered out",
@@ -330,21 +332,31 @@ fn keep_branches(
     Ok(kept_back)
 }
 
-fn keep_remote_refs(
+fn keep_remote_branches(
+    repo: &Repository,
     protected_refs: &HashSet<String>,
     reason: Reason,
-    remote_refs: &mut HashSet<String>,
-) -> HashMap<String, Reason> {
+    remote_branches: &mut HashSet<RemoteBranch>,
+) -> Result<HashMap<String, Reason>> {
     let mut kept_back = HashMap::new();
-    for remote_ref in remote_refs.iter() {
-        if protected_refs.contains(remote_ref) {
-            kept_back.insert(remote_ref.to_string(), reason.clone());
+    for remote_branch in remote_branches.iter() {
+        if let Some(remote_tracking) = remote_branch.to_remote_tracking(repo)? {
+            if protected_refs.contains(&remote_tracking) {
+                kept_back.insert(remote_branch.clone(), reason.clone());
+            }
         }
     }
-    for remote_ref in kept_back.keys() {
-        remote_refs.remove(remote_ref);
+    for remote_branch in kept_back.keys() {
+        remote_branches.remove(remote_branch);
     }
-    kept_back
+    let mut result = HashMap::new();
+    for (remote_branch, reason) in kept_back.into_iter() {
+        let remote_tracking = remote_branch
+            .to_remote_tracking(repo)?
+            .expect("should be exist");
+        result.insert(remote_tracking, reason);
+    }
+    Ok(result)
 }
 
 #[allow(clippy::cognitive_complexity, clippy::implicit_hasher)]
@@ -468,7 +480,7 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
     };
     result.keep_base(&git.repo, &git.config, &config.bases)?;
     result.keep_protected(&git.repo, &git.config, &config.protected_branches)?;
-    result.apply_filter(&git.repo, &config.filter)?;
+    result.apply_filter(&config.filter)?;
 
     if !config.detach {
         result.adjust_not_to_detach(&git.repo)?;
@@ -512,7 +524,9 @@ fn classify(
         (Some(_), Some(upstream)) if merged => {
             c.message = "merged local, merged remote: the branch is merged, but forgot to delete";
             c.result.merged_locals.insert(branch_name.to_string());
-            c.result.merged_remotes.insert(upstream);
+            c.result
+                .merged_remotes
+                .insert(RemoteBranch::from_remote_tracking(&git.repo, &upstream)?);
         }
         (Some(_), Some(_)) => {
             c.message = "skip: live branch. not merged, not gone";
@@ -523,7 +537,9 @@ fn classify(
         (Some(upstream), None) if merged => {
             c.message = "merged local, merged remote: the branch is merged, but forgot to delete";
             c.result.merged_locals.insert(branch_name.to_string());
-            c.result.merged_remotes.insert(upstream);
+            c.result
+                .merged_remotes
+                .insert(RemoteBranch::from_remote_tracking(&git.repo, &upstream)?);
         }
         (Some(_), None) => {
             c.message = "skip: it might be a long running branch like 'develop' in a git-flow";
@@ -531,16 +547,36 @@ fn classify(
 
         (None, Some(upstream)) if merged => {
             c.message = "merged remote: it might be a long running branch like 'develop' which is once pushed to the personal git.repo in the triangular workflow, but the branch is merged on the upstream";
-            c.result.merged_remotes.insert(upstream);
+            c.result
+                .merged_remotes
+                .insert(RemoteBranch::from_remote_tracking(&git.repo, &upstream)?);
         }
         (None, Some(upstream)) => {
             c.message = "gone remote: it might be a long running branch like 'develop' which is once pushed to the personal git.repo in the triangular workflow, but the branch is gone on the upstream";
-            c.result.gone_remotes.insert(upstream);
+            c.result
+                .gone_remotes
+                .insert(RemoteBranch::from_remote_tracking(&git.repo, &upstream)?);
         }
 
         (None, None) if merged => {
-            c.message = "merged local: the branch is merged, and deleted";
-            c.result.merged_locals.insert(branch_name.to_string());
+            let remote = config::get_remote_raw(&git.config, branch_name)?
+                .expect("should have it if it has an upstream");
+            let merge = config::get_merge(&git.config, branch_name)?
+                .expect("should have it if it has an upstream");
+            if remote_heads_per_url.contains_key(&remote)
+                && remote_heads_per_url[&remote].contains(&merge)
+            {
+                c.message =
+                    "merged local, merged remote: the branch is merged, but forgot to delete";
+                c.result.merged_locals.insert(branch_name.to_string());
+                c.result.merged_remotes.insert(RemoteBranch {
+                    remote,
+                    refname: merge,
+                });
+            } else {
+                c.message = "merged local: the branch is merged, and deleted";
+                c.result.merged_locals.insert(branch_name.to_string());
+            }
         }
         (None, None) => {
             // `origin` or `git@github.com:someone/fork.git`
@@ -727,19 +763,18 @@ pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool
 
 pub fn delete_remote_branches(
     repo: &Repository,
-    remote_refs: &[&str],
+    remote_branches: &[&RemoteBranch],
     dry_run: bool,
 ) -> Result<()> {
-    if remote_refs.is_empty() {
+    if remote_branches.is_empty() {
         return Ok(());
     }
     let mut per_remote = HashMap::new();
-    for remote_ref in remote_refs {
-        let ref_on_remote = RemoteBranch::from_remote_tracking(repo, remote_ref)?;
+    for remote_branch in remote_branches {
         let entry = per_remote
-            .entry(ref_on_remote.remote)
+            .entry(&remote_branch.remote)
             .or_insert_with(Vec::new);
-        entry.push(ref_on_remote.refname);
+        entry.push(&remote_branch.refname);
     }
     for (remote_name, remote_refnames) in per_remote.iter() {
         subprocess::push_delete(repo, remote_name, remote_refnames, dry_run)?;
