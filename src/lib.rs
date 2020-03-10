@@ -101,10 +101,10 @@ pub enum OriginalClassification {
 impl std::fmt::Display for OriginalClassification {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OriginalClassification::MergedLocals => write!(f, "merged locals"),
-            OriginalClassification::GoneLocals => write!(f, "gone locals"),
-            OriginalClassification::MergedRemotes => write!(f, "merged remotes"),
-            OriginalClassification::GoneRemotes => write!(f, "gone remotes"),
+            OriginalClassification::MergedLocals => write!(f, "merged local"),
+            OriginalClassification::GoneLocals => write!(f, "gone local"),
+            OriginalClassification::MergedRemotes => write!(f, "merged remote"),
+            OriginalClassification::GoneRemotes => write!(f, "gone remote"),
         }
     }
 }
@@ -118,7 +118,7 @@ impl MergedOrGoneAndKeptBacks {
             &base_refs,
             Reason {
                 original_classification: OriginalClassification::MergedLocals,
-                reason: "a base",
+                reason: "a base branch",
             },
             &mut self.to_delete.merged_locals,
         )?);
@@ -127,7 +127,7 @@ impl MergedOrGoneAndKeptBacks {
             &base_refs,
             Reason {
                 original_classification: OriginalClassification::GoneLocals,
-                reason: "a base",
+                reason: "a base branch",
             },
             &mut self.to_delete.gone_locals,
         )?);
@@ -136,7 +136,7 @@ impl MergedOrGoneAndKeptBacks {
             &base_refs,
             Reason {
                 original_classification: OriginalClassification::MergedRemotes,
-                reason: "a base",
+                reason: "a base branch",
             },
             &mut self.to_delete.merged_remotes,
         )?);
@@ -145,7 +145,7 @@ impl MergedOrGoneAndKeptBacks {
             &base_refs,
             Reason {
                 original_classification: OriginalClassification::GoneRemotes,
-                reason: "a base",
+                reason: "a base branch",
             },
             &mut self.to_delete.gone_remotes,
         )?);
@@ -165,7 +165,7 @@ impl MergedOrGoneAndKeptBacks {
             &protected_refs,
             Reason {
                 original_classification: OriginalClassification::MergedLocals,
-                reason: "protected",
+                reason: "a protected branch",
             },
             &mut self.to_delete.merged_locals,
         )?);
@@ -174,7 +174,7 @@ impl MergedOrGoneAndKeptBacks {
             &protected_refs,
             Reason {
                 original_classification: OriginalClassification::GoneLocals,
-                reason: "protected",
+                reason: "a protected branch",
             },
             &mut self.to_delete.gone_locals,
         )?);
@@ -183,7 +183,7 @@ impl MergedOrGoneAndKeptBacks {
             &protected_refs,
             Reason {
                 original_classification: OriginalClassification::MergedRemotes,
-                reason: "protected",
+                reason: "a protected branch",
             },
             &mut self.to_delete.merged_remotes,
         )?);
@@ -192,7 +192,7 @@ impl MergedOrGoneAndKeptBacks {
             &protected_refs,
             Reason {
                 original_classification: OriginalClassification::GoneRemotes,
-                reason: "protected",
+                reason: "a protected branch",
             },
             &mut self.to_delete.gone_remotes,
         )?);
@@ -210,7 +210,7 @@ impl MergedOrGoneAndKeptBacks {
                     remote_branch.to_string(),
                     Reason {
                         original_classification: OriginalClassification::MergedRemotes,
-                        reason: "filtered out",
+                        reason: "a non-heads remote branch",
                     },
                 );
             }
@@ -227,7 +227,7 @@ impl MergedOrGoneAndKeptBacks {
                     remote_branch.to_string(),
                     Reason {
                         original_classification: OriginalClassification::GoneRemotes,
-                        reason: "filtered out",
+                        reason: "a non-heads remote branch",
                     },
                 );
             }
@@ -249,7 +249,7 @@ impl MergedOrGoneAndKeptBacks {
                         branch,
                         Reason {
                             original_classification: OriginalClassification::MergedLocals,
-                            reason: "filtered out",
+                            reason: "out of filter scope",
                         },
                     )
                 }));
@@ -265,7 +265,7 @@ impl MergedOrGoneAndKeptBacks {
                         branch,
                         Reason {
                             original_classification: OriginalClassification::GoneLocals,
-                            reason: "filtered out",
+                            reason: "out of filter scope",
                         },
                     )
                 }));
@@ -281,7 +281,7 @@ impl MergedOrGoneAndKeptBacks {
                     remote_branch.to_string(),
                     Reason {
                         original_classification: OriginalClassification::MergedRemotes,
-                        reason: "filtered out",
+                        reason: "out of filter scope",
                     },
                 );
             }
@@ -298,7 +298,7 @@ impl MergedOrGoneAndKeptBacks {
                     remote_branch.to_string(),
                     Reason {
                         original_classification: OriginalClassification::GoneRemotes,
-                        reason: "filtered out",
+                        reason: "out of filter scope",
                     },
                 );
             }

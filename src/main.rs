@@ -150,7 +150,7 @@ pub fn print_summary(branches: &MergedOrGoneAndKeptBacks, repo: &Repository) -> 
         for (original_classification, reasons) in bin.into_iter() {
             println!("  {}:", original_classification);
             for (branch, reason) in reasons.into_iter() {
-                println!("    {}\t{}", branch, reason);
+                println!("    {} ({})", branch, reason);
             }
         }
         println!();
