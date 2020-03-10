@@ -54,7 +54,7 @@ fn main(args: Args) -> Result<()> {
         .expect("has default");
     let filter = config::get(&git.config, "trim.delete")
         .with_explicit("cli", flatten_collect(args.delete.clone()).into_option())
-        .with_default(&DeleteFilter::merged())
+        .with_default(&DeleteFilter::merged_origin())
         .parse_flatten()?
         .expect("has default");
 

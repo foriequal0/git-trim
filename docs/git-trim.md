@@ -56,7 +56,7 @@ local, remote, merged-local, merged-remote, gone-local, gone-remote'.
 
 You can scope a filter unit to specific remote ':&lt;remote name&gt;' to a 'filter unit' if the filter unit
 implies 'merged-remote' or 'gone-remote'. If there are filter units that are scoped, it trims remote branches only in the specified remote.
-If there are any filter unit that isn't scoped, it trims all remote branches. [default : 'merged'] [config: trim.filter]
+If there are any filter unit that isn't scoped, it trims all remote branches. [default : 'merged:origin'] [config: trim.filter]
 
 -p, --protected &lt;protected&gt;...
 

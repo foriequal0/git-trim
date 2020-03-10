@@ -53,7 +53,7 @@ Comma separated values of \'<filter unit>[:<remote name>]\'\. Filter unit is one
 \'remote\' implies \'merged\-remote,gone\-remote\'\.
 .IP "" 0
 .P
-You can scope a filter unit to specific remote \':<remote name>\' to a \'filter unit\' if the filter unit implies \'merged\-remote\' or \'gone\-remote\'\. If there are filter units that are scoped, it trims merged or gone remote branches in the specified remote branch\. If there are any filter unit that isn\'t scoped, it trims all merged or gone remote branches\. [default : \'merged\'] [config: trim\.filter]
+You can scope a filter unit to specific remote \':<remote name>\' to a \'filter unit\' if the filter unit implies \'merged\-remote\' or \'gone\-remote\'\. If there are filter units that are scoped, it trims merged or gone remote branches in the specified remote branch\. If there are any filter unit that isn\'t scoped, it trims all merged or gone remote branches\. [default : \'merged:origin\'] [config: trim\.filter]
 .P
 \-p, \-\-protected <protected>\|\.\|\.\|\.
 .P
