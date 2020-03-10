@@ -78,43 +78,6 @@ impl MergedOrGone {
             .map(String::as_str)
             .collect()
     }
-
-    fn apply_filter(&mut self, repo: &Repository, filter: &DeleteFilter) -> Result<()> {
-        trace!("Before filter: {:#?}", self);
-        trace!("Applying filter: {:?}", filter);
-        if !filter.filter_merged_local() {
-            trace!("filter-out: merged local branches {:?}", self.merged_locals);
-            self.merged_locals.clear();
-        }
-        if !filter.filter_gone_local() {
-            trace!("filter-out: gone local branches {:?}", self.merged_locals);
-            self.gone_locals.clear();
-        }
-
-        let mut merged_remotes = HashSet::new();
-        for remote_ref in &self.merged_remotes {
-            let remote_branch = get_remote_branch_from_ref(repo, remote_ref)?;
-            if filter.filter_merged_remote(&remote_branch.remote_name) {
-                merged_remotes.insert(remote_ref.clone());
-            } else {
-                trace!("filter-out: merged remote ref {}", remote_ref);
-            }
-        }
-        self.merged_remotes = merged_remotes;
-
-        let mut gone_remotes = HashSet::new();
-        for remote_ref in &self.gone_remotes {
-            let ref_on_remote = get_remote_branch_from_ref(repo, remote_ref)?;
-            if filter.filter_gone_remote(&ref_on_remote.remote_name) {
-                gone_remotes.insert(remote_ref.clone());
-            } else {
-                trace!("filter-out: gone_remotes remote ref {}", remote_ref);
-            }
-        }
-        self.gone_remotes = gone_remotes;
-
-        Ok(())
-    }
 }
 
 #[derive(Default, Eq, PartialEq, Debug)]
@@ -231,6 +194,81 @@ impl MergedOrGoneAndKeptBacks {
             },
             &mut self.to_delete.gone_remotes,
         ));
+        Ok(())
+    }
+
+    fn apply_filter(&mut self, repo: &Repository, filter: &DeleteFilter) -> Result<()> {
+        trace!("Before filter: {:#?}", self);
+        trace!("Applying filter: {:?}", filter);
+        if !filter.filter_merged_local() {
+            trace!(
+                "filter-out: merged local branches {:?}",
+                self.to_delete.merged_locals
+            );
+            self.kept_back
+                .extend(self.to_delete.merged_locals.drain().map(|branch| {
+                    (
+                        branch,
+                        Reason {
+                            original_classification: OriginalClassification::MergedLocals,
+                            reason: "filtered out",
+                        },
+                    )
+                }));
+        }
+        if !filter.filter_gone_local() {
+            trace!(
+                "filter-out: gone local branches {:?}",
+                self.to_delete.gone_locals
+            );
+            self.kept_back
+                .extend(self.to_delete.gone_locals.drain().map(|branch| {
+                    (
+                        branch,
+                        Reason {
+                            original_classification: OriginalClassification::GoneLocals,
+                            reason: "filtered out",
+                        },
+                    )
+                }));
+        }
+
+        let mut merged_remotes = HashSet::new();
+        for remote_ref in &self.to_delete.merged_remotes {
+            let remote_branch = get_remote_branch_from_ref(repo, remote_ref)?;
+            if filter.filter_merged_remote(&remote_branch.remote_name) {
+                merged_remotes.insert(remote_ref.clone());
+            } else {
+                trace!("filter-out: merged remote ref {}", remote_ref);
+                self.kept_back.insert(
+                    remote_ref.to_string(),
+                    Reason {
+                        original_classification: OriginalClassification::MergedRemotes,
+                        reason: "filtered out",
+                    },
+                );
+            }
+        }
+        self.to_delete.merged_remotes = merged_remotes;
+
+        let mut gone_remotes = HashSet::new();
+        for remote_ref in &self.to_delete.gone_remotes {
+            let ref_on_remote = get_remote_branch_from_ref(repo, remote_ref)?;
+            if filter.filter_gone_remote(&ref_on_remote.remote_name) {
+                gone_remotes.insert(remote_ref.clone());
+            } else {
+                trace!("filter-out: gone_remotes remote ref {}", remote_ref);
+                self.kept_back.insert(
+                    remote_ref.to_string(),
+                    Reason {
+                        original_classification: OriginalClassification::GoneRemotes,
+                        reason: "filtered out",
+                    },
+                );
+            }
+        }
+        self.to_delete.gone_remotes = gone_remotes;
+
         Ok(())
     }
 
@@ -425,7 +463,6 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
         debug!("message: {}", classification.message);
         merged_or_gone = merged_or_gone.accumulate(classification.result);
     }
-    merged_or_gone.apply_filter(&git.repo, &config.filter)?;
 
     let mut result = MergedOrGoneAndKeptBacks {
         to_delete: merged_or_gone,
@@ -433,6 +470,7 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
     };
     result.keep_base(&git.repo, &git.config, &config.bases)?;
     result.keep_protected(&git.repo, &git.config, &config.protected_branches)?;
+    result.apply_filter(&git.repo, &config.filter)?;
 
     if !config.detach {
         result.adjust_not_to_detach(&git.repo)?;
