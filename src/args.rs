@@ -24,9 +24,12 @@ pub enum FilterUnit {
 pub struct DeleteFilter(HashSet<FilterUnit>);
 
 impl DeleteFilter {
-    pub fn merged() -> Self {
+    pub fn merged_origin() -> Self {
         use FilterUnit::*;
-        DeleteFilter::from_iter(vec![MergedLocal, MergedRemote(Scope::All)])
+        DeleteFilter::from_iter(vec![
+            MergedLocal,
+            MergedRemote(Scope::Scoped("origin".to_string())),
+        ])
     }
 
     pub fn all() -> Self {
@@ -282,7 +285,7 @@ pub struct Args {
     /// You can scope a filter unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies `merged-remote` or `gone-remote`.
     /// If there are filter units that are scoped, it trims remote branches only in the specified remote.
     /// If there are any filter unit that isn't scoped, it trims all remote branches.
-    /// [default : 'merged'] [config: trim.filter]
+    /// [default : 'merged:origin'] [config: trim.filter]
     #[structopt(short, long)]
     pub delete: Vec<DeleteFilter>,
 
