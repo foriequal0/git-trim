@@ -199,6 +199,42 @@ impl MergedOrGoneAndKeptBacks {
         Ok(())
     }
 
+    fn keep_non_heads_remotes(&mut self) {
+        let mut merged_remotes = HashSet::new();
+        for remote_branch in &self.to_delete.merged_remotes {
+            if remote_branch.refname.starts_with("refs/heads/") {
+                merged_remotes.insert(remote_branch.clone());
+            } else {
+                trace!("filter-out: merged remote ref {}", remote_branch);
+                self.kept_back.insert(
+                    remote_branch.to_string(),
+                    Reason {
+                        original_classification: OriginalClassification::MergedRemotes,
+                        reason: "filtered out",
+                    },
+                );
+            }
+        }
+        self.to_delete.merged_remotes = merged_remotes;
+
+        let mut gone_remotes = HashSet::new();
+        for remote_branch in &self.to_delete.gone_remotes {
+            if remote_branch.refname.starts_with("refs/heads/") {
+                gone_remotes.insert(remote_branch.clone());
+            } else {
+                trace!("filter-out: gone_remotes remote ref {}", remote_branch);
+                self.kept_back.insert(
+                    remote_branch.to_string(),
+                    Reason {
+                        original_classification: OriginalClassification::GoneRemotes,
+                        reason: "filtered out",
+                    },
+                );
+            }
+        }
+        self.to_delete.gone_remotes = gone_remotes;
+    }
+
     fn apply_filter(&mut self, filter: &DeleteFilter) -> Result<()> {
         trace!("Before filter: {:#?}", self);
         trace!("Applying filter: {:?}", filter);
@@ -480,6 +516,7 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
     };
     result.keep_base(&git.repo, &git.config, &config.bases)?;
     result.keep_protected(&git.repo, &git.config, &config.protected_branches)?;
+    result.keep_non_heads_remotes();
     result.apply_filter(&config.filter)?;
 
     if !config.detach {
