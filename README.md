@@ -109,7 +109,7 @@ You can scope a filter unit to specific remote `:<remote name>` to a `filter uni
 If there are filter units that are scoped, it trims remote branches only in the specified remote.
 If there are any filter unit that isn't scoped, it trims all remote branches.
 
-The default value is `merged`.
+The default value is `merged:origin`.
 
 You can override it with CLI flag with `--delete local`
 
