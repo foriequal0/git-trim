@@ -82,6 +82,7 @@ impl MergedOrGone {
 pub struct MergedOrGoneAndKeptBacks {
     pub to_delete: MergedOrGone,
     pub kept_back: HashMap<String, Reason>,
+    pub kept_back_remotes: HashMap<RemoteBranch, Reason>,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
@@ -131,7 +132,7 @@ impl MergedOrGoneAndKeptBacks {
             },
             &mut self.to_delete.gone_locals,
         )?);
-        self.kept_back.extend(keep_remote_branches(
+        self.kept_back_remotes.extend(keep_remote_branches(
             repo,
             &base_refs,
             Reason {
@@ -140,7 +141,7 @@ impl MergedOrGoneAndKeptBacks {
             },
             &mut self.to_delete.merged_remotes,
         )?);
-        self.kept_back.extend(keep_remote_branches(
+        self.kept_back_remotes.extend(keep_remote_branches(
             repo,
             &base_refs,
             Reason {
@@ -178,7 +179,7 @@ impl MergedOrGoneAndKeptBacks {
             },
             &mut self.to_delete.gone_locals,
         )?);
-        self.kept_back.extend(keep_remote_branches(
+        self.kept_back_remotes.extend(keep_remote_branches(
             repo,
             &protected_refs,
             Reason {
@@ -187,7 +188,7 @@ impl MergedOrGoneAndKeptBacks {
             },
             &mut self.to_delete.merged_remotes,
         )?);
-        self.kept_back.extend(keep_remote_branches(
+        self.kept_back_remotes.extend(keep_remote_branches(
             repo,
             &protected_refs,
             Reason {
@@ -206,8 +207,8 @@ impl MergedOrGoneAndKeptBacks {
                 merged_remotes.insert(remote_branch.clone());
             } else {
                 trace!("filter-out: merged remote ref {}", remote_branch);
-                self.kept_back.insert(
-                    remote_branch.to_string(),
+                self.kept_back_remotes.insert(
+                    remote_branch.clone(),
                     Reason {
                         original_classification: OriginalClassification::MergedRemotes,
                         reason: "a non-heads remote branch",
@@ -223,8 +224,8 @@ impl MergedOrGoneAndKeptBacks {
                 gone_remotes.insert(remote_branch.clone());
             } else {
                 trace!("filter-out: gone_remotes remote ref {}", remote_branch);
-                self.kept_back.insert(
-                    remote_branch.to_string(),
+                self.kept_back_remotes.insert(
+                    remote_branch.clone(),
                     Reason {
                         original_classification: OriginalClassification::GoneRemotes,
                         reason: "a non-heads remote branch",
@@ -277,8 +278,8 @@ impl MergedOrGoneAndKeptBacks {
                 merged_remotes.insert(remote_branch.clone());
             } else {
                 trace!("filter-out: merged remote ref {}", remote_branch);
-                self.kept_back.insert(
-                    remote_branch.to_string(),
+                self.kept_back_remotes.insert(
+                    remote_branch.clone(),
                     Reason {
                         original_classification: OriginalClassification::MergedRemotes,
                         reason: "out of filter scope",
@@ -294,8 +295,8 @@ impl MergedOrGoneAndKeptBacks {
                 gone_remotes.insert(remote_branch.clone());
             } else {
                 trace!("filter-out: gone_remotes remote ref {}", remote_branch);
-                self.kept_back.insert(
-                    remote_branch.to_string(),
+                self.kept_back_remotes.insert(
+                    remote_branch.clone(),
                     Reason {
                         original_classification: OriginalClassification::GoneRemotes,
                         reason: "out of filter scope",
@@ -373,7 +374,7 @@ fn keep_remote_branches(
     protected_refs: &HashSet<String>,
     reason: Reason,
     remote_branches: &mut HashSet<RemoteBranch>,
-) -> Result<HashMap<String, Reason>> {
+) -> Result<HashMap<RemoteBranch, Reason>> {
     let mut kept_back = HashMap::new();
     for remote_branch in remote_branches.iter() {
         if let Some(remote_tracking) = remote_branch.to_remote_tracking(repo)? {
@@ -385,14 +386,7 @@ fn keep_remote_branches(
     for remote_branch in kept_back.keys() {
         remote_branches.remove(remote_branch);
     }
-    let mut result = HashMap::new();
-    for (remote_branch, reason) in kept_back.into_iter() {
-        let remote_tracking = remote_branch
-            .to_remote_tracking(repo)?
-            .expect("should be exist");
-        result.insert(remote_tracking, reason);
-    }
-    Ok(result)
+    Ok(kept_back)
 }
 
 #[allow(clippy::cognitive_complexity, clippy::implicit_hasher)]
@@ -513,6 +507,7 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
     let mut result = MergedOrGoneAndKeptBacks {
         to_delete: merged_or_gone,
         kept_back: HashMap::new(),
+        kept_back_remotes: HashMap::new(),
     };
     result.keep_base(&git.repo, &git.config, &config.bases)?;
     result.keep_protected(&git.repo, &git.config, &config.protected_branches)?;

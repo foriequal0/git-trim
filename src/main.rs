@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::iter::FromIterator;
 
@@ -121,10 +121,18 @@ pub fn print_summary(branches: &MergedOrGoneAndKeptBacks, repo: &Repository) -> 
         if local_branches_to_delete.contains(name) {
             continue;
         }
-        println!("    {}", name);
+        if let Some(reason) = branches.kept_back.get(name) {
+            println!(
+                "    {} [{}, but: {}]",
+                name, reason.original_classification, reason.reason
+            );
+        } else {
+            println!("    {}", name);
+        }
     }
     println!("  remote references:");
     let remote_refs_to_delete: HashSet<_> = branches.to_delete.remotes().into_iter().collect();
+    let mut printed_remotes = HashSet::new();
     for remote_ref in repo.branches(Some(BranchType::Remote))? {
         let (branch, _) = remote_ref?;
         let name = branch.get().name().context("non utf-8 remote ref name")?;
@@ -132,29 +140,27 @@ pub fn print_summary(branches: &MergedOrGoneAndKeptBacks, repo: &Repository) -> 
         if remote_refs_to_delete.contains(&remote_branch) {
             continue;
         }
-        println!("    {}", name);
+        if let Some(reason) = branches.kept_back_remotes.get(&remote_branch) {
+            println!(
+                "    {} [{}, but: {}]",
+                name, reason.original_classification, reason.reason
+            );
+        } else {
+            println!("    {}", name);
+        }
+        printed_remotes.insert(remote_branch);
+    }
+    for (remote_branch, reason) in branches.kept_back_remotes.iter() {
+        if !printed_remotes.contains(&remote_branch) {
+            println!(
+                "    {} [{}, but: {}]",
+                remote_branch.to_string(),
+                reason.original_classification,
+                reason.reason
+            );
+        }
     }
     println!();
-
-    if !branches.kept_back.is_empty() {
-        let mut bin: HashMap<_, Vec<_>> = HashMap::new();
-        for (branch, reason) in branches.kept_back.iter() {
-            bin.entry(reason.original_classification)
-                .or_default()
-                .push((branch, reason.reason));
-        }
-        for kept_back in bin.values_mut() {
-            kept_back.sort_by_key(|&(a, _)| a);
-        }
-        println!("Kept back:");
-        for (original_classification, reasons) in bin.into_iter() {
-            println!("  {}:", original_classification);
-            for (branch, reason) in reasons.into_iter() {
-                println!("    {} ({})", branch, reason);
-            }
-        }
-        println!();
-    }
 
     fn print<T>(label: &str, branches: &HashSet<T>)
     where
