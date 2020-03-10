@@ -120,7 +120,32 @@ impl MergedOrGone {
 #[derive(Default, Eq, PartialEq, Debug)]
 pub struct MergedOrGoneAndKeptBacks {
     pub to_delete: MergedOrGone,
-    pub kept_back: HashMap<String, String>,
+    pub kept_back: HashMap<String, Reason>,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
+pub struct Reason {
+    pub original_classification: OriginalClassification,
+    pub reason: &'static str,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Ord, PartialOrd, Hash)]
+pub enum OriginalClassification {
+    MergedLocals,
+    GoneLocals,
+    MergedRemotes,
+    GoneRemotes,
+}
+
+impl std::fmt::Display for OriginalClassification {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OriginalClassification::MergedLocals => write!(f, "merged locals"),
+            OriginalClassification::GoneLocals => write!(f, "gone locals"),
+            OriginalClassification::MergedRemotes => write!(f, "merged remotes"),
+            OriginalClassification::GoneRemotes => write!(f, "gone remotes"),
+        }
+    }
 }
 
 impl MergedOrGoneAndKeptBacks {
@@ -130,23 +155,35 @@ impl MergedOrGoneAndKeptBacks {
         self.kept_back.extend(keep_branches(
             repo,
             &base_refs,
-            "Merged local but kept back because it is a base",
+            Reason {
+                original_classification: OriginalClassification::MergedLocals,
+                reason: "a base",
+            },
             &mut self.to_delete.merged_locals,
         )?);
         self.kept_back.extend(keep_branches(
             repo,
             &base_refs,
-            "Gone local but kept back because it is a base",
+            Reason {
+                original_classification: OriginalClassification::GoneLocals,
+                reason: "a base",
+            },
             &mut self.to_delete.gone_locals,
         )?);
         self.kept_back.extend(keep_remote_refs(
             &base_refs,
-            "Merged remotes but kept back because it is a base",
+            Reason {
+                original_classification: OriginalClassification::MergedRemotes,
+                reason: "a base",
+            },
             &mut self.to_delete.merged_remotes,
         ));
         self.kept_back.extend(keep_remote_refs(
             &base_refs,
-            "Gone remotes but kept back because it is a base",
+            Reason {
+                original_classification: OriginalClassification::GoneRemotes,
+                reason: "a base",
+            },
             &mut self.to_delete.gone_remotes,
         ));
         Ok(())
@@ -163,23 +200,35 @@ impl MergedOrGoneAndKeptBacks {
         self.kept_back.extend(keep_branches(
             repo,
             &protected_refs,
-            "Merged local but kept back because it is protected",
+            Reason {
+                original_classification: OriginalClassification::MergedLocals,
+                reason: "protected",
+            },
             &mut self.to_delete.merged_locals,
         )?);
         self.kept_back.extend(keep_branches(
             repo,
             &protected_refs,
-            "Gone local but kept back because it is protected",
+            Reason {
+                original_classification: OriginalClassification::GoneLocals,
+                reason: "protected",
+            },
             &mut self.to_delete.gone_locals,
         )?);
         self.kept_back.extend(keep_remote_refs(
             &protected_refs,
-            "Merged remotes but kept back because it is protected",
+            Reason {
+                original_classification: OriginalClassification::MergedRemotes,
+                reason: "protected",
+            },
             &mut self.to_delete.merged_remotes,
         ));
         self.kept_back.extend(keep_remote_refs(
             &protected_refs,
-            "Gone remotes but kept back because it is protected",
+            Reason {
+                original_classification: OriginalClassification::GoneRemotes,
+                reason: "protected",
+            },
             &mut self.to_delete.gone_remotes,
         ));
         Ok(())
@@ -198,14 +247,20 @@ impl MergedOrGoneAndKeptBacks {
             self.to_delete.merged_locals.remove(head_name);
             self.kept_back.insert(
                 head_name.to_string(),
-                "Merged local but kept back not to make detached HEAD".to_string(),
+                Reason {
+                    original_classification: OriginalClassification::MergedLocals,
+                    reason: "not to make detached HEAD",
+                },
             );
         }
         if self.to_delete.gone_locals.contains(head_name) {
             self.to_delete.gone_locals.remove(head_name);
             self.kept_back.insert(
                 head_name.to_string(),
-                "Gone local but kept back not to make detached HEAD".to_string(),
+                Reason {
+                    original_classification: OriginalClassification::GoneLocals,
+                    reason: "not to make detached HEAD",
+                },
             );
         }
         Ok(())
@@ -215,9 +270,9 @@ impl MergedOrGoneAndKeptBacks {
 fn keep_branches(
     repo: &Repository,
     protected_refs: &HashSet<String>,
-    reason: &str,
+    reason: Reason,
     branches: &mut HashSet<String>,
-) -> Result<HashMap<String, String>> {
+) -> Result<HashMap<String, Reason>> {
     let mut kept_back = HashMap::new();
     let mut bag = HashSet::new();
     for branch_name in branches.iter() {
@@ -227,10 +282,10 @@ fn keep_branches(
         if protected_refs.contains(branch_name) {
             bag.insert(branch_name.to_string());
             bag.insert(refname.to_string());
-            kept_back.insert(branch_name.to_string(), reason.to_string());
+            kept_back.insert(branch_name.to_string(), reason.clone());
         } else if protected_refs.contains(refname) {
             bag.insert(branch_name.to_string());
-            kept_back.insert(refname.to_string(), reason.to_string());
+            kept_back.insert(refname.to_string(), reason.clone());
         }
     }
     for branch in bag.into_iter() {
@@ -241,13 +296,13 @@ fn keep_branches(
 
 fn keep_remote_refs(
     protected_refs: &HashSet<String>,
-    reason: &str,
+    reason: Reason,
     remote_refs: &mut HashSet<String>,
-) -> HashMap<String, String> {
+) -> HashMap<String, Reason> {
     let mut kept_back = HashMap::new();
     for remote_ref in remote_refs.iter() {
         if protected_refs.contains(remote_ref) {
-            kept_back.insert(remote_ref.to_string(), reason.to_string());
+            kept_back.insert(remote_ref.to_string(), reason.clone());
         }
     }
     for remote_ref in kept_back.keys() {

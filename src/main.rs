@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::iter::FromIterator;
 
@@ -136,11 +136,21 @@ pub fn print_summary(branches: &MergedOrGoneAndKeptBacks, repo: &Repository) -> 
     println!();
 
     if !branches.kept_back.is_empty() {
-        let mut kept_back: Vec<_> = branches.kept_back.iter().collect();
-        kept_back.sort();
+        let mut bin: HashMap<_, Vec<_>> = HashMap::new();
+        for (branch, reason) in branches.kept_back.iter() {
+            bin.entry(reason.original_classification)
+                .or_default()
+                .push((branch, reason.reason));
+        }
+        for kept_back in bin.values_mut() {
+            kept_back.sort_by_key(|&(a, _)| a);
+        }
         println!("Kept back:");
-        for (branch, reason) in kept_back {
-            println!("    {}\t{}", branch, reason);
+        for (original_classification, reasons) in bin.into_iter() {
+            println!("  {}:", original_classification);
+            for (branch, reason) in reasons.into_iter() {
+                println!("    {}\t{}", branch, reason);
+            }
         }
         println!();
     }
