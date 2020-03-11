@@ -13,6 +13,10 @@ git-trim
 
 ## Instruction
 
+### Screencast
+
+![git-trim screencast](screencast.png)
+
 ### Installation
 Download binary from [Releases](https://github.com/foriequal0/git-trim/releases), and put it under your `PATH` directories.
 
