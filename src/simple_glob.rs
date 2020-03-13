@@ -19,10 +19,11 @@ pub fn expand_refspec(
     for refspec in remote.refspecs() {
         let left = refspec.src().context("non-utf8 src dst")?;
         let right = refspec.dst().context("non-utf8 refspec dst")?;
-        // TODO: Why there isn't derive(Eq, PartialEq)?
-        match (direction, refspec.direction()) {
-            (Direction::Fetch, Direction::Push) | (Direction::Push, Direction::Fetch) => continue,
-            _ => {}
+        if matches!(
+            (direction, refspec.direction()),
+            (Direction::Fetch, Direction::Push) | (Direction::Push, Direction::Fetch)
+        ) {
+            continue;
         }
         match side {
             ExpansionSide::Right => return Ok(expand(left, right, &reference)),
