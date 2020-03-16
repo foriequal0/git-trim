@@ -262,6 +262,10 @@ pub struct Args {
     #[structopt(long, hidden(true))]
     pub update: bool,
 
+    /// Prevents too frequent updates. Seconds between updates in seconds. 0 to disable. [default: 3 secs] [config: trim.update_interval]
+    #[structopt(long)]
+    pub update_interval: u64,
+
     /// Do not ask confirm [config: trim.confirm]
     #[structopt(long)]
     pub no_confirm: bool,
