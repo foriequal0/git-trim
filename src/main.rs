@@ -42,6 +42,11 @@ fn main(args: Args) -> Result<()> {
         .with_default(&true)
         .read()?
         .expect("has default");
+    let update_interval = config::get(&git.config, "trim.update_interval")
+        .with_explicit("cli", Some(args.update_interval))
+        .with_default(&3)
+        .parse()?
+        .expect("has default in structopt");
     let confirm = config::get(&git.config, "trim.confirm")
         .with_explicit("cli", args.confirm())
         .with_default(&true)
@@ -66,8 +71,12 @@ fn main(args: Args) -> Result<()> {
     info!("filter: {:?}", filter);
 
     if *update {
-        remote_update(&git.repo, args.dry_run)?;
-        println!();
+        if should_update(&git.repo, *update_interval)? {
+            remote_update(&git.repo, args.dry_run)?;
+            println!();
+        } else {
+            println!("Repository is updated recently. Skip to update it")
+        }
     }
 
     let branches = get_merged_or_gone(
@@ -183,4 +192,19 @@ pub fn print_summary(branches: &MergedOrGoneAndKeptBacks, repo: &Repository) -> 
     print("gone remote refs", &branches.to_delete.gone_remotes);
 
     Ok(())
+}
+
+fn should_update(repo: &Repository, interval: u64) -> Result<bool> {
+    if interval == 0 {
+        return Ok(true);
+    }
+
+    let fetch_head = repo.path().join("FETCH_HEAD");
+    let metadata = std::fs::metadata(fetch_head)?;
+    let elapsed = match metadata.modified()?.elapsed() {
+        Ok(elapsed) => elapsed,
+        Err(_) => return Ok(true),
+    };
+
+    Ok(elapsed.as_secs() >= interval)
 }
