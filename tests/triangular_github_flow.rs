@@ -176,7 +176,19 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let branches = get_merged_or_gone(&git, &config())?;
-    assert_eq!(branches.to_delete, MergedOrGone::default(),);
+    assert_eq!(
+        branches.to_delete,
+        MergedOrGone {
+            gone_locals: set! {"feature"},
+            merged_remotes: set! {
+                RemoteBranch {
+                    remote: "origin".to_string(),
+                    refname: "refs/heads/feature".to_string()
+                },
+            },
+            ..Default::default()
+        },
+    );
     Ok(())
 }
 
