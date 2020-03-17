@@ -511,11 +511,11 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
         .collect::<Result<Vec<_>, _>>()?;
 
     for classification in classifications.into_iter() {
-        debug!("branch: {}", classification.branch_name);
+        debug!("branch: {:?}", classification.branch);
         trace!("merged: {}", classification.branch_is_merged);
         trace!("fetch: {:?}", classification.fetch);
         trace!("push: {:?}", classification.push);
-        debug!("message: {}", classification.message);
+        debug!("message: {:?}", classification.messages);
         merged_or_gone = merged_or_gone.accumulate(classification.result);
     }
 
@@ -536,13 +536,69 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
     Ok(result)
 }
 
+#[derive(Debug, Clone)]
+struct Ref {
+    name: String,
+    commit: String,
+}
+
+impl Ref {
+    fn from_name(repo: &Repository, refname: &str) -> Result<Ref> {
+        Ok(Ref {
+            name: refname.to_string(),
+            commit: repo
+                .resolve_reference_from_short_name(refname)?
+                .peel_to_commit()?
+                .id()
+                .to_string(),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct UpstreamMergeState {
+    upstream: Ref,
+    merged: bool,
+}
+
 struct Classification {
-    branch_name: String,
+    branch: Ref,
     branch_is_merged: bool,
-    fetch: Option<String>,
-    push: Option<String>,
-    message: &'static str,
+    fetch: Option<UpstreamMergeState>,
+    push: Option<UpstreamMergeState>,
+    messages: Vec<&'static str>,
     result: MergedOrGone,
+}
+
+impl Classification {
+    fn merged_or_gone_remote(
+        &mut self,
+        repo: &Repository,
+        merge_state: &UpstreamMergeState,
+    ) -> Result<()> {
+        if merge_state.merged {
+            self.messages
+                .push("fetch upstream is merged, but forget to delete");
+            self.merged_remote(repo, &merge_state.upstream)
+        } else {
+            self.messages.push("fetch upstream is not merged");
+            self.gone_remote(repo, &merge_state.upstream)
+        }
+    }
+
+    fn merged_remote(&mut self, repo: &Repository, upstream: &Ref) -> Result<()> {
+        self.result
+            .merged_remotes
+            .insert(RemoteBranch::from_remote_tracking(&repo, &upstream.name)?);
+        Ok(())
+    }
+
+    fn gone_remote(&mut self, repo: &Repository, upstream: &Ref) -> Result<()> {
+        self.result
+            .gone_remotes
+            .insert(RemoteBranch::from_remote_tracking(&repo, &upstream.name)?);
+        Ok(())
+    }
 }
 
 /// Make sure repo and config are semantically Send + Sync.
@@ -553,59 +609,92 @@ fn classify(
     base_upstream: &str,
     branch_name: &str,
 ) -> Result<Classification> {
-    let merged = merged_locals.contains(branch_name)
+    let branch = Ref::from_name(&git.repo, branch_name)?;
+    let branch_is_merged = merged_locals.contains(branch_name)
         || subprocess::is_merged(&git.repo, base_upstream, branch_name)?;
-    let fetch = get_fetch_upstream(&git.repo, &git.config, branch_name)?;
-    let push = get_push_upstream(&git.repo, &git.config, branch_name)?;
+    let fetch = if let Some(fetch) = get_fetch_upstream(&git.repo, &git.config, branch_name)? {
+        let upstream = Ref::from_name(&git.repo, &fetch)?;
+        let merged = (branch_is_merged && upstream.commit == branch.commit)
+            || subprocess::is_merged(&git.repo, base_upstream, &upstream.name)?;
+        Some(UpstreamMergeState { upstream, merged })
+    } else {
+        None
+    };
+    let push = if let Some(push) = get_push_upstream(&git.repo, &git.config, branch_name)? {
+        let upstream = Ref::from_name(&git.repo, &push)?;
+        let merged = (branch_is_merged && upstream.commit == branch.commit)
+            || fetch
+                .as_ref()
+                .map(|x| x.merged && upstream.commit == x.upstream.commit)
+                == Some(true)
+            || subprocess::is_merged(&git.repo, base_upstream, &upstream.name)?;
+        Some(UpstreamMergeState { upstream, merged })
+    } else {
+        None
+    };
 
     let mut c = Classification {
-        branch_name: branch_name.to_string(),
-        branch_is_merged: merged,
+        branch,
+        branch_is_merged,
         fetch: fetch.clone(),
         push: push.clone(),
-        message: "",
+        messages: vec![],
         result: MergedOrGone::default(),
     };
 
     match (fetch, push) {
-        (Some(_), Some(upstream)) if merged => {
-            c.message = "merged local, merged remote: the branch is merged, but forgot to delete";
+        (Some(fetch), Some(push)) if branch_is_merged => {
+            c.messages.push("local is merged");
             c.result.merged_locals.insert(branch_name.to_string());
-            c.result
-                .merged_remotes
-                .insert(RemoteBranch::from_remote_tracking(&git.repo, &upstream)?);
+            c.merged_or_gone_remote(&git.repo, &fetch)?;
+            c.merged_or_gone_remote(&git.repo, &push)?;
         }
-        (Some(_), Some(_)) => {
-            c.message = "skip: live branch. not merged, not gone";
-        }
-
-        // `git branch`'s shows `%(upstream)` as s `%(push)` fallback if there isn't a specified push remote.
-        // But our `get_push_remote_ref` doesn't.
-        (Some(upstream), None) if merged => {
-            c.message = "merged local, merged remote: the branch is merged, but forgot to delete";
-            c.result.merged_locals.insert(branch_name.to_string());
-            c.result
-                .merged_remotes
-                .insert(RemoteBranch::from_remote_tracking(&git.repo, &upstream)?);
-        }
-        (Some(_), None) => {
-            c.message = "skip: it might be a long running branch like 'develop' in a git-flow";
-        }
-
-        (None, Some(upstream)) if merged => {
-            c.message = "merged remote: it might be a long running branch like 'develop' which is once pushed to the personal git.repo in the triangular workflow, but the branch is merged on the upstream";
-            c.result
-                .merged_remotes
-                .insert(RemoteBranch::from_remote_tracking(&git.repo, &upstream)?);
-        }
-        (None, Some(upstream)) => {
-            c.message = "gone remote: it might be a long running branch like 'develop' which is once pushed to the personal git.repo in the triangular workflow, but the branch is gone on the upstream";
-            c.result
-                .gone_remotes
-                .insert(RemoteBranch::from_remote_tracking(&git.repo, &upstream)?);
+        (Some(fetch), Some(push)) => {
+            if fetch.merged || push.merged {
+                c.messages
+                    .push("some upstreams are gone, but the local is not merged");
+                c.result.gone_locals.insert(branch_name.to_string());
+            }
+            if fetch.merged && !push.merged {
+                c.messages.push(
+                    "fetch upstream is merged, but the local and push upstream are not merged",
+                );
+                c.gone_remote(&git.repo, &push.upstream)?;
+            } else if !fetch.merged && push.merged {
+                c.messages.push(
+                    "push upstream is merged, but the local and fetch upstream are not merged",
+                );
+                c.gone_remote(&git.repo, &fetch.upstream)?;
+            }
         }
 
-        (None, None) if merged => {
+        (Some(fetch), None) => {
+            if branch_is_merged {
+                c.messages.push("local is merged");
+                c.result.merged_locals.insert(branch_name.to_string());
+                c.merged_or_gone_remote(&git.repo, &fetch)?;
+            } else if fetch.merged {
+                c.messages
+                    .push("fetch upstream is merged, but the local is not merged");
+                c.result.gone_locals.insert(branch_name.to_string());
+                c.merged_remote(&git.repo, &fetch.upstream)?;
+            }
+        }
+
+        (None, Some(push)) => {
+            if branch_is_merged {
+                c.messages.push("local is merged");
+                c.result.merged_locals.insert(branch_name.to_string());
+                c.merged_or_gone_remote(&git.repo, &push)?;
+            } else if push.merged {
+                c.messages
+                    .push("push upstream is merged, but the local is not merged");
+                c.result.gone_locals.insert(branch_name.to_string());
+                c.merged_remote(&git.repo, &push.upstream)?;
+            }
+        }
+
+        (None, None) if branch_is_merged => {
             let remote = config::get_remote_raw(&git.config, branch_name)?
                 .expect("should have it if it has an upstream");
             let merge = config::get_merge(&git.config, branch_name)?
@@ -613,15 +702,17 @@ fn classify(
             if remote_heads_per_url.contains_key(&remote)
                 && remote_heads_per_url[&remote].contains(&merge)
             {
-                c.message =
-                    "merged local, merged remote: the branch is merged, but forgot to delete";
+                c.messages.push(
+                    "merged local, merged remote: the branch is merged, but forgot to delete",
+                );
                 c.result.merged_locals.insert(branch_name.to_string());
                 c.result.merged_remotes.insert(RemoteBranch {
                     remote,
                     refname: merge,
                 });
             } else {
-                c.message = "merged local: the branch is merged, and deleted";
+                c.messages
+                    .push("merged local: the branch is merged, and deleted");
                 c.result.merged_locals.insert(branch_name.to_string());
             }
         }
@@ -634,9 +725,10 @@ fn classify(
             if remote_heads_per_url.contains_key(&remote)
                 && remote_heads_per_url[&remote].contains(&merge)
             {
-                c.message = "skip: the branch is alive";
+                c.messages.push("skip: the branch is alive");
             } else {
-                c.message = "gone local: the branch is not merged but from the remote";
+                c.messages
+                    .push("gone local: the branch is not merged but from the remote");
                 c.result.gone_locals.insert(branch_name.to_string());
             }
         }
