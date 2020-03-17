@@ -452,6 +452,21 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
             debug!("Skip: the branch is a symbolic ref: {:?}", branch_name);
             continue;
         }
+
+        let local_hash = reference.peel_to_commit()?.id();
+        if let Some(upstream) = get_fetch_upstream(&git.repo, &git.config, branch_name)? {
+            let upstream_hash = git.repo.find_reference(&upstream)?.peel_to_commit()?.id();
+            if upstream_hash != local_hash {
+                warn!("fetch upstream is different from local branch");
+            }
+        }
+        if let Some(upstream) = get_push_upstream(&git.repo, &git.config, branch_name)? {
+            let upstream_hash = git.repo.find_reference(&upstream)?.peel_to_commit()?.id();
+            if upstream_hash != local_hash {
+                warn!("fetch upstream is different from local branch");
+            }
+        }
+
         for base_upstream in &base_upstreams {
             base_and_branch_to_compare.push((base_upstream.to_string(), branch_name.to_string()));
         }
