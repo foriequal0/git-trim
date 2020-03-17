@@ -42,7 +42,7 @@ fn main(args: Args) -> Result<()> {
         .with_default(&true)
         .read()?
         .expect("has default");
-    let update_interval = config::get(&git.config, "trim.update_interval")
+    let update_interval = config::get(&git.config, "trim.updateInterval")
         .with_explicit("cli", args.update_interval)
         .with_default(&3)
         .parse()?
