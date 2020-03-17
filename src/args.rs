@@ -264,7 +264,7 @@ pub struct Args {
 
     /// Prevents too frequent updates. Seconds between updates in seconds. 0 to disable. [default: 3 secs] [config: trim.update_interval]
     #[structopt(long)]
-    pub update_interval: u64,
+    pub update_interval: Option<u64>,
 
     /// Do not ask confirm [config: trim.confirm]
     #[structopt(long)]
