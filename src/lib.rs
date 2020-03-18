@@ -15,8 +15,8 @@ use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-pub use crate::branch::RemoteBranch;
 use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote};
+pub use crate::branch::{RemoteBranch, RemoteBranchError};
 use crate::subprocess::ls_remote_heads;
 pub use crate::subprocess::remote_update;
 
