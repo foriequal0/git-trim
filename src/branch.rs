@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use git2::{BranchType, Config, Direction, Error, ErrorClass, ErrorCode, Remote, Repository};
 use log::*;
+use thiserror::Error;
 
 use crate::config;
 use crate::simple_glob::{expand_refspec, ExpansionSide};
@@ -97,6 +98,16 @@ impl std::fmt::Display for RemoteBranch {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum RemoteBranchError {
+    #[error("anyhow error")]
+    AnyhowError(#[from] anyhow::Error),
+    #[error("libgit2 internal error")]
+    GitError(#[from] git2::Error),
+    #[error("remote with matching refspec not found")]
+    RemoteNotFound,
+}
+
 impl RemoteBranch {
     pub fn to_remote_tracking(&self, repo: &Repository) -> Result<Option<String>> {
         let remote = get_remote(repo, &self.remote)?;
@@ -113,7 +124,10 @@ impl RemoteBranch {
         Ok(None)
     }
 
-    pub fn from_remote_tracking(repo: &Repository, remote_tracking: &str) -> Result<RemoteBranch> {
+    pub fn from_remote_tracking(
+        repo: &Repository,
+        remote_tracking: &str,
+    ) -> std::result::Result<RemoteBranch, RemoteBranchError> {
         assert!(remote_tracking.starts_with("refs/remotes/"));
         for remote_name in repo.remotes()?.iter() {
             let remote_name = remote_name.context("non-utf8 remote name")?;
@@ -130,7 +144,7 @@ impl RemoteBranch {
                 });
             }
         }
-        unreachable!("matching refspec is not found");
+        Err(RemoteBranchError::RemoteNotFound)
     }
 }
 
