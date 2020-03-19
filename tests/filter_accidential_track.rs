@@ -6,7 +6,7 @@ use anyhow::Result;
 use git2::Repository;
 
 use git_trim::args::{DeleteFilter, FilterUnit, Scope};
-use git_trim::{get_merged_or_gone, Config, Git, MergedOrGone, RemoteBranch};
+use git_trim::{get_merged_or_stray, Config, Git, MergedOrStray, RemoteBranch};
 
 use fixture::{rc, Fixture};
 use std::iter::FromIterator;
@@ -84,7 +84,7 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(
+    let branches = get_merged_or_stray(
         &git,
         &Config {
             filter: DeleteFilter::all(),
@@ -93,7 +93,7 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
     )?;
     assert_eq!(
         branches.to_delete,
-        MergedOrGone {
+        MergedOrStray {
             merged_locals: set! {"feature"},
             merged_remotes: set! {
                 RemoteBranch {
@@ -123,10 +123,10 @@ fn test_accidential_track() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(&git, &config())?;
+    let branches = get_merged_or_stray(&git, &config())?;
     assert_eq!(
         branches.to_delete,
-        MergedOrGone {
+        MergedOrStray {
             merged_locals: set! {"feature"},
             ..Default::default()
         },

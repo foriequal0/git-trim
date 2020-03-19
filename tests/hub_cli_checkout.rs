@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::{get_merged_or_gone, Config, Git, MergedOrGone, RemoteBranch};
+use git_trim::{get_merged_or_stray, Config, Git, MergedOrStray, RemoteBranch};
 
 use fixture::{rc, Fixture};
 use git_trim::args::DeleteFilter;
@@ -79,10 +79,10 @@ fn test_accepted() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(&git, &config())?;
+    let branches = get_merged_or_stray(&git, &config())?;
     assert_eq!(
         branches.to_delete,
-        MergedOrGone {
+        MergedOrStray {
             merged_locals: set! {"feature"},
             ..Default::default()
         },
@@ -107,10 +107,10 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(&git, &config())?;
+    let branches = get_merged_or_stray(&git, &config())?;
     assert_eq!(
         branches.to_delete,
-        MergedOrGone {
+        MergedOrStray {
             merged_locals: set! {"feature"},
             merged_remotes: set! {
                 RemoteBranch {
@@ -141,10 +141,10 @@ fn test_should_not_push_delete_non_heads() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_gone(&git, &config())?;
+    let branches = get_merged_or_stray(&git, &config())?;
     assert_eq!(
         branches.to_delete,
-        MergedOrGone {
+        MergedOrStray {
             merged_locals: set! {"feature"},
             ..Default::default()
         },

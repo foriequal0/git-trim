@@ -42,22 +42,22 @@ pub struct Config<'a> {
 }
 
 #[derive(Default, Eq, PartialEq, Debug)]
-pub struct MergedOrGone {
+pub struct MergedOrStray {
     // local branches
     pub merged_locals: HashSet<String>,
-    pub gone_locals: HashSet<String>,
+    pub stray_locals: HashSet<String>,
 
     /// remote refs
     pub merged_remotes: HashSet<RemoteBranch>,
-    pub gone_remotes: HashSet<RemoteBranch>,
+    pub stray_remotes: HashSet<RemoteBranch>,
 }
 
-impl MergedOrGone {
+impl MergedOrStray {
     fn accumulate(mut self, mut other: Self) -> Self {
         self.merged_locals.extend(other.merged_locals.drain());
-        self.gone_locals.extend(other.gone_locals.drain());
+        self.stray_locals.extend(other.stray_locals.drain());
         self.merged_remotes.extend(other.merged_remotes.drain());
-        self.gone_remotes.extend(other.gone_remotes.drain());
+        self.stray_remotes.extend(other.stray_remotes.drain());
 
         self
     }
@@ -65,7 +65,7 @@ impl MergedOrGone {
     pub fn locals(&self) -> Vec<&str> {
         self.merged_locals
             .iter()
-            .chain(self.gone_locals.iter())
+            .chain(self.stray_locals.iter())
             .map(String::as_str)
             .collect()
     }
@@ -73,14 +73,14 @@ impl MergedOrGone {
     pub fn remotes(&self) -> Vec<&RemoteBranch> {
         self.merged_remotes
             .iter()
-            .chain(self.gone_remotes.iter())
+            .chain(self.stray_remotes.iter())
             .collect()
     }
 }
 
 #[derive(Default, Eq, PartialEq, Debug)]
-pub struct MergedOrGoneAndKeptBacks {
-    pub to_delete: MergedOrGone,
+pub struct MergedOrStrayAndKeptBacks {
+    pub to_delete: MergedOrStray,
     pub kept_back: HashMap<String, Reason>,
     pub kept_back_remotes: HashMap<RemoteBranch, Reason>,
 }
@@ -94,23 +94,23 @@ pub struct Reason {
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Ord, PartialOrd, Hash)]
 pub enum OriginalClassification {
     MergedLocals,
-    GoneLocals,
+    StrayLocals,
     MergedRemotes,
-    GoneRemotes,
+    StrayRemotes,
 }
 
 impl std::fmt::Display for OriginalClassification {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OriginalClassification::MergedLocals => write!(f, "merged local"),
-            OriginalClassification::GoneLocals => write!(f, "gone local"),
+            OriginalClassification::StrayLocals => write!(f, "stray local"),
             OriginalClassification::MergedRemotes => write!(f, "merged remote"),
-            OriginalClassification::GoneRemotes => write!(f, "gone remote"),
+            OriginalClassification::StrayRemotes => write!(f, "stray remote"),
         }
     }
 }
 
-impl MergedOrGoneAndKeptBacks {
+impl MergedOrStrayAndKeptBacks {
     fn keep_base(&mut self, repo: &Repository, config: &GitConfig, bases: &[&str]) -> Result<()> {
         let base_refs = resolve_base_refs(repo, config, bases)?;
         trace!("base_refs: {:#?}", base_refs);
@@ -127,10 +127,10 @@ impl MergedOrGoneAndKeptBacks {
             repo,
             &base_refs,
             Reason {
-                original_classification: OriginalClassification::GoneLocals,
+                original_classification: OriginalClassification::StrayLocals,
                 reason: "a base branch",
             },
-            &mut self.to_delete.gone_locals,
+            &mut self.to_delete.stray_locals,
         )?);
         self.kept_back_remotes.extend(keep_remote_branches(
             repo,
@@ -145,10 +145,10 @@ impl MergedOrGoneAndKeptBacks {
             repo,
             &base_refs,
             Reason {
-                original_classification: OriginalClassification::GoneRemotes,
+                original_classification: OriginalClassification::StrayRemotes,
                 reason: "a base branch",
             },
-            &mut self.to_delete.gone_remotes,
+            &mut self.to_delete.stray_remotes,
         )?);
         Ok(())
     }
@@ -174,10 +174,10 @@ impl MergedOrGoneAndKeptBacks {
             repo,
             &protected_refs,
             Reason {
-                original_classification: OriginalClassification::GoneLocals,
+                original_classification: OriginalClassification::StrayLocals,
                 reason: "a protected branch",
             },
-            &mut self.to_delete.gone_locals,
+            &mut self.to_delete.stray_locals,
         )?);
         self.kept_back_remotes.extend(keep_remote_branches(
             repo,
@@ -192,10 +192,10 @@ impl MergedOrGoneAndKeptBacks {
             repo,
             &protected_refs,
             Reason {
-                original_classification: OriginalClassification::GoneRemotes,
+                original_classification: OriginalClassification::StrayRemotes,
                 reason: "a protected branch",
             },
-            &mut self.to_delete.gone_remotes,
+            &mut self.to_delete.stray_remotes,
         )?);
         Ok(())
     }
@@ -218,22 +218,22 @@ impl MergedOrGoneAndKeptBacks {
         }
         self.to_delete.merged_remotes = merged_remotes;
 
-        let mut gone_remotes = HashSet::new();
-        for remote_branch in &self.to_delete.gone_remotes {
+        let mut stray_remotes = HashSet::new();
+        for remote_branch in &self.to_delete.stray_remotes {
             if remote_branch.refname.starts_with("refs/heads/") {
-                gone_remotes.insert(remote_branch.clone());
+                stray_remotes.insert(remote_branch.clone());
             } else {
-                trace!("filter-out: gone_remotes remote ref {}", remote_branch);
+                trace!("filter-out: stray_remotes remote ref {}", remote_branch);
                 self.kept_back_remotes.insert(
                     remote_branch.clone(),
                     Reason {
-                        original_classification: OriginalClassification::GoneRemotes,
+                        original_classification: OriginalClassification::StrayRemotes,
                         reason: "a non-heads remote branch",
                     },
                 );
             }
         }
-        self.to_delete.gone_remotes = gone_remotes;
+        self.to_delete.stray_remotes = stray_remotes;
     }
 
     fn apply_filter(&mut self, filter: &DeleteFilter) -> Result<()> {
@@ -255,17 +255,17 @@ impl MergedOrGoneAndKeptBacks {
                     )
                 }));
         }
-        if !filter.filter_gone_local() {
+        if !filter.filter_stray_local() {
             trace!(
-                "filter-out: gone local branches {:?}",
-                self.to_delete.gone_locals
+                "filter-out: stray local branches {:?}",
+                self.to_delete.stray_locals
             );
             self.kept_back
-                .extend(self.to_delete.gone_locals.drain().map(|branch| {
+                .extend(self.to_delete.stray_locals.drain().map(|branch| {
                     (
                         branch,
                         Reason {
-                            original_classification: OriginalClassification::GoneLocals,
+                            original_classification: OriginalClassification::StrayLocals,
                             reason: "out of filter scope",
                         },
                     )
@@ -289,22 +289,22 @@ impl MergedOrGoneAndKeptBacks {
         }
         self.to_delete.merged_remotes = merged_remotes;
 
-        let mut gone_remotes = HashSet::new();
-        for remote_branch in &self.to_delete.gone_remotes {
-            if filter.filter_gone_remote(&remote_branch.remote) {
-                gone_remotes.insert(remote_branch.clone());
+        let mut stray_remotes = HashSet::new();
+        for remote_branch in &self.to_delete.stray_remotes {
+            if filter.filter_stray_remote(&remote_branch.remote) {
+                stray_remotes.insert(remote_branch.clone());
             } else {
-                trace!("filter-out: gone_remotes remote ref {}", remote_branch);
+                trace!("filter-out: stray_remotes remote ref {}", remote_branch);
                 self.kept_back_remotes.insert(
                     remote_branch.clone(),
                     Reason {
-                        original_classification: OriginalClassification::GoneRemotes,
+                        original_classification: OriginalClassification::StrayRemotes,
                         reason: "out of filter scope",
                     },
                 );
             }
         }
-        self.to_delete.gone_remotes = gone_remotes;
+        self.to_delete.stray_remotes = stray_remotes;
 
         Ok(())
     }
@@ -328,12 +328,12 @@ impl MergedOrGoneAndKeptBacks {
                 },
             );
         }
-        if self.to_delete.gone_locals.contains(head_name) {
-            self.to_delete.gone_locals.remove(head_name);
+        if self.to_delete.stray_locals.contains(head_name) {
+            self.to_delete.stray_locals.remove(head_name);
             self.kept_back.insert(
                 head_name.to_string(),
                 Reason {
-                    original_classification: OriginalClassification::GoneLocals,
+                    original_classification: OriginalClassification::StrayLocals,
                     reason: "not to make detached HEAD",
                 },
             );
@@ -390,7 +390,7 @@ fn keep_remote_branches(
 }
 
 #[allow(clippy::cognitive_complexity, clippy::implicit_hasher)]
-pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndKeptBacks> {
+pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAndKeptBacks> {
     let base_upstreams = resolve_base_upstream(&git.repo, &git.config, &config.bases)?;
     trace!("base_upstreams: {:#?}", base_upstreams);
 
@@ -398,11 +398,11 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
         resolve_protected_refs(&git.repo, &git.config, &config.protected_branches)?;
     trace!("protected_refs: {:#?}", protected_refs);
 
-    let mut merged_or_gone = MergedOrGone::default();
+    let mut merged_or_stray = MergedOrStray::default();
     // Fast filling ff merged branches
     let noff_merged_locals =
         subprocess::get_noff_merged_locals(&git.repo, &git.config, &base_upstreams)?;
-    merged_or_gone
+    merged_or_stray
         .merged_locals
         .extend(noff_merged_locals.clone());
 
@@ -516,11 +516,11 @@ pub fn get_merged_or_gone(git: &Git, config: &Config) -> Result<MergedOrGoneAndK
         trace!("fetch: {:?}", classification.fetch);
         trace!("push: {:?}", classification.push);
         debug!("message: {:?}", classification.messages);
-        merged_or_gone = merged_or_gone.accumulate(classification.result);
+        merged_or_stray = merged_or_stray.accumulate(classification.result);
     }
 
-    let mut result = MergedOrGoneAndKeptBacks {
-        to_delete: merged_or_gone,
+    let mut result = MergedOrStrayAndKeptBacks {
+        to_delete: merged_or_stray,
         kept_back: HashMap::new(),
         kept_back_remotes: HashMap::new(),
     };
@@ -567,11 +567,11 @@ struct Classification {
     fetch: Option<UpstreamMergeState>,
     push: Option<UpstreamMergeState>,
     messages: Vec<&'static str>,
-    result: MergedOrGone,
+    result: MergedOrStray,
 }
 
 impl Classification {
-    fn merged_or_gone_remote(
+    fn merged_or_stray_remote(
         &mut self,
         repo: &Repository,
         merge_state: &UpstreamMergeState,
@@ -582,7 +582,7 @@ impl Classification {
             self.merged_remote(repo, &merge_state.upstream)
         } else {
             self.messages.push("fetch upstream is not merged");
-            self.gone_remote(repo, &merge_state.upstream)
+            self.stray_remote(repo, &merge_state.upstream)
         }
     }
 
@@ -593,9 +593,9 @@ impl Classification {
         Ok(())
     }
 
-    fn gone_remote(&mut self, repo: &Repository, upstream: &Ref) -> Result<()> {
+    fn stray_remote(&mut self, repo: &Repository, upstream: &Ref) -> Result<()> {
         self.result
-            .gone_remotes
+            .stray_remotes
             .insert(RemoteBranch::from_remote_tracking(&repo, &upstream.name)?);
         Ok(())
     }
@@ -639,32 +639,30 @@ fn classify(
         fetch: fetch.clone(),
         push: push.clone(),
         messages: vec![],
-        result: MergedOrGone::default(),
+        result: MergedOrStray::default(),
     };
 
     match (fetch, push) {
         (Some(fetch), Some(push)) if branch_is_merged => {
             c.messages.push("local is merged");
             c.result.merged_locals.insert(branch_name.to_string());
-            c.merged_or_gone_remote(&git.repo, &fetch)?;
-            c.merged_or_gone_remote(&git.repo, &push)?;
+            c.merged_or_stray_remote(&git.repo, &fetch)?;
+            c.merged_or_stray_remote(&git.repo, &push)?;
         }
         (Some(fetch), Some(push)) => {
             if fetch.merged || push.merged {
                 c.messages
-                    .push("some upstreams are gone, but the local is not merged");
-                c.result.gone_locals.insert(branch_name.to_string());
+                    .push("some upstreams merged, but the local strays");
+                c.result.stray_locals.insert(branch_name.to_string());
             }
             if fetch.merged && !push.merged {
-                c.messages.push(
-                    "fetch upstream is merged, but the local and push upstream are not merged",
-                );
-                c.gone_remote(&git.repo, &push.upstream)?;
+                c.messages
+                    .push("fetch upstream is merged, but the local and push upstream stray");
+                c.stray_remote(&git.repo, &push.upstream)?;
             } else if !fetch.merged && push.merged {
-                c.messages.push(
-                    "push upstream is merged, but the local and fetch upstream are not merged",
-                );
-                c.gone_remote(&git.repo, &fetch.upstream)?;
+                c.messages
+                    .push("push upstream is merged, but the local and fetch upstream stray");
+                c.stray_remote(&git.repo, &fetch.upstream)?;
             }
         }
 
@@ -672,11 +670,11 @@ fn classify(
             if branch_is_merged {
                 c.messages.push("local is merged");
                 c.result.merged_locals.insert(branch_name.to_string());
-                c.merged_or_gone_remote(&git.repo, &fetch)?;
+                c.merged_or_stray_remote(&git.repo, &fetch)?;
             } else if fetch.merged {
                 c.messages
-                    .push("fetch upstream is merged, but the local is not merged");
-                c.result.gone_locals.insert(branch_name.to_string());
+                    .push("fetch upstream is merged, but the local strays");
+                c.result.stray_locals.insert(branch_name.to_string());
                 c.merged_remote(&git.repo, &fetch.upstream)?;
             }
         }
@@ -685,11 +683,11 @@ fn classify(
             if branch_is_merged {
                 c.messages.push("local is merged");
                 c.result.merged_locals.insert(branch_name.to_string());
-                c.merged_or_gone_remote(&git.repo, &push)?;
+                c.merged_or_stray_remote(&git.repo, &push)?;
             } else if push.merged {
                 c.messages
-                    .push("push upstream is merged, but the local is not merged");
-                c.result.gone_locals.insert(branch_name.to_string());
+                    .push("push upstream is merged, but the local strays");
+                c.result.stray_locals.insert(branch_name.to_string());
                 c.merged_remote(&git.repo, &push.upstream)?;
             }
         }
@@ -728,8 +726,8 @@ fn classify(
                 c.messages.push("skip: the branch is alive");
             } else {
                 c.messages
-                    .push("gone local: the branch is not merged but from the remote");
-                c.result.gone_locals.insert(branch_name.to_string());
+                    .push("the branch is not merged but the remote is gone somehow");
+                c.result.stray_locals.insert(branch_name.to_string());
             }
         }
     }

@@ -5,7 +5,7 @@ git-trim
 
 ![git-trim Logo](images/logo.png)
 
-`git-trim` automatically trims your tracking branches whose upstream branches are merged or gone.
+`git-trim` automatically trims your tracking branches whose upstream branches are merged or stray.
 
 `git-trim` is a missing companion to the `git fetch --prune` and a proper, safer, faster alternative to your `<bash oneliner HERE>`
 
@@ -28,7 +28,7 @@ You might need to install `libssl-dev` and `pkg-config` packages if you build fr
 ### How to use
 1. Don't forget to set an upstream for a branch that you want to trim automatically.
    `git push -u <remote> <branch>` will set an upstream for you on push.
-1. Run `git trim` if you need to trim branches especially after PR reviews. It'll automatically recognize merged or gone branches, and delete it.
+1. Run `git trim` if you need to trim branches especially after PR reviews. It'll automatically recognize merged or stray branches, and delete it.
 1. If you need more power, try `git trim --delete all`
 1. You can also `git trim --dry-run` when you don't trust me.
 
@@ -102,14 +102,14 @@ You can override it with CLI option with `--protected 'release-*'`
 ### `git config trim.delete`
 
 Comma separated values of `<filter unit>[:<remote name>]`.
-Filter unit is one of the `all`, `merged`, `gone`, `local`, `remote`, `merged-local`, `merged-remote`, `gone-local`, `gone-remote`.
-`all` implies `merged-local,merged-remote,gone-local,gone-remote`.
+Filter unit is one of the `all`, `merged`, `stray`, `local`, `remote`, `merged-local`, `merged-remote`, `stray-local`, `stray-remote`.
+`all` implies `merged-local,merged-remote,stray-local,stray-remote`.
 `merged` implies `merged-local,merged-remote`.
-`gone` implies `gone-local,gone-remote`.
-`local` implies `merged-local,gone-local`.
-`remote` implies `merged-remote,gone-remote`.
+`stray` implies `stray-local,stray-remote`.
+`local` implies `merged-local,stray-local`.
+`remote` implies `merged-remote,stray-remote`.
 
-You can scope a filter unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies `merged-remote` or `gone-remote`.
+You can scope a filter unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies `merged-remote` or `stray-remote`.
 If there are filter units that are scoped, it trims remote branches only in the specified remote.
 If there are any filter unit that isn't scoped, it trims all remote branches.
 
@@ -167,11 +167,11 @@ Just deleting tracking branches whose upstreams are gone with `-D`, which implie
 * A rebase merge with `git merge --ff-only` (With `git cherry` equivalents)
 * A squash merge with `git merge --squash` (With this method: https://stackoverflow.com/a/56026209)
 
-### What is the difference between the `merged` and `gone` branch?
+### What is the difference between the `merged` and `stray` branch?
 
 A merged branch is a branch whose upstream branch is fully merged onto the upstream of the base branch so you're not going to lose the changes.
 
-In contrast, a gone branch is a branch that there is a chance to lose some changes if you delete it.
+In contrast, a stray branch is a branch that there is a chance to lose some changes if you delete it.
 Your PRs are sometimes rejected and deleted from the remote.
 Or you might have been mistakenly amended or rebased the branch and the patch is now completely different from the patch that is merged because you forgot the fact that the PR is already merged.
 Then they are not safe to delete blindly just because their upstreams are deleted.
