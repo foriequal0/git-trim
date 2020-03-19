@@ -8,8 +8,8 @@ use git2::{BranchType, Repository};
 use log::*;
 
 use git_trim::args::{Args, CommaSeparatedSet, DeleteFilter};
-use git_trim::{config, Config, Git, MergedOrGoneAndKeptBacks, RemoteBranch, RemoteBranchError};
-use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_gone, remote_update};
+use git_trim::{config, Config, Git, MergedOrStrayAndKeptBacks, RemoteBranch, RemoteBranchError};
+use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_stray, remote_update};
 
 type Result<T> = ::std::result::Result<T, Error>;
 type Error = Box<dyn std::error::Error>;
@@ -79,7 +79,7 @@ fn main(args: Args) -> Result<()> {
         }
     }
 
-    let branches = get_merged_or_gone(
+    let branches = get_merged_or_stray(
         &git,
         &Config {
             bases: bases.iter().map(String::as_str).collect(),
@@ -120,7 +120,7 @@ where
     containers.flatten().collect()
 }
 
-pub fn print_summary(branches: &MergedOrGoneAndKeptBacks, repo: &Repository) -> Result<()> {
+pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) -> Result<()> {
     println!("Branches that will remain:");
     println!("  local branches:");
     let local_branches_to_delete: HashSet<_> = branches.to_delete.locals().into_iter().collect();
@@ -192,8 +192,8 @@ pub fn print_summary(branches: &MergedOrGoneAndKeptBacks, repo: &Repository) -> 
 
     print("merged local branches", &branches.to_delete.merged_locals);
     print("merged remote refs", &branches.to_delete.merged_remotes);
-    print("gone local branches", &branches.to_delete.gone_locals);
-    print("gone remote refs", &branches.to_delete.gone_remotes);
+    print("stray local branches", &branches.to_delete.stray_locals);
+    print("stray remote refs", &branches.to_delete.stray_remotes);
 
     Ok(())
 }

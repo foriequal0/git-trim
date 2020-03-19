@@ -16,8 +16,8 @@ pub enum Scope {
 pub enum FilterUnit {
     MergedLocal,
     MergedRemote(Scope),
-    GoneLocal,
-    GoneRemote(Scope),
+    StrayLocal,
+    StrayRemote(Scope),
 }
 
 #[derive(Debug, Clone)]
@@ -37,8 +37,8 @@ impl DeleteFilter {
         DeleteFilter::from_iter(vec![
             MergedLocal,
             MergedRemote(Scope::All),
-            GoneLocal,
-            GoneRemote(Scope::All),
+            StrayLocal,
+            StrayRemote(Scope::All),
         ])
     }
 
@@ -59,15 +59,15 @@ impl DeleteFilter {
         false
     }
 
-    pub fn filter_gone_local(&self) -> bool {
-        self.0.contains(&FilterUnit::GoneLocal)
+    pub fn filter_stray_local(&self) -> bool {
+        self.0.contains(&FilterUnit::StrayLocal)
     }
 
-    pub fn filter_gone_remote(&self, remote: &str) -> bool {
+    pub fn filter_stray_remote(&self, remote: &str) -> bool {
         for filter in self.0.iter() {
             match filter {
-                FilterUnit::GoneRemote(Scope::All) => return true,
-                FilterUnit::GoneRemote(Scope::Scoped(specific)) if specific == remote => {
+                FilterUnit::StrayRemote(Scope::All) => return true,
+                FilterUnit::StrayRemote(Scope::Scoped(specific)) if specific == remote => {
                     return true
                 }
                 _ => {}
@@ -95,28 +95,28 @@ impl FromStr for DeleteFilter {
         for arg in args.split(',') {
             let some_pair: Vec<_> = arg.splitn(2, ':').map(str::trim).collect();
             let filters = match *some_pair.as_slice() {
-                ["all"] => vec![MergedLocal, MergedRemote(All), GoneLocal, GoneRemote(All)],
+                ["all"] => vec![MergedLocal, MergedRemote(All), StrayLocal, StrayRemote(All)],
                 ["all", remote] => vec![
                     MergedLocal,
                     MergedRemote(Scoped(remote.to_string())),
-                    GoneLocal,
-                    GoneRemote(Scoped(remote.to_string())),
+                    StrayLocal,
+                    StrayRemote(Scoped(remote.to_string())),
                 ],
                 ["merged"] => vec![MergedLocal, MergedRemote(All)],
                 ["merged", remote] => vec![MergedLocal, MergedRemote(Scoped(remote.to_string()))],
-                ["gone"] => vec![GoneLocal, GoneRemote(All)],
-                ["gone", remote] => vec![GoneLocal, GoneRemote(Scoped(remote.to_string()))],
-                ["local"] => vec![MergedLocal, GoneLocal],
-                ["remote"] => vec![MergedRemote(All), GoneRemote(All)],
+                ["stray"] => vec![StrayLocal, StrayRemote(All)],
+                ["stray", remote] => vec![StrayLocal, StrayRemote(Scoped(remote.to_string()))],
+                ["local"] => vec![MergedLocal, StrayLocal],
+                ["remote"] => vec![MergedRemote(All), StrayRemote(All)],
                 ["remote", remote] => vec![
                     MergedRemote(Scoped(remote.to_string())),
-                    GoneRemote(Scoped(remote.to_string())),
+                    StrayRemote(Scoped(remote.to_string())),
                 ],
                 ["merged-local"] => vec![MergedLocal],
                 ["merged-remote"] => vec![MergedRemote(All)],
                 ["merged-remote", remote] => vec![MergedRemote(Scoped(remote.to_string()))],
-                ["gone-local"] => vec![GoneLocal],
-                ["gone-remote", remote] => vec![GoneRemote(Scoped(remote.to_string()))],
+                ["stray-local"] => vec![StrayLocal],
+                ["stray-remote", remote] => vec![StrayRemote(Scoped(remote.to_string()))],
                 _ if arg.is_empty() => vec![],
                 _ => {
                     return Err(DeleteFilterParseError {
@@ -142,10 +142,10 @@ impl FromIterator<FilterUnit> for DeleteFilter {
         let mut result = HashSet::new();
         for filter in iter.into_iter() {
             match filter {
-                MergedLocal | GoneLocal => {
+                MergedLocal | StrayLocal => {
                     result.insert(filter.clone());
                 }
-                MergedRemote(All) | GoneRemote(All) => {
+                MergedRemote(All) | StrayRemote(All) => {
                     result.retain(|x| discriminant(x) != discriminant(&filter));
                     result.insert(filter.clone());
                 }
@@ -154,8 +154,8 @@ impl FromIterator<FilterUnit> for DeleteFilter {
                         result.insert(filter.clone());
                     }
                 }
-                GoneRemote(_) => {
-                    if !result.contains(&GoneRemote(All)) {
+                StrayRemote(_) => {
+                    if !result.contains(&StrayRemote(All)) {
                         result.insert(filter.clone());
                     }
                 }
@@ -279,14 +279,14 @@ pub struct Args {
     pub detach: bool,
 
     /// Comma separated values of '<filter unit>[:<remote name>]'.
-    /// Filter unit is one of the 'all, merged, gone, local, remote, merged-local, merged-remote, gone-local, gone-remote'.
-    /// 'all' implies 'merged-local,merged-remote,gone-local,gone-remote'.
+    /// Filter unit is one of the 'all, merged, gone, local, remote, merged-local, merged-remote, stray-local, stray-remote'.
+    /// 'all' implies 'merged-local,merged-remote,stray-local,stray-remote'.
     /// 'merged' implies 'merged-local,merged-remote'.
-    /// 'gone' implies 'gone-local,gone-remote'.
-    /// 'local' implies 'merged-local,gone-local'.
-    /// 'remote' implies 'merged-remote,gone-remote'.
+    /// 'stray' implies 'stray-local,stray-remote'.
+    /// 'local' implies 'merged-local,stray-local'.
+    /// 'remote' implies 'merged-remote,stray-remote'.
     ///
-    /// You can scope a filter unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies `merged-remote` or `gone-remote`.
+    /// You can scope a filter unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies `merged-remote` or `stray-remote`.
     /// If there are filter units that are scoped, it trims remote branches only in the specified remote.
     /// If there are any filter unit that isn't scoped, it trims all remote branches.
     /// [default : 'merged:origin'] [config: trim.filter]
