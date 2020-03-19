@@ -39,7 +39,11 @@ You might need to install `libssl-dev` and `pkg-config` packages if you build fr
 There are so many lines of commands to type and many statuses of branches that corresponding to PRs that you've sent.
 Were they merged or rejected? Did I forget to delete the remote branch after it is merged?
 
-After some working with the repository, you'll execute `git fetch --prune` or `git remote update --prune` occasionally. However, you'll likely see the mess of local branches whose upstreams are already merged and deleted on the remote. Because `git fetch --prune` only deletes remote-tracking branches (or remote references, `refs/remotes/<remote>/<branch>`) but not local tracking branches (`refs/heads/<branch>`) for you. It is worse if remote branches that are merged but the maintainer forgot to delete them, the remote-tracking branches would not be deleted and so on even if you know that it is merged into the master.
+After some working with the repository, you'll execute `git fetch --prune` or `git remote update --prune` occasionally.
+However, you'll likely see the mess of local branches whose upstreams are already merged and deleted on the remote.
+Because `git fetch --prune` only deletes remote-tracking branches (or remote references, `refs/remotes/<remote>/<branch>`) but not local tracking branches (`refs/heads/<branch>`) for you.
+It is worse if remote branches that are merged but the maintainer forgot to delete them,
+the remote-tracking branches would not be deleted and so on even if you know that it is merged into the master.
 
 ![before](images/0-before.png)
 
@@ -147,16 +151,23 @@ You can override it with CLI flag with `--detach` or `--no-detach`.
 
 git fetch --prune only deletes remote-tracking branches (or remote references, `refs/remotes/...`) when the remote branches are deleted.
 
-The problem is that it doesn't touch local tracking branches that track the remote upstream branches even if the upstreams are merged into the base and deleted by somehow. You should manually delete corresponding tracking branches in that case. If you use rebase merge, you might have to use scary `--force` flag such as `git branch --delete --force`.
+The problem is that it doesn't touch local tracking branches that track the remote upstream branches
+even if the upstreams are merged into the base and deleted by somehow. You should manually delete corresponding tracking branches in that case.
+If you use rebase merge, you might have to use scary `--force` flag such as `git branch --delete --force`.
 
-`git-trim` does detect whether the upstream branches are merged into the upstream of the base branch. It knows whether it is safe to delete, and even knows that you forgot to delete the remote branch after the merge.
+`git-trim` does detect whether the upstream branches are merged into the upstream of the base branch.
+It knows whether it is safe to delete, and even knows that you forgot to delete the remote branch after the merge.
 
 ### What is different to `<bash one-liner HERE> | xargs git branch -D`
 
-Just deleting tracking branches whose upstreams are gone with `-D`, which implies `--force`, needs an extra caution since it might delete contents that are not fully merged into the base or modified after being merged. Not because `--force` is dangerous. Just `gone` doesn't mean it is fully merged to the base. So I gave it steroids, and it became `git-trim`.
+Just deleting tracking branches whose upstreams are gone with `-D`, which implies `--force`,
+needs an extra caution since it might delete contents that are not fully merged into the base or modified after being merged.
+Not because `--force` is dangerous. Just `gone` doesn't mean it is fully merged to the base. So I gave it steroids, and it became `git-trim`.
 
- * It inspects the upstream of tracking branches whether they are 'fully' merged, not just whether they are gone. I've spent about half of the code on scenario tests. I wanted to make sure that it doesn't delete unmerged contents accidentally in any case.
- * It supports github flow (master-feature tiered branch strategy), git flow (master-develop-feature tiered branch strategy), and simple workflow (with a remote repo and a local clone), and triangular workflow (with two remote repos and a local clone).
+ * It inspects the upstream of tracking branches whether they are 'fully' merged, not just whether they are gone.
+ I've spent about half of the code on scenario tests. I wanted to make sure that it doesn't delete unmerged contents accidentally in any case.
+ * It supports github flow (master-feature tiered branch strategy), git flow (master-develop-feature tiered branch strategy),
+ and simple workflow (with a remote repo and a local clone), and triangular workflow (with two remote repos and a local clone).
  * It is a merge styles agnostic. It can detect common merge styles such as merge with a merge commit, rebase/ff merge and squash merge.
  * It can also inspect remote branches so it deletes them from remotes for you in case you've forgotten to.
  * Moreover, it runs in parallel. Otherwise, large repos with hundreds of stale branches would've taken a couple of minutes to inspect whether they are merged.
@@ -173,7 +184,8 @@ A merged branch is a branch whose upstream branch is fully merged onto the upstr
 
 In contrast, a stray branch is a branch that there is a chance to lose some changes if you delete it.
 Your PRs are sometimes rejected and deleted from the remote.
-Or you might have been mistakenly amended or rebased the branch and the patch is now completely different from the patch that is merged because you forgot the fact that the PR is already merged.
+Or you might have been mistakenly amended or rebased the branch and the patch is now completely different from the patch
+that is merged because you forgot the fact that the PR is already merged.
 Then they are not safe to delete blindly just because their upstreams are deleted.
 The term is borrowed from the git's remote tracking states.
 
