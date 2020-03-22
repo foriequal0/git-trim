@@ -22,16 +22,25 @@ impl RemoteTrackingBranch {
     pub fn from_remote_branch(
         repo: &Repository,
         remote_branch: &RemoteBranch,
+        direction: Direction,
     ) -> Result<Option<RemoteTrackingBranch>> {
         let remote = get_remote(repo, &remote_branch.remote)?;
         if let Some(remote) = remote {
-            if let Some(expanded) = expand_refspec(
+            let refname = if let Some(expanded) = expand_refspec(
                 &remote,
                 &remote_branch.refname,
-                Direction::Fetch,
+                direction,
                 ExpansionSide::Right,
             )? {
-                return Ok(Some(Self::new(&expanded)));
+                expanded
+            } else {
+                return Ok(None);
+            };
+
+            if repo.find_reference(&refname).is_ok() {
+                return Ok(Some(RemoteTrackingBranch::new(&refname)));
+            } else {
+                return Ok(None);
             }
         }
         Ok(None)
@@ -69,7 +78,7 @@ pub fn get_fetch_upstream(
     branch: &str,
 ) -> Result<Option<RemoteTrackingBranch>> {
     let remote_name = config::get_remote(config, branch)?;
-    get_upstream(repo, config, &remote_name, branch)
+    get_upstream(repo, config, &remote_name, branch, Direction::Fetch)
 }
 
 pub fn get_remote<'a>(repo: &'a Repository, remote_name: &str) -> Result<Option<Remote<'a>>> {
@@ -89,35 +98,22 @@ fn get_upstream(
     config: &Config,
     remote_name: &str,
     branch: &str,
+    direction: Direction,
 ) -> Result<Option<RemoteTrackingBranch>> {
-    let remote = if let Some(remote) = get_remote(repo, remote_name)? {
-        remote
-    } else {
-        return Ok(None);
-    };
     let merge: String = if let Some(merge) = config::get_merge(config, &branch)? {
         merge
     } else {
         return Ok(None);
     };
-    assert!(
-        merge.starts_with("refs/"),
-        "'git config branch.{}.merge' should start with 'refs/'",
-        branch
-    );
 
-    if let Some(expanded) = expand_refspec(&remote, &merge, Direction::Fetch, ExpansionSide::Right)?
-    {
-        // TODO: is this necessary?
-        let exists = repo.find_reference(&expanded).is_ok();
-        if exists {
-            Ok(Some(RemoteTrackingBranch::new(&expanded)))
-        } else {
-            Ok(None)
-        }
-    } else {
-        Ok(None)
-    }
+    RemoteTrackingBranch::from_remote_branch(
+        repo,
+        &RemoteBranch {
+            remote: remote_name.to_string(),
+            refname: merge,
+        },
+        direction,
+    )
 }
 
 // given refspec for a remote: refs/heads/*:refs/heads/*
@@ -133,7 +129,8 @@ pub fn get_push_upstream(
         refname,
     }) = get_push_remote_branch(repo, config, branch)?
     {
-        if let Some(upstream) = get_upstream(repo, config, &remote_name, &refname)? {
+        if let Some(upstream) = get_upstream(repo, config, &remote_name, &refname, Direction::Push)?
+        {
             return Ok(Some(upstream));
         }
     }
@@ -168,23 +165,20 @@ fn get_push_remote_branch(
     branch: &str,
 ) -> Result<Option<RemoteBranch>> {
     let remote_name = config::get_push_remote(config, branch)?;
-
-    let remote = if let Some(remote) = get_remote(repo, &remote_name)? {
-        remote
-    } else {
-        return Ok(None);
-    };
     let reference = repo
         .find_branch(branch, BranchType::Local)?
         .into_reference();
     let refname = reference.name().context("non utf-8 refname")?;
-    if let Some(remote_branch) =
-        expand_refspec(&remote, refname, Direction::Push, ExpansionSide::Right)?
-    {
-        return Ok(Some(RemoteBranch {
+
+    if let Some(remote_tracking) = RemoteTrackingBranch::from_remote_branch(
+        repo,
+        &RemoteBranch {
             remote: remote_name.to_string(),
-            refname: remote_branch,
-        }));
+            refname: refname.to_string(),
+        },
+        Direction::Push,
+    )? {
+        return Ok(Some(remote_tracking.remote_branch(repo)?));
     }
 
     let push_default = config::get(config, "push.default")

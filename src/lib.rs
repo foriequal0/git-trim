@@ -9,7 +9,7 @@ use std::convert::TryFrom;
 use std::ops::Deref;
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Config as GitConfig, Error as GitError, ErrorCode, Repository};
+use git2::{BranchType, Config as GitConfig, Direction, Error as GitError, ErrorCode, Repository};
 use glob::Pattern;
 use log::*;
 use rayon::prelude::*;
@@ -377,11 +377,13 @@ fn keep_remote_branches(
 ) -> Result<HashMap<RemoteBranch, Reason>> {
     let mut kept_back = HashMap::new();
     for remote_branch in remote_branches.iter() {
-        if let Some(remote_tracking) =
-            RemoteTrackingBranch::from_remote_branch(repo, remote_branch)?
-        {
-            if protected_refs.contains(&remote_tracking.refname) {
-                kept_back.insert(remote_branch.clone(), reason.clone());
+        for direction in [Direction::Fetch, Direction::Push].iter() {
+            if let Some(remote_tracking) =
+                RemoteTrackingBranch::from_remote_branch(repo, remote_branch, *direction)?
+            {
+                if protected_refs.contains(&remote_tracking.refname) {
+                    kept_back.insert(remote_branch.clone(), reason.clone());
+                }
             }
         }
     }
