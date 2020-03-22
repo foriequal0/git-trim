@@ -16,7 +16,7 @@ use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
 use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote};
-pub use crate::branch::{RemoteBranch, RemoteBranchError};
+pub use crate::branch::{RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
 use crate::subprocess::ls_remote_heads;
 pub use crate::subprocess::remote_update;
 
@@ -377,8 +377,10 @@ fn keep_remote_branches(
 ) -> Result<HashMap<RemoteBranch, Reason>> {
     let mut kept_back = HashMap::new();
     for remote_branch in remote_branches.iter() {
-        if let Some(remote_tracking) = remote_branch.to_remote_tracking(repo)? {
-            if protected_refs.contains(&remote_tracking) {
+        if let Some(remote_tracking) =
+            RemoteTrackingBranch::from_remote_branch(repo, remote_branch)?
+        {
+            if protected_refs.contains(&remote_tracking.refname) {
                 kept_back.insert(remote_branch.clone(), reason.clone());
             }
         }
@@ -391,8 +393,8 @@ fn keep_remote_branches(
 
 #[allow(clippy::cognitive_complexity, clippy::implicit_hasher)]
 pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAndKeptBacks> {
-    let base_upstreams = resolve_base_upstream(&git.repo, &git.config, &config.bases)?;
-    trace!("base_upstreams: {:#?}", base_upstreams);
+    let bases = resolve_base_upstream(&git.repo, &git.config, &config.bases)?;
+    trace!("base_upstreams: {:#?}", bases);
 
     let protected_refs =
         resolve_protected_refs(&git.repo, &git.config, &config.protected_branches)?;
@@ -400,8 +402,7 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
 
     let mut merged_or_stray = MergedOrStray::default();
     // Fast filling ff merged branches
-    let noff_merged_locals =
-        subprocess::get_noff_merged_locals(&git.repo, &git.config, &base_upstreams)?;
+    let noff_merged_locals = subprocess::get_noff_merged_locals(&git.repo, &git.config, &bases)?;
     merged_or_stray
         .merged_locals
         .extend(noff_merged_locals.clone());
@@ -436,11 +437,11 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             continue;
         }
         if let Some(upstream) = get_fetch_upstream(&git.repo, &git.config, branch_name)? {
-            if base_upstreams.contains(&upstream) {
+            if bases.contains(&upstream) {
                 debug!("Skip: the branch is the base: {:?}", branch_name);
                 continue;
             }
-            if protected_refs.contains(&upstream) {
+            if protected_refs.contains(&upstream.refname) {
                 debug!(
                     "Skip: the branch tracks protected branch: {:?}",
                     branch_name
@@ -455,20 +456,28 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
 
         let local_hash = reference.peel_to_commit()?.id();
         if let Some(upstream) = get_fetch_upstream(&git.repo, &git.config, branch_name)? {
-            let upstream_hash = git.repo.find_reference(&upstream)?.peel_to_commit()?.id();
+            let upstream_hash = git
+                .repo
+                .find_reference(&upstream.refname)?
+                .peel_to_commit()?
+                .id();
             if upstream_hash != local_hash {
                 warn!("fetch upstream is different from local branch");
             }
         }
         if let Some(upstream) = get_push_upstream(&git.repo, &git.config, branch_name)? {
-            let upstream_hash = git.repo.find_reference(&upstream)?.peel_to_commit()?.id();
+            let upstream_hash = git
+                .repo
+                .find_reference(&upstream.refname)?
+                .peel_to_commit()?
+                .id();
             if upstream_hash != local_hash {
                 warn!("fetch upstream is different from local branch");
             }
         }
 
-        for base_upstream in &base_upstreams {
-            base_and_branch_to_compare.push((base_upstream.to_string(), branch_name.to_string()));
+        for base in &bases {
+            base_and_branch_to_compare.push((base, branch_name.to_string()));
         }
     }
 
@@ -492,20 +501,15 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             // It is denoted that it is safe in that case
             // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
             let git = ForceSendSync(git);
-            move |(base_upstream, branch_name)| {
+            move |(base, branch_name)| {
                 classify(
                     git,
                     &merged_locals,
                     &remote_heads_per_url,
-                    &base_upstream,
+                    &base,
                     &branch_name,
                 )
-                .with_context(|| {
-                    format!(
-                        "base_upstream={}, branch_name={}",
-                        base_upstream, branch_name
-                    )
-                })
+                .with_context(|| format!("base={:?}, branch_name={}", base, branch_name))
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -589,14 +593,14 @@ impl Classification {
     fn merged_remote(&mut self, repo: &Repository, upstream: &Ref) -> Result<()> {
         self.result
             .merged_remotes
-            .insert(RemoteBranch::from_remote_tracking(&repo, &upstream.name)?);
+            .insert(RemoteTrackingBranch::new(&upstream.name).remote_branch(&repo)?);
         Ok(())
     }
 
     fn stray_remote(&mut self, repo: &Repository, upstream: &Ref) -> Result<()> {
         self.result
             .stray_remotes
-            .insert(RemoteBranch::from_remote_tracking(&repo, &upstream.name)?);
+            .insert(RemoteTrackingBranch::new(&upstream.name).remote_branch(&repo)?);
         Ok(())
     }
 }
@@ -606,28 +610,28 @@ fn classify(
     git: ForceSendSync<&Git>,
     merged_locals: &HashSet<String>,
     remote_heads_per_url: &HashMap<String, HashSet<String>>,
-    base_upstream: &str,
+    base: &RemoteTrackingBranch,
     branch_name: &str,
 ) -> Result<Classification> {
     let branch = Ref::from_name(&git.repo, branch_name)?;
     let branch_is_merged = merged_locals.contains(branch_name)
-        || subprocess::is_merged(&git.repo, base_upstream, branch_name)?;
+        || subprocess::is_merged(&git.repo, &base.refname, branch_name)?;
     let fetch = if let Some(fetch) = get_fetch_upstream(&git.repo, &git.config, branch_name)? {
-        let upstream = Ref::from_name(&git.repo, &fetch)?;
+        let upstream = Ref::from_name(&git.repo, &fetch.refname)?;
         let merged = (branch_is_merged && upstream.commit == branch.commit)
-            || subprocess::is_merged(&git.repo, base_upstream, &upstream.name)?;
+            || subprocess::is_merged(&git.repo, &base.refname, &upstream.name)?;
         Some(UpstreamMergeState { upstream, merged })
     } else {
         None
     };
     let push = if let Some(push) = get_push_upstream(&git.repo, &git.config, branch_name)? {
-        let upstream = Ref::from_name(&git.repo, &push)?;
+        let upstream = Ref::from_name(&git.repo, &push.refname)?;
         let merged = (branch_is_merged && upstream.commit == branch.commit)
             || fetch
                 .as_ref()
                 .map(|x| x.merged && upstream.commit == x.upstream.commit)
                 == Some(true)
-            || subprocess::is_merged(&git.repo, base_upstream, &upstream.name)?;
+            || subprocess::is_merged(&git.repo, &base.refname, &upstream.name)?;
         Some(UpstreamMergeState { upstream, merged })
     } else {
         None
@@ -775,11 +779,11 @@ fn resolve_base_refs(
         }
 
         if let Some(upstream) = get_fetch_upstream(repo, config, base)? {
-            result.insert(upstream);
+            result.insert(upstream.refname);
         }
 
         if let Some(upstream) = get_push_upstream(repo, config, base)? {
-            result.insert(upstream);
+            result.insert(upstream.refname);
         }
     }
     Ok(result)
@@ -789,7 +793,7 @@ fn resolve_base_upstream(
     repo: &Repository,
     config: &GitConfig,
     bases: &[&str],
-) -> Result<Vec<String>> {
+) -> Result<Vec<RemoteTrackingBranch>> {
     let mut result = Vec::new();
     for base in bases {
         // find "master -> refs/remotes/origin/master"
@@ -801,12 +805,12 @@ fn resolve_base_upstream(
         // match "origin/master -> refs/remotes/origin/master"
         if let Ok(remote_ref) = repo.find_reference(&format!("refs/remotes/{}", base)) {
             let refname = remote_ref.name().context("non-utf8 reference name")?;
-            result.push(refname.to_string());
+            result.push(RemoteTrackingBranch::new(refname));
             continue;
         }
 
         if base.starts_with("refs/remotes/") {
-            result.push((*base).to_string());
+            result.push(RemoteTrackingBranch::new(base));
             continue;
         }
     }
@@ -853,7 +857,7 @@ fn resolve_protected_refs(
             if Pattern::new(protected)?.matches(branch_name) {
                 result.insert(branch_name.to_string());
                 if let Some(upstream) = get_fetch_upstream(repo, config, branch_name)? {
-                    result.insert(upstream);
+                    result.insert(upstream.refname);
                 }
                 let reference = branch.into_reference();
                 let refname = reference.name().context("non utf-8 ref")?;

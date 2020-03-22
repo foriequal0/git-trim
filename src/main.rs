@@ -8,7 +8,9 @@ use git2::{BranchType, Repository};
 use log::*;
 
 use git_trim::args::{Args, CommaSeparatedSet, DeleteFilter};
-use git_trim::{config, Config, Git, MergedOrStrayAndKeptBacks, RemoteBranch, RemoteBranchError};
+use git_trim::{
+    config, Config, Git, MergedOrStrayAndKeptBacks, RemoteBranchError, RemoteTrackingBranch,
+};
 use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_stray, remote_update};
 
 type Result<T> = ::std::result::Result<T, Error>;
@@ -145,7 +147,7 @@ pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) ->
     for remote_ref in repo.branches(Some(BranchType::Remote))? {
         let (branch, _) = remote_ref?;
         let name = branch.get().name().context("non utf-8 remote ref name")?;
-        let remote_branch = match RemoteBranch::from_remote_tracking(repo, name) {
+        let remote_branch = match RemoteTrackingBranch::new(&name).remote_branch(&repo) {
             Ok(remote_branch) => remote_branch,
             Err(RemoteBranchError::RemoteNotFound) => continue,
             Err(err) => return Err(err.into()),
