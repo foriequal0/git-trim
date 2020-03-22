@@ -78,7 +78,20 @@ pub fn get_fetch_upstream(
     branch: &str,
 ) -> Result<Option<RemoteTrackingBranch>> {
     let remote_name = config::get_remote(config, branch)?;
-    get_upstream(repo, config, &remote_name, branch, Direction::Fetch)
+    let merge: String = if let Some(merge) = config::get_merge(config, &branch)? {
+        merge
+    } else {
+        return Ok(None);
+    };
+
+    RemoteTrackingBranch::from_remote_branch(
+        repo,
+        &RemoteBranch {
+            remote: remote_name.to_string(),
+            refname: merge,
+        },
+        Direction::Fetch,
+    )
 }
 
 pub fn get_remote<'a>(repo: &'a Repository, remote_name: &str) -> Result<Option<Remote<'a>>> {
@@ -93,29 +106,6 @@ pub fn get_remote<'a>(repo: &'a Repository, remote_name: &str) -> Result<Option<
     }
 }
 
-fn get_upstream(
-    repo: &Repository,
-    config: &Config,
-    remote_name: &str,
-    branch: &str,
-    direction: Direction,
-) -> Result<Option<RemoteTrackingBranch>> {
-    let merge: String = if let Some(merge) = config::get_merge(config, &branch)? {
-        merge
-    } else {
-        return Ok(None);
-    };
-
-    RemoteTrackingBranch::from_remote_branch(
-        repo,
-        &RemoteBranch {
-            remote: remote_name.to_string(),
-            refname: merge,
-        },
-        direction,
-    )
-}
-
 // given refspec for a remote: refs/heads/*:refs/heads/*
 // master -> refs/remotes/origin/master
 // refs/head/master -> refs/remotes/origin/master
@@ -124,15 +114,8 @@ pub fn get_push_upstream(
     config: &Config,
     branch: &str,
 ) -> Result<Option<RemoteTrackingBranch>> {
-    if let Some(RemoteBranch {
-        remote: remote_name,
-        refname,
-    }) = get_push_remote_branch(repo, config, branch)?
-    {
-        if let Some(upstream) = get_upstream(repo, config, &remote_name, &refname, Direction::Push)?
-        {
-            return Ok(Some(upstream));
-        }
+    if let Some(remote_branch) = get_push_remote_branch(repo, config, branch)? {
+        return RemoteTrackingBranch::from_remote_branch(repo, &remote_branch, Direction::Push);
     }
     Ok(None)
 }
