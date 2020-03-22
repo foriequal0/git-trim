@@ -654,15 +654,8 @@ fn classify(
                 c.messages
                     .push("some upstreams merged, but the local strays");
                 c.result.stray_locals.insert(branch_name.to_string());
-            }
-            if fetch.merged && !push.merged {
-                c.messages
-                    .push("fetch upstream is merged, but the local and push upstream stray");
-                c.stray_remote(&git.repo, &push.upstream)?;
-            } else if !fetch.merged && push.merged {
-                c.messages
-                    .push("push upstream is merged, but the local and fetch upstream stray");
-                c.stray_remote(&git.repo, &fetch.upstream)?;
+                c.merged_or_stray_remote(&git.repo, &push)?;
+                c.merged_or_stray_remote(&git.repo, &fetch)?;
             }
         }
 
