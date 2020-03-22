@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use git2::{BranchType, Config, Reference, Repository};
 use log::*;
 
-use crate::branch::get_fetch_upstream;
+use crate::branch::{get_fetch_upstream, RemoteTrackingBranch};
 use crate::config::get_remote;
 
 fn git(repo: &Repository, args: &[&str]) -> Result<()> {
@@ -101,10 +101,10 @@ fn is_squash_merged(repo: &Repository, merge_base: &str, base: &str, branch: &st
 pub fn get_noff_merged_locals(
     repo: &Repository,
     config: &Config,
-    base_refs: &[String],
+    bases: &[RemoteTrackingBranch],
 ) -> Result<HashSet<String>> {
     let mut result = HashSet::new();
-    for base_ref in base_refs {
+    for base in bases {
         let output = git_output(
             repo,
             &[
@@ -112,7 +112,7 @@ pub fn get_noff_merged_locals(
                 "--format",
                 "%(refname:short)",
                 "--merged",
-                base_ref,
+                &base.refname,
             ],
         )?;
         for refname in output.lines() {
@@ -122,8 +122,8 @@ pub fn get_noff_merged_locals(
                 continue;
             }
             let upstream = get_fetch_upstream(repo, config, refname)?;
-            if Some(base_ref) == upstream.as_ref() {
-                trace!("skip: {} tracks {}", refname, base_ref);
+            if Some(base) == upstream.as_ref() {
+                trace!("skip: {} tracks {:?}", refname, base);
                 continue;
             }
             let branch = repo.find_branch(&refname, BranchType::Local)?;
@@ -132,7 +132,7 @@ pub fn get_noff_merged_locals(
                 continue;
             }
             let branch_name = branch.name()?.context("no utf-8 branch name")?.to_string();
-            trace!("noff merged local: it is merged to {}", base_ref);
+            trace!("noff merged local: it is merged to {:?}", base);
             result.insert(branch_name);
         }
     }

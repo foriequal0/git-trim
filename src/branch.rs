@@ -6,6 +6,60 @@ use thiserror::Error;
 use crate::config;
 use crate::simple_glob::{expand_refspec, ExpansionSide};
 
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
+pub struct RemoteTrackingBranch {
+    pub refname: String,
+}
+
+impl RemoteTrackingBranch {
+    pub fn new(refname: &str) -> RemoteTrackingBranch {
+        assert!(refname.starts_with("refs/remotes/"));
+        RemoteTrackingBranch {
+            refname: refname.to_string(),
+        }
+    }
+
+    pub fn from_remote_branch(
+        repo: &Repository,
+        remote_branch: &RemoteBranch,
+    ) -> Result<Option<RemoteTrackingBranch>> {
+        let remote = get_remote(repo, &remote_branch.remote)?;
+        if let Some(remote) = remote {
+            if let Some(expanded) = expand_refspec(
+                &remote,
+                &remote_branch.refname,
+                Direction::Fetch,
+                ExpansionSide::Right,
+            )? {
+                return Ok(Some(Self::new(&expanded)));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn remote_branch(
+        &self,
+        repo: &Repository,
+    ) -> std::result::Result<RemoteBranch, RemoteBranchError> {
+        for remote_name in repo.remotes()?.iter() {
+            let remote_name = remote_name.context("non-utf8 remote name")?;
+            let remote = repo.find_remote(&remote_name)?;
+            if let Some(expanded) = expand_refspec(
+                &remote,
+                &self.refname,
+                Direction::Fetch,
+                ExpansionSide::Left,
+            )? {
+                return Ok(RemoteBranch {
+                    remote: remote.name().context("non-utf8 remote name")?.to_string(),
+                    refname: expanded,
+                });
+            }
+        }
+        Err(RemoteBranchError::RemoteNotFound)
+    }
+}
+
 // given refspec for a remote: refs/heads/*:refs/remotes/origin
 // master -> refs/remotes/origin/master
 // refs/head/master -> refs/remotes/origin/master
@@ -13,7 +67,7 @@ pub fn get_fetch_upstream(
     repo: &Repository,
     config: &Config,
     branch: &str,
-) -> Result<Option<String>> {
+) -> Result<Option<RemoteTrackingBranch>> {
     let remote_name = config::get_remote(config, branch)?;
     get_upstream(repo, config, &remote_name, branch)
 }
@@ -35,7 +89,7 @@ fn get_upstream(
     config: &Config,
     remote_name: &str,
     branch: &str,
-) -> Result<Option<String>> {
+) -> Result<Option<RemoteTrackingBranch>> {
     let remote = if let Some(remote) = get_remote(repo, remote_name)? {
         remote
     } else {
@@ -57,7 +111,7 @@ fn get_upstream(
         // TODO: is this necessary?
         let exists = repo.find_reference(&expanded).is_ok();
         if exists {
-            Ok(Some(expanded))
+            Ok(Some(RemoteTrackingBranch::new(&expanded)))
         } else {
             Ok(None)
         }
@@ -73,7 +127,7 @@ pub fn get_push_upstream(
     repo: &Repository,
     config: &Config,
     branch: &str,
-) -> Result<Option<String>> {
+) -> Result<Option<RemoteTrackingBranch>> {
     if let Some(RemoteBranch {
         remote: remote_name,
         refname,
@@ -106,46 +160,6 @@ pub enum RemoteBranchError {
     GitError(#[from] git2::Error),
     #[error("remote with matching refspec not found")]
     RemoteNotFound,
-}
-
-impl RemoteBranch {
-    pub fn to_remote_tracking(&self, repo: &Repository) -> Result<Option<String>> {
-        let remote = get_remote(repo, &self.remote)?;
-        if let Some(remote) = remote {
-            if let Some(expanded) = expand_refspec(
-                &remote,
-                &self.refname,
-                Direction::Fetch,
-                ExpansionSide::Right,
-            )? {
-                return Ok(Some(expanded));
-            }
-        }
-        Ok(None)
-    }
-
-    pub fn from_remote_tracking(
-        repo: &Repository,
-        remote_tracking: &str,
-    ) -> std::result::Result<RemoteBranch, RemoteBranchError> {
-        assert!(remote_tracking.starts_with("refs/remotes/"));
-        for remote_name in repo.remotes()?.iter() {
-            let remote_name = remote_name.context("non-utf8 remote name")?;
-            let remote = repo.find_remote(&remote_name)?;
-            if let Some(expanded) = expand_refspec(
-                &remote,
-                remote_tracking,
-                Direction::Fetch,
-                ExpansionSide::Left,
-            )? {
-                return Ok(RemoteBranch {
-                    remote: remote.name().context("non-utf8 remote name")?.to_string(),
-                    refname: expanded,
-                });
-            }
-        }
-        Err(RemoteBranchError::RemoteNotFound)
-    }
 }
 
 fn get_push_remote_branch(
