@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use git2::{BranchType, Config, Direction, Error, ErrorClass, ErrorCode, Remote, Repository};
+use git2::{Config, Direction, Error, ErrorClass, ErrorCode, Remote, Repository};
 use log::*;
 use thiserror::Error;
 
@@ -146,9 +146,10 @@ fn get_push_remote_branch(
     branch: &str,
 ) -> Result<Option<RemoteBranch>> {
     let remote_name = config::get_push_remote(config, branch)?;
-    let reference = repo
-        .find_branch(branch, BranchType::Local)?
-        .into_reference();
+    let reference = repo.resolve_reference_from_short_name(branch)?;
+    if !reference.is_branch() || reference.is_remote() {
+        return Err(anyhow::anyhow!("Not a local branch: {}", branch));
+    }
     let refname = reference.name().context("non utf-8 refname")?;
 
     if let Some(remote) = get_remote(repo, &remote_name)? {
