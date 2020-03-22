@@ -232,6 +232,8 @@ fn config_not_exist(err: &git2::Error) -> bool {
 }
 
 pub fn get_push_remote(config: &Config, branch: &str) -> Result<ConfigValue<String>> {
+    let branch = short_branch_name(branch);
+
     if let Some(push_remote) = get(config, &format!("branch.{}.pushRemote", branch))
         .parse_with(|push_remote| Ok(push_remote.to_string()))?
     {
@@ -248,6 +250,8 @@ pub fn get_push_remote(config: &Config, branch: &str) -> Result<ConfigValue<Stri
 }
 
 pub fn get_remote(config: &Config, branch: &str) -> Result<ConfigValue<String>> {
+    let branch = short_branch_name(branch);
+
     Ok(get(config, &format!("branch.{}.remote", branch))
         .with_default(&String::from("origin"))
         .read()?
@@ -255,6 +259,8 @@ pub fn get_remote(config: &Config, branch: &str) -> Result<ConfigValue<String>> 
 }
 
 pub fn get_remote_raw(config: &Config, branch: &str) -> Result<Option<String>> {
+    let branch = short_branch_name(branch);
+
     let key = format!("branch.{}.remote", branch);
     match config.get_string(&key) {
         Ok(merge) => Ok(Some(merge)),
@@ -264,10 +270,21 @@ pub fn get_remote_raw(config: &Config, branch: &str) -> Result<Option<String>> {
 }
 
 pub fn get_merge(config: &Config, branch: &str) -> Result<Option<String>> {
+    let branch = short_branch_name(branch);
+
     let key = format!("branch.{}.merge", branch);
     match config.get_string(&key) {
         Ok(merge) => Ok(Some(merge)),
         Err(err) if config_not_exist(&err) => Ok(None),
         Err(err) => Err(err.into()),
+    }
+}
+
+fn short_branch_name(refname: &str) -> &str {
+    assert!(refname.starts_with("refs/heads/") || !refname.starts_with("refs/"));
+    if refname.starts_with("refs/heads/") {
+        &refname["refs/heads/".len()..]
+    } else {
+        refname
     }
 }
