@@ -81,7 +81,7 @@ impl MergedOrStray {
 #[derive(Default, Eq, PartialEq, Debug)]
 pub struct MergedOrStrayAndKeptBacks {
     pub to_delete: MergedOrStray,
-    pub kept_back: HashMap<String, Reason>,
+    pub kept_backs: HashMap<String, Reason>,
     pub kept_back_remotes: HashMap<RemoteBranch, Reason>,
 }
 
@@ -93,19 +93,19 @@ pub struct Reason {
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Ord, PartialOrd, Hash)]
 pub enum OriginalClassification {
-    MergedLocals,
-    StrayLocals,
-    MergedRemotes,
-    StrayRemotes,
+    MergedLocal,
+    StrayLocal,
+    MergedRemote,
+    StrayRemote,
 }
 
 impl std::fmt::Display for OriginalClassification {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OriginalClassification::MergedLocals => write!(f, "merged local"),
-            OriginalClassification::StrayLocals => write!(f, "stray local"),
-            OriginalClassification::MergedRemotes => write!(f, "merged remote"),
-            OriginalClassification::StrayRemotes => write!(f, "stray remote"),
+            OriginalClassification::MergedLocal => write!(f, "merged local"),
+            OriginalClassification::StrayLocal => write!(f, "stray local"),
+            OriginalClassification::MergedRemote => write!(f, "merged remote"),
+            OriginalClassification::StrayRemote => write!(f, "stray remote"),
         }
     }
 }
@@ -114,20 +114,20 @@ impl MergedOrStrayAndKeptBacks {
     fn keep_base(&mut self, repo: &Repository, config: &GitConfig, bases: &[&str]) -> Result<()> {
         let base_refs = resolve_base_refs(repo, config, bases)?;
         trace!("base_refs: {:#?}", base_refs);
-        self.kept_back.extend(keep_branches(
+        self.kept_backs.extend(keep_branches(
             repo,
             &base_refs,
             Reason {
-                original_classification: OriginalClassification::MergedLocals,
+                original_classification: OriginalClassification::MergedLocal,
                 reason: "a base branch",
             },
             &mut self.to_delete.merged_locals,
         )?);
-        self.kept_back.extend(keep_branches(
+        self.kept_backs.extend(keep_branches(
             repo,
             &base_refs,
             Reason {
-                original_classification: OriginalClassification::StrayLocals,
+                original_classification: OriginalClassification::StrayLocal,
                 reason: "a base branch",
             },
             &mut self.to_delete.stray_locals,
@@ -136,7 +136,7 @@ impl MergedOrStrayAndKeptBacks {
             repo,
             &base_refs,
             Reason {
-                original_classification: OriginalClassification::MergedRemotes,
+                original_classification: OriginalClassification::MergedRemote,
                 reason: "a base branch",
             },
             &mut self.to_delete.merged_remotes,
@@ -145,7 +145,7 @@ impl MergedOrStrayAndKeptBacks {
             repo,
             &base_refs,
             Reason {
-                original_classification: OriginalClassification::StrayRemotes,
+                original_classification: OriginalClassification::StrayRemote,
                 reason: "a base branch",
             },
             &mut self.to_delete.stray_remotes,
@@ -161,20 +161,20 @@ impl MergedOrStrayAndKeptBacks {
     ) -> Result<()> {
         let protected_refs = resolve_protected_refs(repo, config, protected_branches)?;
         trace!("protected_refs: {:#?}", protected_refs);
-        self.kept_back.extend(keep_branches(
+        self.kept_backs.extend(keep_branches(
             repo,
             &protected_refs,
             Reason {
-                original_classification: OriginalClassification::MergedLocals,
+                original_classification: OriginalClassification::MergedLocal,
                 reason: "a protected branch",
             },
             &mut self.to_delete.merged_locals,
         )?);
-        self.kept_back.extend(keep_branches(
+        self.kept_backs.extend(keep_branches(
             repo,
             &protected_refs,
             Reason {
-                original_classification: OriginalClassification::StrayLocals,
+                original_classification: OriginalClassification::StrayLocal,
                 reason: "a protected branch",
             },
             &mut self.to_delete.stray_locals,
@@ -183,7 +183,7 @@ impl MergedOrStrayAndKeptBacks {
             repo,
             &protected_refs,
             Reason {
-                original_classification: OriginalClassification::MergedRemotes,
+                original_classification: OriginalClassification::MergedRemote,
                 reason: "a protected branch",
             },
             &mut self.to_delete.merged_remotes,
@@ -192,7 +192,7 @@ impl MergedOrStrayAndKeptBacks {
             repo,
             &protected_refs,
             Reason {
-                original_classification: OriginalClassification::StrayRemotes,
+                original_classification: OriginalClassification::StrayRemote,
                 reason: "a protected branch",
             },
             &mut self.to_delete.stray_remotes,
@@ -210,7 +210,7 @@ impl MergedOrStrayAndKeptBacks {
                 self.kept_back_remotes.insert(
                     remote_branch.clone(),
                     Reason {
-                        original_classification: OriginalClassification::MergedRemotes,
+                        original_classification: OriginalClassification::MergedRemote,
                         reason: "a non-heads remote branch",
                     },
                 );
@@ -227,7 +227,7 @@ impl MergedOrStrayAndKeptBacks {
                 self.kept_back_remotes.insert(
                     remote_branch.clone(),
                     Reason {
-                        original_classification: OriginalClassification::StrayRemotes,
+                        original_classification: OriginalClassification::StrayRemote,
                         reason: "a non-heads remote branch",
                     },
                 );
@@ -244,12 +244,12 @@ impl MergedOrStrayAndKeptBacks {
                 "filter-out: merged local branches {:?}",
                 self.to_delete.merged_locals
             );
-            self.kept_back
+            self.kept_backs
                 .extend(self.to_delete.merged_locals.drain().map(|branch| {
                     (
                         branch,
                         Reason {
-                            original_classification: OriginalClassification::MergedLocals,
+                            original_classification: OriginalClassification::MergedLocal,
                             reason: "out of filter scope",
                         },
                     )
@@ -260,12 +260,12 @@ impl MergedOrStrayAndKeptBacks {
                 "filter-out: stray local branches {:?}",
                 self.to_delete.stray_locals
             );
-            self.kept_back
+            self.kept_backs
                 .extend(self.to_delete.stray_locals.drain().map(|branch| {
                     (
                         branch,
                         Reason {
-                            original_classification: OriginalClassification::StrayLocals,
+                            original_classification: OriginalClassification::StrayLocal,
                             reason: "out of filter scope",
                         },
                     )
@@ -281,7 +281,7 @@ impl MergedOrStrayAndKeptBacks {
                 self.kept_back_remotes.insert(
                     remote_branch.clone(),
                     Reason {
-                        original_classification: OriginalClassification::MergedRemotes,
+                        original_classification: OriginalClassification::MergedRemote,
                         reason: "out of filter scope",
                     },
                 );
@@ -298,7 +298,7 @@ impl MergedOrStrayAndKeptBacks {
                 self.kept_back_remotes.insert(
                     remote_branch.clone(),
                     Reason {
-                        original_classification: OriginalClassification::StrayRemotes,
+                        original_classification: OriginalClassification::StrayRemote,
                         reason: "out of filter scope",
                     },
                 );
@@ -320,20 +320,20 @@ impl MergedOrStrayAndKeptBacks {
 
         if self.to_delete.merged_locals.contains(head_name) {
             self.to_delete.merged_locals.remove(head_name);
-            self.kept_back.insert(
+            self.kept_backs.insert(
                 head_name.to_string(),
                 Reason {
-                    original_classification: OriginalClassification::MergedLocals,
+                    original_classification: OriginalClassification::MergedLocal,
                     reason: "not to make detached HEAD",
                 },
             );
         }
         if self.to_delete.stray_locals.contains(head_name) {
             self.to_delete.stray_locals.remove(head_name);
-            self.kept_back.insert(
+            self.kept_backs.insert(
                 head_name.to_string(),
                 Reason {
-                    original_classification: OriginalClassification::StrayLocals,
+                    original_classification: OriginalClassification::StrayLocal,
                     reason: "not to make detached HEAD",
                 },
             );
@@ -525,7 +525,7 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
 
     let mut result = MergedOrStrayAndKeptBacks {
         to_delete: merged_or_stray,
-        kept_back: HashMap::new(),
+        kept_backs: HashMap::new(),
         kept_back_remotes: HashMap::new(),
     };
     result.keep_base(&git.repo, &git.config, &config.bases)?;
