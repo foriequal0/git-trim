@@ -245,9 +245,9 @@ impl MergedOrStrayAndKeptBacks {
                 self.to_delete.merged_locals
             );
             self.kept_backs
-                .extend(self.to_delete.merged_locals.drain().map(|branch| {
+                .extend(self.to_delete.merged_locals.drain().map(|branch_name| {
                     (
-                        branch,
+                        branch_name,
                         Reason {
                             original_classification: OriginalClassification::MergedLocal,
                             reason: "out of filter scope",
@@ -261,9 +261,9 @@ impl MergedOrStrayAndKeptBacks {
                 self.to_delete.stray_locals
             );
             self.kept_backs
-                .extend(self.to_delete.stray_locals.drain().map(|branch| {
+                .extend(self.to_delete.stray_locals.drain().map(|branch_name| {
                     (
-                        branch,
+                        branch_name,
                         Reason {
                             original_classification: OriginalClassification::StrayLocal,
                             reason: "out of filter scope",
@@ -346,11 +346,11 @@ fn keep_branches(
     repo: &Repository,
     protected_refs: &HashSet<String>,
     reason: Reason,
-    branches: &mut HashSet<String>,
+    branch_names: &mut HashSet<String>,
 ) -> Result<HashMap<String, Reason>> {
     let mut kept_back = HashMap::new();
     let mut bag = HashSet::new();
-    for branch_name in branches.iter() {
+    for branch_name in branch_names.iter() {
         let branch = repo.find_branch(branch_name, BranchType::Local)?;
         let reference = branch.into_reference();
         let refname = reference.name().context("non utf-8 branch ref")?;
@@ -364,7 +364,7 @@ fn keep_branches(
         }
     }
     for branch in bag.into_iter() {
-        branches.remove(&branch);
+        branch_names.remove(&branch);
     }
     Ok(kept_back)
 }
@@ -844,13 +844,13 @@ fn resolve_protected_refs(
     protected_branches: &HashSet<&str>,
 ) -> Result<HashSet<String>> {
     let mut result = HashSet::default();
-    for protected in protected_branches {
-        for reference in repo.references_glob(protected)? {
+    for protected_branch in protected_branches {
+        for reference in repo.references_glob(protected_branch)? {
             let reference = reference?;
             let refname = reference.name().context("non utf-8 refname")?;
             result.insert(refname.to_string());
         }
-        for reference in repo.references_glob(&format!("refs/remotes/{}", protected))? {
+        for reference in repo.references_glob(&format!("refs/remotes/{}", protected_branch))? {
             let reference = reference?;
             let refname = reference.name().context("non utf-8 refname")?;
             result.insert(refname.to_string());
@@ -858,7 +858,7 @@ fn resolve_protected_refs(
         for branch in repo.branches(Some(BranchType::Local))? {
             let (branch, _) = branch?;
             let branch_name = branch.name()?.context("non utf-8 branch name")?;
-            if Pattern::new(protected)?.matches(branch_name) {
+            if Pattern::new(protected_branch)?.matches(branch_name) {
                 result.insert(branch_name.to_string());
                 if let Some(upstream) = get_fetch_upstream(repo, config, branch_name)? {
                     result.insert(upstream.refname);
@@ -915,7 +915,7 @@ pub fn delete_remote_branches(
         let entry = per_remote
             .entry(&remote_branch.remote)
             .or_insert_with(Vec::new);
-        entry.push(&remote_branch.refname);
+        entry.push(remote_branch.refname.as_str());
     }
     for (remote_name, remote_refnames) in per_remote.iter() {
         subprocess::push_delete(repo, remote_name, remote_refnames, dry_run)?;
