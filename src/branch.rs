@@ -22,14 +22,13 @@ impl RemoteTrackingBranch {
     pub fn from_remote_branch(
         repo: &Repository,
         remote_branch: &RemoteBranch,
-        direction: Direction,
     ) -> Result<Option<RemoteTrackingBranch>> {
         let remote = get_remote(repo, &remote_branch.remote)?;
         if let Some(remote) = remote {
             let refname = if let Some(expanded) = expand_refspec(
                 &remote,
                 &remote_branch.refname,
-                direction,
+                Direction::Fetch,
                 ExpansionSide::Right,
             )? {
                 expanded
@@ -90,7 +89,6 @@ pub fn get_fetch_upstream(
             remote: remote_name.to_string(),
             refname: merge,
         },
-        Direction::Fetch,
     )
 }
 
@@ -115,7 +113,7 @@ pub fn get_push_upstream(
     branch: &str,
 ) -> Result<Option<RemoteTrackingBranch>> {
     if let Some(remote_branch) = get_push_remote_branch(repo, config, branch)? {
-        return RemoteTrackingBranch::from_remote_branch(repo, &remote_branch, Direction::Push);
+        return RemoteTrackingBranch::from_remote_branch(repo, &remote_branch);
     }
     Ok(None)
 }
@@ -153,15 +151,23 @@ fn get_push_remote_branch(
         .into_reference();
     let refname = reference.name().context("non utf-8 refname")?;
 
-    if let Some(remote_tracking) = RemoteTrackingBranch::from_remote_branch(
-        repo,
-        &RemoteBranch {
-            remote: remote_name.to_string(),
-            refname: refname.to_string(),
-        },
-        Direction::Push,
-    )? {
-        return Ok(Some(remote_tracking.remote_branch(repo)?));
+    if let Some(remote) = get_remote(repo, &remote_name)? {
+        let refname = if let Some(expanded) =
+            expand_refspec(&remote, &refname, Direction::Push, ExpansionSide::Right)?
+        {
+            expanded
+        } else {
+            return Ok(None);
+        };
+
+        if repo.find_reference(&refname).is_ok() {
+            return Ok(Some(RemoteBranch {
+                remote: remote_name.to_string(),
+                refname,
+            }));
+        } else {
+            return Ok(None);
+        }
     }
 
     let push_default = config::get(config, "push.default")
