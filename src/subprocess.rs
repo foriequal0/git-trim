@@ -55,14 +55,14 @@ pub fn remote_update(repo: &Repository, dry_run: bool) -> Result<()> {
     }
 }
 
-pub fn is_merged(repo: &Repository, base: &str, branch: &str) -> Result<bool> {
-    let merge_base = git_output(&repo, &["merge-base", base, branch])?;
-    Ok(is_merged_by_rev_list(repo, base, branch)?
-        || is_squash_merged(repo, &merge_base, base, branch)?)
+pub fn is_merged(repo: &Repository, base: &str, refname: &str) -> Result<bool> {
+    let merge_base = git_output(&repo, &["merge-base", base, refname])?;
+    Ok(is_merged_by_rev_list(repo, base, refname)?
+        || is_squash_merged(repo, &merge_base, base, refname)?)
 }
 
-fn is_merged_by_rev_list(repo: &Repository, base: &str, branch: &str) -> Result<bool> {
-    let range = format!("{}...{}", base, branch);
+fn is_merged_by_rev_list(repo: &Repository, base: &str, refname: &str) -> Result<bool> {
+    let range = format!("{}...{}", base, refname);
     // Is there any revs that are not applied to the base in the branch?
     let output = git_output(
         repo,
@@ -81,8 +81,13 @@ fn is_merged_by_rev_list(repo: &Repository, base: &str, branch: &str) -> Result<
 }
 
 /// Source: https://stackoverflow.com/a/56026209
-fn is_squash_merged(repo: &Repository, merge_base: &str, base: &str, branch: &str) -> Result<bool> {
-    let tree = git_output(repo, &["rev-parse", &format!("{}^{{tree}}", branch)])?;
+fn is_squash_merged(
+    repo: &Repository,
+    merge_base: &str,
+    base: &str,
+    refname: &str,
+) -> Result<bool> {
+    let tree = git_output(repo, &["rev-parse", &format!("{}^{{tree}}", refname)])?;
     let dangling_commit = git_output(
         repo,
         &[
@@ -105,7 +110,7 @@ pub fn get_noff_merged_locals(
 ) -> Result<HashSet<String>> {
     let mut result = HashSet::new();
     for base in bases {
-        let output = git_output(
+        let branch_names = git_output(
             repo,
             &[
                 "branch",
@@ -115,18 +120,18 @@ pub fn get_noff_merged_locals(
                 &base.refname,
             ],
         )?;
-        for refname in output.lines() {
-            trace!("refname: {}", refname);
-            if get_remote(config, refname)?.is_implicit() {
+        for branch_name in branch_names.lines() {
+            trace!("refname: {}", branch_name);
+            if get_remote(config, branch_name)?.is_implicit() {
                 trace!("skip: it is not a tracking branch");
                 continue;
             }
-            let upstream = get_fetch_upstream(repo, config, refname)?;
+            let upstream = get_fetch_upstream(repo, config, branch_name)?;
             if Some(base) == upstream.as_ref() {
-                trace!("skip: {} tracks {:?}", refname, base);
+                trace!("skip: {} tracks {:?}", branch_name, base);
                 continue;
             }
-            let branch = repo.find_branch(&refname, BranchType::Local)?;
+            let branch = repo.find_branch(&branch_name, BranchType::Local)?;
             if branch.get().symbolic_target().is_some() {
                 trace!("skip: it is symbolic");
                 continue;
@@ -139,9 +144,9 @@ pub fn get_noff_merged_locals(
     Ok(result)
 }
 
-pub fn ls_remote_heads(repo: &Repository, remote: &str) -> Result<HashSet<String>> {
+pub fn ls_remote_heads(repo: &Repository, remote_name: &str) -> Result<HashSet<String>> {
     let mut result = HashSet::new();
-    for line in git_output(repo, &["ls-remote", "--heads", remote])?.lines() {
+    for line in git_output(repo, &["ls-remote", "--heads", remote_name])?.lines() {
         let records = line.split_whitespace().collect::<Vec<_>>();
         result.insert(records[1].to_string());
     }
@@ -168,26 +173,31 @@ pub fn checkout(repo: &Repository, head: Reference, dry_run: bool) -> Result<()>
     }
 }
 
-pub fn branch_delete(repo: &Repository, branches: &[&str], dry_run: bool) -> Result<()> {
+pub fn branch_delete(repo: &Repository, branch_names: &[&str], dry_run: bool) -> Result<()> {
     let mut args = vec!["branch", "--delete", "--force"];
-    args.extend(branches);
+    args.extend(branch_names);
     if !dry_run {
         git(repo, &args)
     } else {
-        for branch in branches {
+        for branch_name in branch_names {
             info!("> git {} (dry-run)", args.join(" "));
-            println!("Delete branch {} (dry run).", branch);
+            println!("Delete branch {} (dry run).", branch_name);
         }
         Ok(())
     }
 }
 
-pub fn push_delete(repo: &Repository, remote: &str, refs: &[&String], dry_run: bool) -> Result<()> {
+pub fn push_delete(
+    repo: &Repository,
+    remote_name: &str,
+    remote_refnames: &[&str],
+    dry_run: bool,
+) -> Result<()> {
     let mut command = vec!["push", "--delete"];
     if dry_run {
         command.push("--dry-run");
     }
-    command.push(remote);
-    command.extend(refs.iter().map(|reference| reference.as_str()));
+    command.push(remote_name);
+    command.extend(remote_refnames);
     git(repo, &command)
 }
