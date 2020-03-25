@@ -801,6 +801,10 @@ fn resolve_base_upstream(
             result.push(upstream);
             continue;
         }
+        // We compares this functions's results with other branches.
+        // Our concern is whether the branches are safe to delete.
+        // Safe means we can be fetch the entire content of the branches from the base.
+        // So we skips get_push_upstream since we don't fetch from them.
 
         // match "origin/master -> refs/remotes/origin/master"
         if let Ok(remote_ref) = repo.find_reference(&format!("refs/remotes/{}", base)) {
@@ -857,6 +861,9 @@ fn resolve_protected_refs(
             if Pattern::new(protected)?.matches(branch_name) {
                 result.insert(branch_name.to_string());
                 if let Some(upstream) = get_fetch_upstream(repo, config, branch_name)? {
+                    result.insert(upstream.refname);
+                }
+                if let Some(upstream) = get_push_upstream(repo, config, branch_name)? {
                     result.insert(upstream.refname);
                 }
                 let reference = branch.into_reference();
