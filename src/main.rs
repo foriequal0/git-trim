@@ -135,7 +135,7 @@ pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) ->
         if let Some(reason) = branches.kept_backs.get(name) {
             println!(
                 "    {} [{}, but: {}]",
-                name, reason.original_classification, reason.reason
+                name, reason.original_classification, reason.message
             );
         } else {
             println!("    {}", name);
@@ -158,7 +158,7 @@ pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) ->
         if let Some(reason) = branches.kept_back_remotes.get(&remote_branch) {
             println!(
                 "    {} [{}, but: {}]",
-                name, reason.original_classification, reason.reason
+                name, reason.original_classification, reason.message
             );
         } else {
             println!("    {}", name);
@@ -171,7 +171,7 @@ pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) ->
                 "    {} [{}, but: {}]",
                 remote_branch.to_string(),
                 reason.original_classification,
-                reason.reason
+                reason.message
             );
         }
     }

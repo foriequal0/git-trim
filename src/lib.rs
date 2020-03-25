@@ -88,7 +88,7 @@ pub struct MergedOrStrayAndKeptBacks {
 #[derive(Clone, Eq, PartialEq, Debug, Ord, PartialOrd)]
 pub struct Reason {
     pub original_classification: OriginalClassification,
-    pub reason: &'static str,
+    pub message: &'static str,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Ord, PartialOrd, Hash)]
@@ -119,7 +119,7 @@ impl MergedOrStrayAndKeptBacks {
             &base_refs,
             Reason {
                 original_classification: OriginalClassification::MergedLocal,
-                reason: "a base branch",
+                message: "a base branch",
             },
             &mut self.to_delete.merged_locals,
         )?);
@@ -128,7 +128,7 @@ impl MergedOrStrayAndKeptBacks {
             &base_refs,
             Reason {
                 original_classification: OriginalClassification::StrayLocal,
-                reason: "a base branch",
+                message: "a base branch",
             },
             &mut self.to_delete.stray_locals,
         )?);
@@ -137,7 +137,7 @@ impl MergedOrStrayAndKeptBacks {
             &base_refs,
             Reason {
                 original_classification: OriginalClassification::MergedRemote,
-                reason: "a base branch",
+                message: "a base branch",
             },
             &mut self.to_delete.merged_remotes,
         )?);
@@ -146,7 +146,7 @@ impl MergedOrStrayAndKeptBacks {
             &base_refs,
             Reason {
                 original_classification: OriginalClassification::StrayRemote,
-                reason: "a base branch",
+                message: "a base branch",
             },
             &mut self.to_delete.stray_remotes,
         )?);
@@ -166,7 +166,7 @@ impl MergedOrStrayAndKeptBacks {
             &protected_refs,
             Reason {
                 original_classification: OriginalClassification::MergedLocal,
-                reason: "a protected branch",
+                message: "a protected branch",
             },
             &mut self.to_delete.merged_locals,
         )?);
@@ -175,7 +175,7 @@ impl MergedOrStrayAndKeptBacks {
             &protected_refs,
             Reason {
                 original_classification: OriginalClassification::StrayLocal,
-                reason: "a protected branch",
+                message: "a protected branch",
             },
             &mut self.to_delete.stray_locals,
         )?);
@@ -184,7 +184,7 @@ impl MergedOrStrayAndKeptBacks {
             &protected_refs,
             Reason {
                 original_classification: OriginalClassification::MergedRemote,
-                reason: "a protected branch",
+                message: "a protected branch",
             },
             &mut self.to_delete.merged_remotes,
         )?);
@@ -193,7 +193,7 @@ impl MergedOrStrayAndKeptBacks {
             &protected_refs,
             Reason {
                 original_classification: OriginalClassification::StrayRemote,
-                reason: "a protected branch",
+                message: "a protected branch",
             },
             &mut self.to_delete.stray_remotes,
         )?);
@@ -211,7 +211,7 @@ impl MergedOrStrayAndKeptBacks {
                     remote_branch.clone(),
                     Reason {
                         original_classification: OriginalClassification::MergedRemote,
-                        reason: "a non-heads remote branch",
+                        message: "a non-heads remote branch",
                     },
                 );
             }
@@ -228,7 +228,7 @@ impl MergedOrStrayAndKeptBacks {
                     remote_branch.clone(),
                     Reason {
                         original_classification: OriginalClassification::StrayRemote,
-                        reason: "a non-heads remote branch",
+                        message: "a non-heads remote branch",
                     },
                 );
             }
@@ -250,7 +250,7 @@ impl MergedOrStrayAndKeptBacks {
                         branch_name,
                         Reason {
                             original_classification: OriginalClassification::MergedLocal,
-                            reason: "out of filter scope",
+                            message: "out of filter scope",
                         },
                     )
                 }));
@@ -266,7 +266,7 @@ impl MergedOrStrayAndKeptBacks {
                         branch_name,
                         Reason {
                             original_classification: OriginalClassification::StrayLocal,
-                            reason: "out of filter scope",
+                            message: "out of filter scope",
                         },
                     )
                 }));
@@ -282,7 +282,7 @@ impl MergedOrStrayAndKeptBacks {
                     remote_branch.clone(),
                     Reason {
                         original_classification: OriginalClassification::MergedRemote,
-                        reason: "out of filter scope",
+                        message: "out of filter scope",
                     },
                 );
             }
@@ -299,7 +299,7 @@ impl MergedOrStrayAndKeptBacks {
                     remote_branch.clone(),
                     Reason {
                         original_classification: OriginalClassification::StrayRemote,
-                        reason: "out of filter scope",
+                        message: "out of filter scope",
                     },
                 );
             }
@@ -324,7 +324,7 @@ impl MergedOrStrayAndKeptBacks {
                 head_name.to_string(),
                 Reason {
                     original_classification: OriginalClassification::MergedLocal,
-                    reason: "not to make detached HEAD",
+                    message: "not to make detached HEAD",
                 },
             );
         }
@@ -334,7 +334,7 @@ impl MergedOrStrayAndKeptBacks {
                 head_name.to_string(),
                 Reason {
                     original_classification: OriginalClassification::StrayLocal,
-                    reason: "not to make detached HEAD",
+                    message: "not to make detached HEAD",
                 },
             );
         }
