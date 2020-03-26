@@ -52,19 +52,19 @@ pub struct Args {
     #[clap(long, hidden(true))]
     pub detach: bool,
 
-    /// Comma separated values of '<filter unit>[:<remote name>]'.
-    /// Filter unit is one of the 'all, merged, gone, local, remote, merged-local, merged-remote, stray-local, stray-remote'.
+    /// Comma separated values of `<filter unit>[:<remote name>]`.
+    /// Filter unit is one of the `all, merged, gone, local, remote, merged-local, merged-remote, stray-local, stray-remote`.
     /// You can scope a filter unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies `merged-remote` or `stray-remote`.
-    /// [default : 'merged:origin'] [config: trim.filter]
+    /// [default : `merged:origin`] [config: trim.filter]
     ///
     /// If there are filter units that are scoped, it trims remote branches only in the specified remote.
-    /// If there are any filter unit that isn't scoped, it trims all remote branches.
+    /// If there are any filter unit that isn`t scoped, it trims all remote branches.
     ///
-    /// 'all' implies 'merged-local,merged-remote,stray-local,stray-remote'.
-    /// 'merged' implies 'merged-local,merged-remote'.
-    /// 'stray' implies 'stray-local,stray-remote'.
-    /// 'local' implies 'merged-local,stray-local'.
-    /// 'remote' implies 'merged-remote,stray-remote'.
+    /// `all` implies `merged-local,merged-remote,stray-local,stray-remote`.
+    /// `merged` implies `merged-local,merged-remote`.
+    /// `stray` implies `stray-local,stray-remote`.
+    /// `local` implies `merged-local,stray-local`.
+    /// `remote` implies `merged-remote,stray-remote`.
     #[clap(short, long)]
     pub delete: Vec<DeleteFilter>,
 
