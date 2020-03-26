@@ -6,6 +6,8 @@ use std::mem::discriminant;
 use std::process::exit;
 use std::str::FromStr;
 
+use clap::Clap;
+
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub enum Scope {
     All,
@@ -246,36 +248,36 @@ impl<T> CommaSeparatedSet<T> {
     }
 }
 
-#[derive(structopt::StructOpt)]
+#[derive(Clap)]
 pub struct Args {
     /// Comma separated multiple names of branches. All the other branches are compared with the upstream branches of those branches. [default: master] [config: trim.base]
-    #[structopt(short, long, aliases=&["base"])]
+    #[clap(short, long, aliases=&["base"])]
     pub bases: Vec<CommaSeparatedSet<String>>,
 
     /// Comma separated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches that should never be deleted.
-    #[structopt(short, long)]
+    #[clap(short, long)]
     pub protected: Vec<CommaSeparatedSet<String>>,
 
     /// Not update remotes [config: trim.update]
-    #[structopt(long)]
+    #[clap(long)]
     pub no_update: bool,
-    #[structopt(long, hidden(true))]
+    #[clap(long, hidden(true))]
     pub update: bool,
 
     /// Prevents too frequent updates. Seconds between updates in seconds. 0 to disable. [default: 3 secs] [config: trim.update_interval]
-    #[structopt(long)]
+    #[clap(long)]
     pub update_interval: Option<u64>,
 
     /// Do not ask confirm [config: trim.confirm]
-    #[structopt(long)]
+    #[clap(long)]
     pub no_confirm: bool,
-    #[structopt(long, hidden(true))]
+    #[clap(long, hidden(true))]
     pub confirm: bool,
 
     /// Do not detach when HEAD is about to be deleted [config: trim.detach]
-    #[structopt(long)]
+    #[clap(long)]
     pub no_detach: bool,
-    #[structopt(long, hidden(true))]
+    #[clap(long, hidden(true))]
     pub detach: bool,
 
     /// Comma separated values of '<filter unit>[:<remote name>]'.
@@ -290,11 +292,11 @@ pub struct Args {
     /// If there are filter units that are scoped, it trims remote branches only in the specified remote.
     /// If there are any filter unit that isn't scoped, it trims all remote branches.
     /// [default : 'merged:origin'] [config: trim.filter]
-    #[structopt(short, long)]
+    #[clap(short, long)]
     pub delete: Vec<DeleteFilter>,
 
     /// Do not delete branches, show what branches will be deleted.
-    #[structopt(long)]
+    #[clap(long)]
     pub dry_run: bool,
 }
 
@@ -309,6 +311,16 @@ impl Args {
 
     pub fn detach(&self) -> Option<bool> {
         exclusive_bool(("detach", self.detach), ("no-detach", self.no_detach))
+    }
+}
+
+impl paw::ParseArgs for Args {
+    /// Error type.
+    type Error = std::io::Error;
+
+    /// Try to parse an input to a type.
+    fn parse_args() -> Result<Self, Self::Error> {
+        Ok(Args::parse())
     }
 }
 
