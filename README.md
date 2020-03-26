@@ -85,65 +85,7 @@ It can even `push --delete` when you forgot to delete the remote branch if neede
 
 ## Configurations
 
-### `git config trim.bases`
-
-Comma separated multiple names of branches. All the other branches are compared with the upstream branches of those branches.
-Base branches are never be deleted.
-
-The default value is `develop,master`.
-
-You can override it with CLI option `--base develop --base master` or `--bases develop,master`
-
-### `git config trim.protected`
-
-Comma separated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches that should never be deleted.
-You don't have to put bases to the `trim.protected` since they are never be deleted by default.
-
-The default value is `(empty)`.
-
-You can override it with CLI option with `--protected 'release-*'`
-
-### `git config trim.delete`
-
-Comma separated values of `<filter unit>[:<remote name>]`.
-Filter unit is one of the `all`, `merged`, `stray`, `local`, `remote`, `merged-local`, `merged-remote`, `stray-local`, `stray-remote`.
-`all` implies `merged-local,merged-remote,stray-local,stray-remote`.
-`merged` implies `merged-local,merged-remote`.
-`stray` implies `stray-local,stray-remote`.
-`local` implies `merged-local,stray-local`.
-`remote` implies `merged-remote,stray-remote`.
-
-You can scope a filter unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies `merged-remote` or `stray-remote`.
-If there are filter units that are scoped, it trims remote branches only in the specified remote.
-If there are any filter unit that isn't scoped, it trims all remote branches.
-
-The default value is `merged:origin`.
-
-You can override it with CLI flag with `--delete local`
-
-### `git config trim.update`
-
-A boolean value. `git-trim` will automatically call `git remote update --prune` if it is true.
-
-The default value is `true`.
-
-You can override it with CLI flag with `--update` or `--no-update`.
-
-### `git config trim.confirm`
-
-A boolean value. `git-trim` will require you to put 'y/n' before destructive actions.
-
-The default value is `true`.
-
-You can override it with CLI flag with `--confirm` or `--no-confirm`.
-
-### `git config trim.detach`
-
-A boolean value. `git-trim` will let the local repo in the detached HEAD state when it is true and the current branch will be deleted.
-
-The default value is `true`.
-
-You can override it with CLI flag with `--detach` or `--no-detach`.
+See `--help` or [docs](docs/git-trim.md)
 
 ## FAQ
 
