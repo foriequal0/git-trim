@@ -8,6 +8,116 @@ use std::str::FromStr;
 
 use clap::Clap;
 
+#[derive(Clap)]
+#[clap(
+    about = "Automatically trims your tracking branches whose upstream branches are merged or stray.",
+    long_about = "Automatically trims your tracking branches whose upstream branches are merged or stray.
+`git-trim` is a missing companion to the `git fetch --prune` and a proper, safer, faster alternative to your `<bash oneliner HERE>`."
+)]
+pub struct Args {
+    /// Comma separated multiple names of branches.
+    /// All the other branches are compared with the upstream branches of those branches.
+    /// [default: master] [config: trim.base]
+    #[clap(short, long, aliases=&["base"])]
+    pub bases: Vec<CommaSeparatedSet<String>>,
+
+    /// Comma separated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches that should never be deleted.
+    /// [default: <bases>] [config: trim.protected]
+    #[clap(short, long)]
+    pub protected: Vec<CommaSeparatedSet<String>>,
+
+    /// Do not update remotes
+    /// [config: trim.update]
+    #[clap(long)]
+    pub no_update: bool,
+    #[clap(long, hidden(true))]
+    pub update: bool,
+
+    /// Prevents too frequent updates. Seconds between updates in seconds. 0 to disable.
+    /// [default: 3] [config: trim.update_interval]
+    #[clap(long)]
+    pub update_interval: Option<u64>,
+
+    /// Do not ask confirm
+    /// [config: trim.confirm]
+    #[clap(long)]
+    pub no_confirm: bool,
+    #[clap(long, hidden(true))]
+    pub confirm: bool,
+
+    /// Do not detach when HEAD is about to be deleted
+    /// [config: trim.detach]
+    #[clap(long)]
+    pub no_detach: bool,
+    #[clap(long, hidden(true))]
+    pub detach: bool,
+
+    /// Comma separated values of '<filter unit>[:<remote name>]'.
+    /// Filter unit is one of the 'all, merged, gone, local, remote, merged-local, merged-remote, stray-local, stray-remote'.
+    /// You can scope a filter unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies `merged-remote` or `stray-remote`.
+    /// [default : 'merged:origin'] [config: trim.filter]
+    ///
+    /// If there are filter units that are scoped, it trims remote branches only in the specified remote.
+    /// If there are any filter unit that isn't scoped, it trims all remote branches.
+    ///
+    /// 'all' implies 'merged-local,merged-remote,stray-local,stray-remote'.
+    /// 'merged' implies 'merged-local,merged-remote'.
+    /// 'stray' implies 'stray-local,stray-remote'.
+    /// 'local' implies 'merged-local,stray-local'.
+    /// 'remote' implies 'merged-remote,stray-remote'.
+    #[clap(short, long)]
+    pub delete: Vec<DeleteFilter>,
+
+    /// Do not delete branches, show what branches will be deleted.
+    #[clap(long)]
+    pub dry_run: bool,
+}
+
+impl Args {
+    pub fn update(&self) -> Option<bool> {
+        exclusive_bool(("update", self.update), ("no-update", self.no_update))
+    }
+
+    pub fn confirm(&self) -> Option<bool> {
+        exclusive_bool(("confirm", self.confirm), ("no-confirm", self.no_confirm))
+    }
+
+    pub fn detach(&self) -> Option<bool> {
+        exclusive_bool(("detach", self.detach), ("no-detach", self.no_detach))
+    }
+}
+
+impl paw::ParseArgs for Args {
+    /// Error type.
+    type Error = std::io::Error;
+
+    /// Try to parse an input to a type.
+    fn parse_args() -> Result<Self, Self::Error> {
+        Ok(Args::parse())
+    }
+}
+
+fn exclusive_bool(
+    (name_pos, value_pos): (&str, bool),
+    (name_neg, value_neg): (&str, bool),
+) -> Option<bool> {
+    if value_pos && value_neg {
+        eprintln!(
+            "Error: Flag '{}' and '{}' cannot be used simultaneously",
+            name_pos, name_neg,
+        );
+        exit(-1);
+    }
+
+    if value_pos {
+        Some(true)
+    } else if value_neg {
+        Some(false)
+    } else {
+        None
+    }
+}
+
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub enum Scope {
     All,
@@ -245,115 +355,5 @@ impl<T> CommaSeparatedSet<T> {
         } else {
             Some(self)
         }
-    }
-}
-
-#[derive(Clap)]
-#[clap(
-    about = "Automatically trims your tracking branches whose upstream branches are merged or stray.",
-    long_about = "Automatically trims your tracking branches whose upstream branches are merged or stray.
-`git-trim` is a missing companion to the `git fetch --prune` and a proper, safer, faster alternative to your `<bash oneliner HERE>`."
-)]
-pub struct Args {
-    /// Comma separated multiple names of branches.
-    /// All the other branches are compared with the upstream branches of those branches.
-    /// [default: master] [config: trim.base]
-    #[clap(short, long, aliases=&["base"])]
-    pub bases: Vec<CommaSeparatedSet<String>>,
-
-    /// Comma separated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches that should never be deleted.
-    /// [default: <bases>] [config: trim.protected]
-    #[clap(short, long)]
-    pub protected: Vec<CommaSeparatedSet<String>>,
-
-    /// Do not update remotes
-    /// [config: trim.update]
-    #[clap(long)]
-    pub no_update: bool,
-    #[clap(long, hidden(true))]
-    pub update: bool,
-
-    /// Prevents too frequent updates. Seconds between updates in seconds. 0 to disable.
-    /// [default: 3] [config: trim.update_interval]
-    #[clap(long)]
-    pub update_interval: Option<u64>,
-
-    /// Do not ask confirm
-    /// [config: trim.confirm]
-    #[clap(long)]
-    pub no_confirm: bool,
-    #[clap(long, hidden(true))]
-    pub confirm: bool,
-
-    /// Do not detach when HEAD is about to be deleted
-    /// [config: trim.detach]
-    #[clap(long)]
-    pub no_detach: bool,
-    #[clap(long, hidden(true))]
-    pub detach: bool,
-
-    /// Comma separated values of '<filter unit>[:<remote name>]'.
-    /// Filter unit is one of the 'all, merged, gone, local, remote, merged-local, merged-remote, stray-local, stray-remote'.
-    /// You can scope a filter unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies `merged-remote` or `stray-remote`.
-    /// [default : 'merged:origin'] [config: trim.filter]
-    ///
-    /// If there are filter units that are scoped, it trims remote branches only in the specified remote.
-    /// If there are any filter unit that isn't scoped, it trims all remote branches.
-    ///
-    /// 'all' implies 'merged-local,merged-remote,stray-local,stray-remote'.
-    /// 'merged' implies 'merged-local,merged-remote'.
-    /// 'stray' implies 'stray-local,stray-remote'.
-    /// 'local' implies 'merged-local,stray-local'.
-    /// 'remote' implies 'merged-remote,stray-remote'.
-    #[clap(short, long)]
-    pub delete: Vec<DeleteFilter>,
-
-    /// Do not delete branches, show what branches will be deleted.
-    #[clap(long)]
-    pub dry_run: bool,
-}
-
-impl Args {
-    pub fn update(&self) -> Option<bool> {
-        exclusive_bool(("update", self.update), ("no-update", self.no_update))
-    }
-
-    pub fn confirm(&self) -> Option<bool> {
-        exclusive_bool(("confirm", self.confirm), ("no-confirm", self.no_confirm))
-    }
-
-    pub fn detach(&self) -> Option<bool> {
-        exclusive_bool(("detach", self.detach), ("no-detach", self.no_detach))
-    }
-}
-
-impl paw::ParseArgs for Args {
-    /// Error type.
-    type Error = std::io::Error;
-
-    /// Try to parse an input to a type.
-    fn parse_args() -> Result<Self, Self::Error> {
-        Ok(Args::parse())
-    }
-}
-
-fn exclusive_bool(
-    (name_pos, value_pos): (&str, bool),
-    (name_neg, value_neg): (&str, bool),
-) -> Option<bool> {
-    if value_pos && value_neg {
-        eprintln!(
-            "Error: Flag '{}' and '{}' cannot be used simultaneously",
-            name_pos, name_neg,
-        );
-        exit(-1);
-    }
-
-    if value_pos {
-        Some(true)
-    } else if value_neg {
-        Some(false)
-    } else {
-        None
     }
 }
