@@ -1,0 +1,58 @@
+GIT-TRIM(1)                                    General Commands Manual                                    GIT-TRIM(1)
+
+NAME
+       git-trim - Automatically trims your tracking branches whose upstream branches are merged or stray.
+
+SYNOPSIS
+       git-trim [FLAGS] [OPTIONS]
+
+FLAGS
+       -h, --help
+              Prints help information
+
+       --no-update
+              Do not update remotes [config: trim.update]
+
+       --no-confirm
+              Do not ask confirm [config: trim.confirm]
+
+       --no-detach
+              Do not detach when HEAD is about to be deleted [config: trim.detach]
+
+       --dry-run
+              Do not delete branches, show what branches will be deleted
+
+OPTIONS
+       -b, --bases=bases
+              Comma  separated  multiple  names  of  branches.  All the other branches are compared with the upstream
+              branches of those branches. [default: master] [config: trim.base]
+
+       -p, --protected=protected
+              Comma separated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches that should never be
+              deleted. [default: <bases>] [config: trim.protected]
+
+       --update-interval=update-interval
+              Prevents  too frequent updates. Seconds between updates in seconds. 0 to disable. [default: 3] [config:
+              trim.update_interval]
+
+       -d, --delete=delete
+              Comma separated values of `<filter unit>[:<remote name>]`. Filter unit is  one  of  the  `all,  merged,
+              gone,  local,  remote,  merged-local, merged-remote, stray-local, stray-remote`. You can scope a filter
+              unit to specific remote `:<remote name>` to a `filter unit` when the filter  unit  implies  `merged-re‐
+              mote` or `stray-remote`. [default : `merged:origin`] [config: trim.filter]
+
+              If  there  are  filter units that are scoped, it trims remote branches only in the specified remote. If
+              there are any filter unit that isn`t scoped, it trims all remote branches.
+
+              `all`  implies  `merged-local,merged-remote,stray-local,stray-remote`.  `merged`  implies   `merged-lo‐
+              cal,merged-remote`. `stray` implies `stray-local,stray-remote`. `local` implies `merged-local,stray-lo‐
+              cal`. `remote` implies `merged-remote,stray-remote`.
+
+EXIT STATUS
+       0      Successful program execution.
+
+       1      Unsuccessful program execution.
+
+       101    The program panicked.
+
+                                                                                                          GIT-TRIM(1)

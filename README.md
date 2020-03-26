@@ -85,7 +85,7 @@ It can even `push --delete` when you forgot to delete the remote branch if neede
 
 ## Configurations
 
-See `--help` or [docs](docs/git-trim.md)
+See `--help` or [docs](docs/git-trim.man)
 
 ## FAQ
 
