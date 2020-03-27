@@ -88,10 +88,11 @@ fn get_string<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
     match &map[&Value::String(key.to_string())] {
         Value::String(string) => return Some(string.as_str()),
         Value::Option(None) => return None,
-        Value::Option(Some(value)) => match value.as_ref() {
-            Value::String(string) => return Some(string.as_str()),
-            _ => {}
-        },
+        Value::Option(Some(value)) => {
+            if let Value::String(string) = value.as_ref() {
+                return Some(string.as_str());
+            }
+        }
         _ => {}
     }
     panic!("key not exist: {}", key)
