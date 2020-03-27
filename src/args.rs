@@ -32,7 +32,7 @@ pub struct Args {
     pub update: bool,
 
     /// Prevents too frequent updates. Seconds between updates in seconds. 0 to disable.
-    /// [default: 3] [config: trim.update_interval]
+    /// [default: 5] [config: trim.updateInterval]
     #[structopt(long)]
     pub update_interval: Option<u64>,
 

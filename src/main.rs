@@ -45,7 +45,7 @@ fn main(args: Args) -> Result<()> {
         .expect("has default");
     let update_interval = config::get(&git.config, "trim.updateInterval")
         .with_explicit("cli", args.update_interval)
-        .with_default(&3)
+        .with_default(&5)
         .parse()?
         .expect("has default in structopt");
     let confirm = config::get(&git.config, "trim.confirm")
