@@ -5,6 +5,7 @@ use std::str::FromStr;
 use anyhow::Result;
 use git2::{Config, ErrorClass, ErrorCode};
 use log::*;
+use std::fmt::Debug;
 
 type GitResult<T> = std::result::Result<T, git2::Error>;
 
@@ -106,6 +107,34 @@ where
     }
 }
 
+impl<'a, T> ConfigBuilder<'a, Vec<T>>
+where
+    Vec<T>: ConfigValues + Clone,
+{
+    pub fn read_multi(self) -> GitResult<ConfigValue<Vec<T>>> {
+        if let Some((source, value)) = self.explicit {
+            return Ok(ConfigValue::Explicit {
+                value,
+                source: source.to_string(),
+            });
+        }
+        match Vec::<T>::get_config_value(self.config, self.key) {
+            Ok(value) if value.len() > 0 => Ok(ConfigValue::Explicit {
+                value,
+                source: self.key.to_string(),
+            }),
+            Err(err) if !config_not_exist(&err) => Err(err),
+            _ => {
+                if let Some(default) = self.default {
+                    Ok(ConfigValue::Implicit(default.clone()))
+                } else {
+                    Ok(ConfigValue::Implicit(Vec::new()))
+                }
+            }
+        }
+    }
+}
+
 impl<'a, T> ConfigBuilder<'a, T>
 where
     T: Clone,
@@ -203,13 +232,17 @@ impl ConfigValues for String {
     }
 }
 
-impl ConfigValues for Vec<String> {
+impl<T> ConfigValues for Vec<T>
+where
+    T: FromStr,
+    T::Err: Debug,
+{
     fn get_config_value(config: &Config, key: &str) -> Result<Self, git2::Error> {
         let mut result = Vec::new();
         for entry in &config.entries(Some(key))? {
             let entry = entry?;
             if let Some(value) = entry.value() {
-                result.push(value.to_string());
+                result.push(T::from_str(value).unwrap());
             } else {
                 warn!(
                     "non utf-8 config entry {}",
@@ -286,5 +319,61 @@ fn short_branch_name(branch: &str) -> &str {
         &branch["refs/heads/".len()..]
     } else {
         branch
+    }
+}
+
+#[derive(derive_deref::Deref, Debug, Clone, Default)]
+pub struct CommaSeparatedSet<T>(Vec<T>);
+
+impl<T> FromStr for CommaSeparatedSet<T>
+where
+    T: FromStr + PartialEq,
+{
+    type Err = T::Err;
+
+    fn from_str(args: &str) -> Result<Self, Self::Err> {
+        let mut result = Vec::new();
+        for arg in args.split(',') {
+            let parsed = arg.trim().parse()?;
+            result.push(parsed);
+        }
+        Ok(Self::from_iter(result))
+    }
+}
+
+impl<T> FromIterator<T> for CommaSeparatedSet<T>
+where
+    T: PartialEq,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+    {
+        let mut result = Vec::new();
+        for item in iter.into_iter() {
+            if !result.contains(&item) {
+                result.push(item);
+            }
+        }
+        Self(result)
+    }
+}
+
+impl<T> IntoIterator for CommaSeparatedSet<T> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<T> CommaSeparatedSet<T> {
+    pub fn into_option(self) -> Option<Self> {
+        if self.0.is_empty() {
+            None
+        } else {
+            Some(self)
+        }
     }
 }

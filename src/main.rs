@@ -7,7 +7,8 @@ use dialoguer::Confirmation;
 use git2::{BranchType, Repository};
 use log::*;
 
-use git_trim::args::{Args, CommaSeparatedSet, DeleteFilter};
+use git_trim::args::{Args, DeleteFilter};
+use git_trim::config::CommaSeparatedSet;
 use git_trim::{
     config, Config, Git, MergedOrStrayAndKeptBacks, RemoteBranchError, RemoteTrackingBranch,
 };
@@ -27,18 +28,16 @@ fn main(args: Args) -> Result<()> {
     let git = Git::try_from(Repository::open_from_env()?)?;
 
     let bases = config::get(&git.config, "trim.bases")
-        .with_explicit("cli", flatten_collect(args.bases.clone()).into_option())
+        .with_explicit("cli", non_empty(args.bases.clone()))
         .with_default(&CommaSeparatedSet::from_iter(vec![
             String::from("develop"),
             String::from("master"),
         ]))
-        .parse_flatten()?
-        .expect("has default");
+        .read_multi()?;
     let protected = config::get(&git.config, "trim.protected")
-        .with_explicit("cli", flatten_collect(args.protected.clone()).into_option())
+        .with_explicit("cli", non_empty(args.protected.clone()))
         .with_default(&CommaSeparatedSet::from_iter(bases.iter().cloned()))
-        .parse_flatten()?
-        .expect("has default");
+        .read_multi()?;
     let update = config::get(&git.config, "trim.update")
         .with_explicit("cli", args.update())
         .with_default(&true)
@@ -60,7 +59,10 @@ fn main(args: Args) -> Result<()> {
         .read()?
         .expect("has default");
     let filter = config::get(&git.config, "trim.delete")
-        .with_explicit("cli", flatten_collect(args.delete.clone()).into_option())
+        .with_explicit(
+            "cli",
+            non_empty(args.delete.clone()).map(|x| x.into_iter().flatten().collect()),
+        )
         .with_default(&DeleteFilter::merged_origin())
         .parse_flatten()?
         .expect("has default");
@@ -113,13 +115,12 @@ fn main(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn flatten_collect<I, C, T>(iter: I) -> C
-where
-    I: IntoIterator<Item = C>,
-    C: FromIterator<T> + IntoIterator<Item = T>,
-{
-    let containers = iter.into_iter();
-    containers.flatten().collect()
+fn non_empty<T>(x: Vec<T>) -> Option<Vec<T>> {
+    if x.is_empty() {
+        None
+    } else {
+        Some(x)
+    }
 }
 
 pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) -> Result<()> {

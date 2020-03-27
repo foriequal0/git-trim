@@ -18,13 +18,13 @@ pub struct Args {
     /// Comma separated multiple names of branches.
     /// All the other branches are compared with the upstream branches of those branches.
     /// [default: master] [config: trim.base]
-    #[clap(short, long, aliases=&["base"])]
-    pub bases: Vec<CommaSeparatedSet<String>>,
+    #[clap(short, long, value_delimiter = ",", aliases=&["base"])]
+    pub bases: Vec<String>,
 
     /// Comma separated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches that should never be deleted.
     /// [default: <bases>] [config: trim.protected]
-    #[clap(short, long)]
-    pub protected: Vec<CommaSeparatedSet<String>>,
+    #[clap(short, long, value_delimiter = ",")]
+    pub protected: Vec<String>,
 
     /// Do not update remotes
     /// [config: trim.update]
@@ -301,59 +301,3 @@ impl Display for DeleteFilterParseError {
 }
 
 impl std::error::Error for DeleteFilterParseError {}
-
-#[derive(derive_deref::Deref, Debug, Clone, Default)]
-pub struct CommaSeparatedSet<T>(Vec<T>);
-
-impl<T> FromStr for CommaSeparatedSet<T>
-where
-    T: FromStr + PartialEq,
-{
-    type Err = T::Err;
-
-    fn from_str(args: &str) -> Result<Self, Self::Err> {
-        let mut result = Vec::new();
-        for arg in args.split(',') {
-            let parsed = arg.trim().parse()?;
-            result.push(parsed);
-        }
-        Ok(Self::from_iter(result))
-    }
-}
-
-impl<T> FromIterator<T> for CommaSeparatedSet<T>
-where
-    T: PartialEq,
-{
-    fn from_iter<I>(iter: I) -> Self
-    where
-        I: IntoIterator<Item = T>,
-    {
-        let mut result = Vec::new();
-        for item in iter.into_iter() {
-            if !result.contains(&item) {
-                result.push(item);
-            }
-        }
-        Self(result)
-    }
-}
-
-impl<T> IntoIterator for CommaSeparatedSet<T> {
-    type Item = T;
-    type IntoIter = std::vec::IntoIter<T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-impl<T> CommaSeparatedSet<T> {
-    pub fn into_option(self) -> Option<Self> {
-        if self.0.is_empty() {
-            None
-        } else {
-            Some(self)
-        }
-    }
-}
