@@ -206,6 +206,10 @@ fn should_update(repo: &Repository, interval: u64) -> Result<bool> {
     }
 
     let fetch_head = repo.path().join("FETCH_HEAD");
+    if !fetch_head.exists() {
+        return Ok(true);
+    }
+
     let metadata = std::fs::metadata(fetch_head)?;
     let elapsed = match metadata.modified()?.elapsed() {
         Ok(elapsed) => elapsed,
