@@ -6,10 +6,8 @@ use std::mem::discriminant;
 use std::process::exit;
 use std::str::FromStr;
 
-use clap::Clap;
-
-#[derive(Clap)]
-#[clap(
+#[derive(structopt::StructOpt)]
+#[structopt(
     about = "Automatically trims your tracking branches whose upstream branches are merged or stray.",
     long_about = "Automatically trims your tracking branches whose upstream branches are merged or stray.
 `git-trim` is a missing companion to the `git fetch --prune` and a proper, safer, faster alternative to your `<bash oneliner HERE>`."
@@ -18,38 +16,38 @@ pub struct Args {
     /// Comma separated multiple names of branches.
     /// All the other branches are compared with the upstream branches of those branches.
     /// [default: master] [config: trim.base]
-    #[clap(short, long, value_delimiter = ",", aliases=&["base"])]
+    #[structopt(short, long, value_delimiter = ",", aliases=&["base"])]
     pub bases: Vec<String>,
 
     /// Comma separated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches that should never be deleted.
     /// [default: <bases>] [config: trim.protected]
-    #[clap(short, long, value_delimiter = ",")]
+    #[structopt(short, long, value_delimiter = ",")]
     pub protected: Vec<String>,
 
     /// Do not update remotes
     /// [config: trim.update]
-    #[clap(long)]
+    #[structopt(long)]
     pub no_update: bool,
-    #[clap(long, hidden(true))]
+    #[structopt(long, hidden(true))]
     pub update: bool,
 
     /// Prevents too frequent updates. Seconds between updates in seconds. 0 to disable.
     /// [default: 3] [config: trim.update_interval]
-    #[clap(long)]
+    #[structopt(long)]
     pub update_interval: Option<u64>,
 
     /// Do not ask confirm
     /// [config: trim.confirm]
-    #[clap(long)]
+    #[structopt(long)]
     pub no_confirm: bool,
-    #[clap(long, hidden(true))]
+    #[structopt(long, hidden(true))]
     pub confirm: bool,
 
     /// Do not detach when HEAD is about to be deleted
     /// [config: trim.detach]
-    #[clap(long)]
+    #[structopt(long)]
     pub no_detach: bool,
-    #[clap(long, hidden(true))]
+    #[structopt(long, hidden(true))]
     pub detach: bool,
 
     /// Comma separated values of `<filter unit>[:<remote name>]`.
@@ -65,11 +63,11 @@ pub struct Args {
     /// `stray` implies `stray-local,stray-remote`.
     /// `local` implies `merged-local,stray-local`.
     /// `remote` implies `merged-remote,stray-remote`.
-    #[clap(short, long)]
+    #[structopt(short, long)]
     pub delete: Vec<DeleteFilter>,
 
     /// Do not delete branches, show what branches will be deleted.
-    #[clap(long)]
+    #[structopt(long)]
     pub dry_run: bool,
 }
 
@@ -84,16 +82,6 @@ impl Args {
 
     pub fn detach(&self) -> Option<bool> {
         exclusive_bool(("detach", self.detach), ("no-detach", self.no_detach))
-    }
-}
-
-impl paw::ParseArgs for Args {
-    /// Error type.
-    type Error = std::io::Error;
-
-    /// Try to parse an input to a type.
-    fn parse_args() -> Result<Self, Self::Error> {
-        Ok(Args::parse())
     }
 }
 
