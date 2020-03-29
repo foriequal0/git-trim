@@ -8,7 +8,7 @@ use git2::{BranchType, Repository};
 use log::*;
 
 use git_trim::args::{Args, DeleteFilter};
-use git_trim::config::CommaSeparatedSet;
+use git_trim::config::{CommaSeparatedSet, ConfigValue};
 use git_trim::{
     config, Config, Git, MergedOrStrayAndKeptBacks, RemoteBranchError, RemoteTrackingBranch,
 };
@@ -75,7 +75,11 @@ fn main(args: Args) -> Result<()> {
     info!("filter: {:?}", filter);
 
     if *update {
-        if should_update(&git.repo, *update_interval)? {
+        if should_update(
+            &git,
+            *update_interval,
+            matches!(update, ConfigValue::Explicit { value: true , .. }),
+        )? {
             remote_update(&git.repo, args.dry_run)?;
             println!();
         } else {
@@ -201,12 +205,26 @@ pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) ->
     Ok(())
 }
 
-fn should_update(repo: &Repository, interval: u64) -> Result<bool> {
+fn should_update(git: &Git, interval: u64, explicit: bool) -> Result<bool> {
     if interval == 0 {
         return Ok(true);
     }
 
-    let fetch_head = repo.path().join("FETCH_HEAD");
+    if explicit {
+        trace!("explicitly set --update. force update");
+        return Ok(true);
+    }
+
+    let auto_prune = config::get(&git.config, "fetch.prune")
+        .with_default(&false)
+        .parse()?
+        .expect("default is provided");
+    if !*auto_prune {
+        trace!("`git config fetch.prune` is false. force update");
+        return Ok(true);
+    }
+
+    let fetch_head = git.repo.path().join("FETCH_HEAD");
     if !fetch_head.exists() {
         return Ok(true);
     }
