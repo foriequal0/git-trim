@@ -119,7 +119,7 @@ where
             });
         }
         match Vec::<T>::get_config_value(self.config, self.key) {
-            Ok(value) if value.is_empty() => Ok(ConfigValue::Explicit {
+            Ok(value) if !value.is_empty() => Ok(ConfigValue::Explicit {
                 value,
                 source: self.key.to_string(),
             }),
