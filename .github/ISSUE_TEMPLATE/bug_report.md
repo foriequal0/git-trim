@@ -7,6 +7,11 @@ assignees: ''
 
 ---
 
+**Check your version before submitting the bug**
+`git-trim` is still `0.x` version and I do make a lot of silly bugs.
+Some bugs might be fixed on upstream version. Please update it and make sure that you're using the upstream version
+especially you've installed `git-trim` other than `cargo install` such as Homebrew or AUR.
+
 **Describe the bug**
 A clear and concise description of what the bug is.
 
