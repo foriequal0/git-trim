@@ -31,6 +31,7 @@ You should remove sensitive informations before put them here.
 
 **Logs and stacktraces**
 You should remove sensitive informations before put them here.
+You can get more detailed logs by setting an environment variable `RUST_LOG=trace git trim`
 ```
 Put them here
 ```
