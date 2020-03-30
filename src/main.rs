@@ -74,6 +74,10 @@ fn main(args: Args) -> Result<()> {
     info!("detach: {:?}", detach);
     info!("filter: {:?}", filter);
 
+    if git.repo.remotes()?.is_empty() {
+        return Err(anyhow::anyhow!("git-trim requires at least one remote").into());
+    }
+
     if *update {
         if should_update(
             &git,
