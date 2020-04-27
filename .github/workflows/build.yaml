@@ -155,3 +155,16 @@ jobs:
       with:
         name: git-trim-${{matrix.os.short}}-${{env.VERSION}}
         path: target/debug/artifacts/
+
+  docs-are-up-to-date:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions-rs/toolchain@v1.0.5
+      with:
+        profile: minimal
+    - run: cargo fetch --verbose
+    - run: ./build-man.sh build
+    - run: ./build-man.sh run
+    - name: Check docs are up-to-date
+      run: git diff --exit-code HEAD -- docs
