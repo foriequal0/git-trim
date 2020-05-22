@@ -144,6 +144,11 @@ esac
 
 git trim --no-update
 ```
+Or try [`git-sync`](https://gist.github.com/foriequal0/55763d9177803c325904d089299f0970) script. It pulls & prunes & trims in a single command.
+
+### `trim`? `stray`? They are weird choices of terms.
+
+I wanted to use `prune`, `stale`, but they are already taken.
 
 ## Disclaimers
 Git and the Git logo are either registered trademarks or trademarks of Software Freedom Conservancy, Inc., corporate home of the Git Project, in the United States and/or other countries.
