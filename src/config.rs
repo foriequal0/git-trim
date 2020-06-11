@@ -2,7 +2,7 @@ use std::iter::FromIterator;
 use std::ops::Deref;
 use std::str::FromStr;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use git2::{Config, ErrorClass, ErrorCode};
 use log::*;
 use std::fmt::Debug;
@@ -265,7 +265,7 @@ fn config_not_exist(err: &git2::Error) -> bool {
 }
 
 pub fn get_push_remote(config: &Config, branch: &str) -> Result<ConfigValue<String>> {
-    let branch_name = short_branch_name(branch);
+    let branch_name = short_local_branch_name(branch)?;
 
     if let Some(push_remote) = get(config, &format!("branch.{}.pushRemote", branch_name))
         .parse_with(|push_remote| Ok(push_remote.to_string()))?
@@ -283,7 +283,7 @@ pub fn get_push_remote(config: &Config, branch: &str) -> Result<ConfigValue<Stri
 }
 
 pub fn get_remote(config: &Config, branch: &str) -> Result<ConfigValue<String>> {
-    let branch_name = short_branch_name(branch);
+    let branch_name = short_local_branch_name(branch)?;
 
     Ok(get(config, &format!("branch.{}.remote", branch_name))
         .with_default(&String::from("origin"))
@@ -292,7 +292,7 @@ pub fn get_remote(config: &Config, branch: &str) -> Result<ConfigValue<String>> 
 }
 
 pub fn get_remote_raw(config: &Config, branch: &str) -> Result<Option<String>> {
-    let branch_name = short_branch_name(branch);
+    let branch_name = short_local_branch_name(branch)?;
 
     let key = format!("branch.{}.remote", branch_name);
     match config.get_string(&key) {
@@ -303,7 +303,7 @@ pub fn get_remote_raw(config: &Config, branch: &str) -> Result<Option<String>> {
 }
 
 pub fn get_merge(config: &Config, branch: &str) -> Result<Option<String>> {
-    let branch_name = short_branch_name(branch);
+    let branch_name = short_local_branch_name(branch)?;
 
     let key = format!("branch.{}.merge", branch_name);
     match config.get_string(&key) {
@@ -313,12 +313,13 @@ pub fn get_merge(config: &Config, branch: &str) -> Result<Option<String>> {
     }
 }
 
-fn short_branch_name(branch: &str) -> &str {
-    assert!(branch.starts_with("refs/heads/") || !branch.starts_with("refs/"));
+fn short_local_branch_name(branch: &str) -> Result<&str> {
     if branch.starts_with("refs/heads/") {
-        &branch["refs/heads/".len()..]
+        Ok(&branch["refs/heads/".len()..])
+    } else if !branch.starts_with("refs/") {
+        Ok(branch)
     } else {
-        branch
+        Err(anyhow!("It is not a local branch"))
     }
 }
 
