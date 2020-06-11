@@ -805,26 +805,26 @@ fn resolve_base_upstream(
 ) -> Result<Vec<RemoteTrackingBranch>> {
     let mut result = Vec::new();
     for base in bases {
-        // find "master -> refs/remotes/origin/master"
-        if let Some(upstream) = get_fetch_upstream(repo, config, base)? {
-            result.push(upstream);
-            continue;
-        }
-        // We compares this functions's results with other branches.
-        // Our concern is whether the branches are safe to delete.
-        // Safe means we can be fetch the entire content of the branches from the base.
-        // So we skips get_push_upstream since we don't fetch from them.
-
-        // match "origin/master -> refs/remotes/origin/master"
-        if let Ok(remote_ref) = repo.find_reference(&format!("refs/remotes/{}", base)) {
-            let refname = remote_ref.name().context("non-utf8 reference name")?;
-            result.push(RemoteTrackingBranch::new(refname));
-            continue;
-        }
-
         if base.starts_with("refs/remotes/") {
             result.push(RemoteTrackingBranch::new(base));
             continue;
+        } else {
+            // find "master, refs/heads/master -> refs/remotes/origin/master"
+            if let Some(upstream) = get_fetch_upstream(repo, config, base)? {
+                result.push(upstream);
+                continue;
+            }
+            // We compares this functions's results with other branches.
+            // Our concern is whether the branches are safe to delete.
+            // Safe means we can be fetch the entire content of the branches from the base.
+            // So we skips get_push_upstream since we don't fetch from them.
+
+            // match "origin/master -> refs/remotes/origin/master"
+            if let Ok(remote_ref) = repo.find_reference(&format!("refs/remotes/{}", base)) {
+                let refname = remote_ref.name().context("non-utf8 reference name")?;
+                result.push(RemoteTrackingBranch::new(refname));
+                continue;
+            }
         }
     }
     Ok(result)
