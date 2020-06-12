@@ -200,6 +200,8 @@ impl MergedOrStrayAndKeptBacks {
         Ok(())
     }
 
+    /// `hub-cli` can checkout pull request branch. However they are stored in `refs/pulls/`.
+    /// This prevents to remove them.
     fn keep_non_heads_remotes(&mut self) {
         let mut merged_remotes = HashSet::new();
         for remote_branch in &self.to_delete.merged_remotes {
@@ -689,6 +691,9 @@ fn classify(
             }
         }
 
+        // `hub-cli` sets config `branch.{branch_name}.remote` as URL without `remote.{remote}` entry.
+        // so `get_push_upstream` and `get_fetch_upstream` returns None.
+        // However we can try manual classification without `remote.{remote}` entry.
         (None, None) if branch_is_merged => {
             let remote = config::get_remote_raw(&git.config, branch_name)?
                 .expect("should have it if it has an upstream");
