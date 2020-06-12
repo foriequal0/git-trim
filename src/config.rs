@@ -296,7 +296,7 @@ pub fn get_remote_raw(config: &Config, branch: &str) -> Result<Option<String>> {
 
     let key = format!("branch.{}.remote", branch_name);
     match config.get_string(&key) {
-        Ok(merge) => Ok(Some(merge)),
+        Ok(remote) => Ok(Some(remote)),
         Err(err) if config_not_exist(&err) => Ok(None),
         Err(err) => Err(err.into()),
     }
