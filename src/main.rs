@@ -27,6 +27,10 @@ fn main(args: Args) -> Result<()> {
 
     let git = Git::try_from(Repository::open_from_env()?)?;
 
+    if git.repo.remotes()?.is_empty() {
+        return Err(anyhow::anyhow!("git-trim requires at least one remote").into());
+    }
+
     let bases = config::get(&git.config, "trim.bases")
         .with_explicit("cli", non_empty(args.bases.clone()))
         .with_default(&CommaSeparatedSet::from_iter(vec![
@@ -73,10 +77,6 @@ fn main(args: Args) -> Result<()> {
     info!("confirm: {:?}", confirm);
     info!("detach: {:?}", detach);
     info!("filter: {:?}", filter);
-
-    if git.repo.remotes()?.is_empty() {
-        return Err(anyhow::anyhow!("git-trim requires at least one remote").into());
-    }
 
     if *update {
         if should_update(
