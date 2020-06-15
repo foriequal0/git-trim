@@ -128,23 +128,23 @@ pub fn get_noff_merged_locals(
             Level::Trace,
         )?;
         for branch_name in branch_names.lines() {
-            trace!("refname: {}", branch_name);
+            debug!("refname: {}", branch_name);
             if get_remote(config, branch_name)?.is_implicit() {
-                trace!("skip: it is not a tracking branch");
+                debug!("skip: it is not a tracking branch");
                 continue;
             }
             let upstream = get_fetch_upstream(repo, config, branch_name)?;
             if Some(base) == upstream.as_ref() {
-                trace!("skip: {} tracks {:?}", branch_name, base);
+                debug!("skip: {} tracks {:?}", branch_name, base);
                 continue;
             }
             let branch = repo.find_branch(&branch_name, BranchType::Local)?;
             if branch.get().symbolic_target().is_some() {
-                trace!("skip: it is symbolic");
+                debug!("skip: it is symbolic");
                 continue;
             }
             let branch_name = branch.name()?.context("no utf-8 branch name")?.to_string();
-            trace!("noff merged local: it is merged to {:?}", base);
+            debug!("noff merged local: it is merged to {:?}", base);
             result.insert(branch_name);
         }
     }
