@@ -8,10 +8,10 @@ use log::*;
 use crate::branch::{get_fetch_upstream, RemoteTrackingBranch};
 use crate::config::get_remote;
 
-fn git(repo: &Repository, args: &[&str]) -> Result<()> {
+fn git(repo: &Repository, args: &[&str], level: log::Level) -> Result<()> {
     let workdir = repo.workdir().context("Bare repository is not supported")?;
     let workdir = workdir.to_str().context("non utf-8 workdir")?;
-    info!("> git -C {} {}", workdir, args.join(" "));
+    log!(level, "> git -C {} {}", workdir, args.join(" "));
 
     let mut cd_args = vec!["-C", workdir];
     cd_args.extend_from_slice(args);
@@ -23,10 +23,10 @@ fn git(repo: &Repository, args: &[&str]) -> Result<()> {
     }
 }
 
-fn git_output(repo: &Repository, args: &[&str]) -> Result<String> {
+fn git_output(repo: &Repository, args: &[&str], level: log::Level) -> Result<String> {
     let workdir = repo.workdir().context("Bare repository is not supported")?;
     let workdir = workdir.to_str().context("non utf-8 workdir")?;
-    info!("> git -C {} {}", workdir, args.join(" "));
+    log!(level, "> git -C {} {}", workdir, args.join(" "));
 
     let mut cd_args = vec!["-C", workdir];
     cd_args.extend_from_slice(args);
@@ -48,7 +48,7 @@ fn git_output(repo: &Repository, args: &[&str]) -> Result<String> {
 
 pub fn remote_update(repo: &Repository, dry_run: bool) -> Result<()> {
     if !dry_run {
-        git(repo, &["remote", "update", "--prune"])
+        git(repo, &["remote", "update", "--prune"], Level::Info)
     } else {
         info!("> git remote update --prune (dry-run)");
         Ok(())
@@ -56,7 +56,7 @@ pub fn remote_update(repo: &Repository, dry_run: bool) -> Result<()> {
 }
 
 pub fn is_merged(repo: &Repository, base: &str, refname: &str) -> Result<bool> {
-    let merge_base = git_output(&repo, &["merge-base", base, refname])?;
+    let merge_base = git_output(&repo, &["merge-base", base, refname], Level::Trace)?;
     Ok(is_merged_by_rev_list(repo, base, refname)?
         || is_squash_merged(repo, &merge_base, base, refname)?)
 }
@@ -74,6 +74,7 @@ fn is_merged_by_rev_list(repo: &Repository, base: &str, refname: &str) -> Result
             "-n1",
             &range,
         ],
+        Level::Trace,
     )?;
 
     // empty output means there aren't any revs that are not applied to the base.
@@ -87,7 +88,11 @@ fn is_squash_merged(
     base: &str,
     refname: &str,
 ) -> Result<bool> {
-    let tree = git_output(repo, &["rev-parse", &format!("{}^{{tree}}", refname)])?;
+    let tree = git_output(
+        repo,
+        &["rev-parse", &format!("{}^{{tree}}", refname)],
+        Level::Trace,
+    )?;
     let dangling_commit = git_output(
         repo,
         &[
@@ -98,6 +103,7 @@ fn is_squash_merged(
             "-m",
             "git-trim: squash merge test",
         ],
+        Level::Trace,
     )?;
 
     is_merged_by_rev_list(repo, base, &dangling_commit)
@@ -119,6 +125,7 @@ pub fn get_noff_merged_locals(
                 "--merged",
                 &base.refname,
             ],
+            Level::Trace,
         )?;
         for branch_name in branch_names.lines() {
             trace!("refname: {}", branch_name);
@@ -146,7 +153,7 @@ pub fn get_noff_merged_locals(
 
 pub fn ls_remote_heads(repo: &Repository, remote_name: &str) -> Result<HashSet<String>> {
     let mut result = HashSet::new();
-    for line in git_output(repo, &["ls-remote", "--heads", remote_name])?.lines() {
+    for line in git_output(repo, &["ls-remote", "--heads", remote_name], Level::Trace)?.lines() {
         let records = line.split_whitespace().collect::<Vec<_>>();
         result.insert(records[1].to_string());
     }
@@ -156,7 +163,7 @@ pub fn ls_remote_heads(repo: &Repository, remote_name: &str) -> Result<HashSet<S
 pub fn checkout(repo: &Repository, head: Reference, dry_run: bool) -> Result<()> {
     let head_refname = head.name().context("non-utf8 head ref name")?;
     if !dry_run {
-        git(repo, &["checkout", head_refname])
+        git(repo, &["checkout", head_refname], Level::Info)
     } else {
         info!("> git checkout {} (dry-run)", head_refname);
 
@@ -177,7 +184,7 @@ pub fn branch_delete(repo: &Repository, branch_names: &[&str], dry_run: bool) ->
     let mut args = vec!["branch", "--delete", "--force"];
     args.extend(branch_names);
     if !dry_run {
-        git(repo, &args)
+        git(repo, &args, Level::Info)
     } else {
         for branch_name in branch_names {
             info!("> git {} (dry-run)", args.join(" "));
@@ -199,5 +206,5 @@ pub fn push_delete(
     }
     command.push(remote_name);
     command.extend(remote_refnames);
-    git(repo, &command)
+    git(repo, &command, Level::Trace)
 }
