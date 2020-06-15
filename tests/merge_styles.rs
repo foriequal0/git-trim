@@ -70,7 +70,7 @@ fn test_noff() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"feature"},
+            merged_locals: set! {"refs/heads/feature"},
             ..Default::default()
         },
     );
@@ -97,7 +97,7 @@ fn test_rebase() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"feature"},
+            merged_locals: set! {"refs/heads/feature"},
             ..Default::default()
         },
     );
@@ -122,7 +122,7 @@ fn test_squash() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"feature"},
+            merged_locals: set! {"refs/heads/feature"},
             ..Default::default()
         },
     );
@@ -197,7 +197,7 @@ fn test_mixed() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"squashme", "rebaseme", "noffme"},
+            merged_locals: set! {"refs/heads/squashme", "refs/heads/rebaseme", "refs/heads/noffme"},
             ..Default::default()
         },
     );

@@ -81,7 +81,7 @@ fn test_accepted() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"feature"},
+            merged_locals: set! {"refs/heads/feature"},
             ..Default::default()
         },
     );
@@ -116,7 +116,7 @@ fn test_accepted_but_edited() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            stray_locals: set! {"feature"},
+            stray_locals: set! {"refs/heads/feature"},
             ..Default::default()
         },
     );
@@ -142,7 +142,7 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"feature"},
+            merged_locals: set! {"refs/heads/feature"},
             merged_remotes: set! {
                 RemoteBranch {
                     remote: "origin".to_string(),
@@ -179,7 +179,7 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            stray_locals: set! {"feature"},
+            stray_locals: set! {"refs/heads/feature"},
             merged_remotes: set! {
                 RemoteBranch {
                     remote: "origin".to_string(),
@@ -209,7 +209,7 @@ fn test_rejected() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            stray_locals: set! {"feature"},
+            stray_locals: set! {"refs/heads/feature"},
             ..Default::default()
         },
     );
@@ -238,7 +238,7 @@ fn test_rejected_but_edited() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            stray_locals: set! {"feature"},
+            stray_locals: set! {"refs/heads/feature"},
             ..Default::default()
         },
     );

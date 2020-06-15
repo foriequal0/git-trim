@@ -94,7 +94,7 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"feature"},
+            merged_locals: set! {"refs/heads/feature"},
             merged_remotes: set! {
                 RemoteBranch {
                     remote: "contributer".to_string(),
@@ -127,7 +127,7 @@ fn test_accidential_track() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"feature"},
+            merged_locals: set! {"refs/heads/feature"},
             ..Default::default()
         },
     );
