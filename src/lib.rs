@@ -249,9 +249,9 @@ impl MergedOrStrayAndKeptBacks {
                 self.to_delete.merged_locals
             );
             self.kept_backs
-                .extend(self.to_delete.merged_locals.drain().map(|branch_name| {
+                .extend(self.to_delete.merged_locals.drain().map(|refname| {
                     (
-                        branch_name,
+                        refname,
                         Reason {
                             original_classification: OriginalClassification::MergedLocal,
                             message: "out of filter scope",
@@ -265,9 +265,9 @@ impl MergedOrStrayAndKeptBacks {
                 self.to_delete.stray_locals
             );
             self.kept_backs
-                .extend(self.to_delete.stray_locals.drain().map(|branch_name| {
+                .extend(self.to_delete.stray_locals.drain().map(|refname| {
                     (
-                        branch_name,
+                        refname,
                         Reason {
                             original_classification: OriginalClassification::StrayLocal,
                             message: "out of filter scope",
@@ -360,8 +360,8 @@ fn keep_branches(
             kept_back.insert(refname.to_string(), reason.clone());
         }
     }
-    for branch in bag.into_iter() {
-        references.remove(&branch);
+    for refname in bag.into_iter() {
+        references.remove(&refname);
     }
     Ok(kept_back)
 }
@@ -411,20 +411,18 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
     let mut remote_urls = Vec::new();
     for branch in git.repo.branches(Some(BranchType::Local))? {
         let (branch, _) = branch?;
-        let branch_name = branch.name()?.context("non-utf8 branch name")?;
-        let branch_ref = branch.get().name().context("non-utf8 branch ref")?;
-        let fetch_upstream = get_fetch_upstream(&git.repo, &git.config, branch_ref)?;
-        let push_upstream = get_push_upstream(&git.repo, &git.config, branch_ref)?;
-        debug!("Branch: {}", branch_name);
-        debug!("Branch ref: {}", branch_ref);
+        let refname = branch.get().name().context("non-utf8 branch ref")?;
+        let fetch_upstream = get_fetch_upstream(&git.repo, &git.config, refname)?;
+        let push_upstream = get_push_upstream(&git.repo, &git.config, refname)?;
+        debug!("Branch ref: {}", refname);
         debug!("Fetch upstream: {:?}", fetch_upstream);
         debug!("Push upstream: {:?}", push_upstream);
 
-        let config_remote = config::get_remote(&git.config, branch_name)?;
+        let config_remote = config::get_remote(&git.config, refname)?;
         if config_remote.is_implicit() {
             debug!(
                 "Skip: the branch doesn't have a tracking remote: {}",
-                branch_name
+                refname
             );
             continue;
         }
@@ -436,21 +434,21 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             remote_urls.push(config_remote.to_string());
         }
         if branch.get().symbolic_target().is_some() {
-            debug!("Skip: the branch is a symbolic ref: {}", branch_name);
+            debug!("Skip: the branch is a symbolic ref: {}", refname);
             continue;
         }
 
-        if protected_refs.contains(branch_name) {
-            debug!("Skip: the branch is protected branch: {}", branch_name);
+        if protected_refs.contains(refname) {
+            debug!("Skip: the branch is protected branch: {}", refname);
             continue;
         }
         if let Some(upstream) = &fetch_upstream {
             if base_upstreams.contains(&upstream) {
-                debug!("Skip: the branch is the base: {}", branch_name);
+                debug!("Skip: the branch is the base: {}", refname);
                 continue;
             }
             if protected_refs.contains(&upstream.refname) {
-                debug!("Skip: the branch tracks protected branch: {}", branch_name);
+                debug!("Skip: the branch tracks protected branch: {}", refname);
             }
         }
 
@@ -479,15 +477,9 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             // It is denoted that it is safe in that case
             // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
             let git = ForceSendSync(git);
-            move |(base, branch_name)| {
-                classify(
-                    git,
-                    &merged_locals,
-                    &remote_heads_per_url,
-                    &base,
-                    &branch_name,
-                )
-                .with_context(|| format!("base={:?}, branch_name={}", base, branch_name))
+            move |(base, refname)| {
+                classify(git, &merged_locals, &remote_heads_per_url, &base, &refname)
+                    .with_context(|| format!("base={:?}, refname={}", base, refname))
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -589,12 +581,12 @@ fn classify(
     merged_locals: &HashSet<String>,
     remote_heads_per_url: &HashMap<String, HashSet<String>>,
     base: &RemoteTrackingBranch,
-    branch_name: &str,
+    refname: &str,
 ) -> Result<Classification> {
-    let branch = Ref::from_name(&git.repo, branch_name)?;
+    let branch = Ref::from_name(&git.repo, refname)?;
     let branch_is_merged =
-        merged_locals.contains(branch_name) || is_merged(&git.repo, &base.refname, branch_name)?;
-    let fetch = if let Some(fetch) = get_fetch_upstream(&git.repo, &git.config, branch_name)? {
+        merged_locals.contains(refname) || is_merged(&git.repo, &base.refname, refname)?;
+    let fetch = if let Some(fetch) = get_fetch_upstream(&git.repo, &git.config, refname)? {
         let upstream = Ref::from_name(&git.repo, &fetch.refname)?;
         let merged = (branch_is_merged && upstream.commit == branch.commit)
             || is_merged(&git.repo, &base.refname, &upstream.name)?;
@@ -602,7 +594,7 @@ fn classify(
     } else {
         None
     };
-    let push = if let Some(push) = get_push_upstream(&git.repo, &git.config, branch_name)? {
+    let push = if let Some(push) = get_push_upstream(&git.repo, &git.config, refname)? {
         let upstream = Ref::from_name(&git.repo, &push.refname)?;
         let merged = (branch_is_merged && upstream.commit == branch.commit)
             || fetch
@@ -628,13 +620,13 @@ fn classify(
         (Some(fetch), Some(push)) => {
             if branch_is_merged {
                 c.messages.push("local is merged");
-                c.result.merged_locals.insert(branch_name.to_string());
+                c.result.merged_locals.insert(refname.to_string());
                 c.merged_or_stray_remote(&git.repo, &fetch)?;
                 c.merged_or_stray_remote(&git.repo, &push)?;
             } else if fetch.merged || push.merged {
                 c.messages
                     .push("some upstreams are merged, but the local strays");
-                c.result.stray_locals.insert(branch_name.to_string());
+                c.result.stray_locals.insert(refname.to_string());
                 c.merged_or_stray_remote(&git.repo, &push)?;
                 c.merged_or_stray_remote(&git.repo, &fetch)?;
             }
@@ -643,11 +635,11 @@ fn classify(
         (Some(upstream), None) | (None, Some(upstream)) => {
             if branch_is_merged {
                 c.messages.push("local is merged");
-                c.result.merged_locals.insert(branch_name.to_string());
+                c.result.merged_locals.insert(refname.to_string());
                 c.merged_or_stray_remote(&git.repo, &upstream)?;
             } else if upstream.merged {
                 c.messages.push("upstream is merged, but the local strays");
-                c.result.stray_locals.insert(branch_name.to_string());
+                c.result.stray_locals.insert(refname.to_string());
                 c.merged_remote(&git.repo, &upstream.upstream)?;
             }
         }
@@ -656,9 +648,9 @@ fn classify(
         // so `get_push_upstream` and `get_fetch_upstream` returns None.
         // However we can try manual classification without `remote.{remote}` entry.
         (None, None) => {
-            let remote = config::get_remote_raw(&git.config, branch_name)?
+            let remote = config::get_remote_raw(&git.config, refname)?
                 .expect("should have it if it has an upstream");
-            let merge = config::get_merge(&git.config, branch_name)?
+            let merge = config::get_merge(&git.config, refname)?
                 .expect("should have it if it has an upstream");
             let upstream_is_exists = remote_heads_per_url.contains_key(&remote)
                 && remote_heads_per_url[&remote].contains(&merge);
@@ -667,7 +659,7 @@ fn classify(
                 c.messages.push(
                     "merged local, merged remote: the branch is merged, but forgot to delete",
                 );
-                c.result.merged_locals.insert(branch_name.to_string());
+                c.result.merged_locals.insert(refname.to_string());
                 c.result.merged_remotes.insert(RemoteBranch {
                     remote,
                     refname: merge,
@@ -675,11 +667,11 @@ fn classify(
             } else if branch_is_merged {
                 c.messages
                     .push("merged local: the branch is merged, and deleted");
-                c.result.merged_locals.insert(branch_name.to_string());
+                c.result.merged_locals.insert(refname.to_string());
             } else if !upstream_is_exists {
                 c.messages
                     .push("the branch is not merged but the remote is gone somehow");
-                c.result.stray_locals.insert(branch_name.to_string());
+                c.result.stray_locals.insert(refname.to_string());
             } else {
                 c.messages.push("skip: the branch is alive");
             }

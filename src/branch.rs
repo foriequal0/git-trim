@@ -74,10 +74,10 @@ impl RemoteTrackingBranch {
 pub fn get_fetch_upstream(
     repo: &Repository,
     config: &Config,
-    branch: &str,
+    refname: &str,
 ) -> Result<Option<RemoteTrackingBranch>> {
-    let remote_name = config::get_remote(config, branch)?;
-    let merge: String = if let Some(merge) = config::get_merge(config, &branch)? {
+    let remote_name = config::get_remote(config, refname)?;
+    let merge: String = if let Some(merge) = config::get_merge(config, &refname)? {
         merge
     } else {
         return Ok(None);
@@ -110,9 +110,9 @@ pub fn get_remote<'a>(repo: &'a Repository, remote_name: &str) -> Result<Option<
 pub fn get_push_upstream(
     repo: &Repository,
     config: &Config,
-    branch: &str,
+    refname: &str,
 ) -> Result<Option<RemoteTrackingBranch>> {
-    if let Some(remote_branch) = get_push_remote_branch(repo, config, branch)? {
+    if let Some(remote_branch) = get_push_remote_branch(repo, config, refname)? {
         return RemoteTrackingBranch::from_remote_branch(repo, &remote_branch);
     }
     Ok(None)
@@ -143,11 +143,11 @@ pub enum RemoteBranchError {
 fn get_push_remote_branch(
     repo: &Repository,
     config: &Config,
-    branch: &str,
+    refname: &str,
 ) -> Result<Option<RemoteBranch>> {
-    let reference = repo.resolve_reference_from_short_name(branch)?;
+    let reference = repo.find_reference(refname)?;
     if !reference.is_branch() || reference.is_remote() {
-        return Err(anyhow::anyhow!("Not a local branch: {}", branch));
+        return Err(anyhow::anyhow!("Not a local branch: {}", refname));
     }
     let refname = reference.name().context("non utf-8 refname")?;
 
@@ -179,16 +179,16 @@ fn get_push_remote_branch(
     match push_default.as_str() {
         "current" => Ok(Some(RemoteBranch {
             remote: remote_name.to_string(),
-            refname: branch.to_string(),
+            refname: refname.to_string(),
         })),
         "upstream" | "tracking" | "simple" | "matching" => {
-            if let Some(merge) = config::get_merge(config, &branch)? {
+            if let Some(merge) = config::get_merge(config, &refname)? {
                 Ok(Some(RemoteBranch {
                     remote: remote_name.clone(),
                     refname: merge,
                 }))
             } else {
-                warn!("The current branch {} has no upstream branch.", branch);
+                warn!("The current branch {} has no upstream branch.", refname);
                 Ok(None)
             }
         }

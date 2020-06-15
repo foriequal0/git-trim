@@ -264,8 +264,8 @@ fn config_not_exist(err: &git2::Error) -> bool {
     err.code() == ErrorCode::NotFound && err.class() == ErrorClass::Config
 }
 
-pub fn get_push_remote(config: &Config, branch: &str) -> Result<ConfigValue<String>> {
-    let branch_name = short_local_branch_name(branch)?;
+pub fn get_push_remote(config: &Config, refname: &str) -> Result<ConfigValue<String>> {
+    let branch_name = short_local_branch_name(refname)?;
 
     if let Some(push_remote) = get(config, &format!("branch.{}.pushRemote", branch_name))
         .parse_with(|push_remote| Ok(push_remote.to_string()))?
@@ -279,11 +279,11 @@ pub fn get_push_remote(config: &Config, branch: &str) -> Result<ConfigValue<Stri
         return Ok(push_default);
     }
 
-    get_remote(config, branch_name)
+    get_remote(config, refname)
 }
 
-pub fn get_remote(config: &Config, branch: &str) -> Result<ConfigValue<String>> {
-    let branch_name = short_local_branch_name(branch)?;
+pub fn get_remote(config: &Config, refname: &str) -> Result<ConfigValue<String>> {
+    let branch_name = short_local_branch_name(refname)?;
 
     Ok(get(config, &format!("branch.{}.remote", branch_name))
         .with_default(&String::from("origin"))
@@ -291,8 +291,8 @@ pub fn get_remote(config: &Config, branch: &str) -> Result<ConfigValue<String>> 
         .expect("has default"))
 }
 
-pub fn get_remote_raw(config: &Config, branch: &str) -> Result<Option<String>> {
-    let branch_name = short_local_branch_name(branch)?;
+pub fn get_remote_raw(config: &Config, refname: &str) -> Result<Option<String>> {
+    let branch_name = short_local_branch_name(refname)?;
 
     let key = format!("branch.{}.remote", branch_name);
     match config.get_string(&key) {
@@ -302,8 +302,8 @@ pub fn get_remote_raw(config: &Config, branch: &str) -> Result<Option<String>> {
     }
 }
 
-pub fn get_merge(config: &Config, branch: &str) -> Result<Option<String>> {
-    let branch_name = short_local_branch_name(branch)?;
+pub fn get_merge(config: &Config, refname: &str) -> Result<Option<String>> {
+    let branch_name = short_local_branch_name(refname)?;
 
     let key = format!("branch.{}.merge", branch_name);
     match config.get_string(&key) {
@@ -313,11 +313,11 @@ pub fn get_merge(config: &Config, branch: &str) -> Result<Option<String>> {
     }
 }
 
-fn short_local_branch_name(branch: &str) -> Result<&str> {
-    if branch.starts_with("refs/heads/") {
-        Ok(&branch["refs/heads/".len()..])
-    } else if !branch.starts_with("refs/") {
-        Ok(branch)
+fn short_local_branch_name(refname: &str) -> Result<&str> {
+    if refname.starts_with("refs/heads/") {
+        Ok(&refname["refs/heads/".len()..])
+    } else if !refname.starts_with("refs/") {
+        Ok(refname)
     } else {
         Err(anyhow!("It is not a local branch"))
     }
