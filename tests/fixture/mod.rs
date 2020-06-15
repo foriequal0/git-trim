@@ -60,7 +60,8 @@ impl Fixture {
 
         let tempdir = tempdir()?;
         println!("{:?}", tempdir.path());
-        let mut bash = Command::new("bash")
+        let bash = if cfg!(windows) { "bash.exe" } else { "bash" };
+        let mut bash = Command::new(bash)
             .args(&["--noprofile", "--norc", "-xeo", "pipefail"])
             .current_dir(tempdir.path())
             .env_clear()

@@ -66,6 +66,8 @@ jobs:
           short: linux
         - long: macOS-latest
           short: mac
+        - long: windows-latest
+          short: win
       fail-fast: false
     steps:
     - uses: actions/checkout@v1
@@ -89,7 +91,8 @@ jobs:
         profile: minimal
     - run: cargo fetch --verbose
     - run: cargo build --tests
-    - run: |
+    - shell: bash
+      run: |
         echo "::group::fast test"
         if ! cargo test --all; then
           TEST_FAILED=1
