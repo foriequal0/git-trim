@@ -417,7 +417,14 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
     for branch in git.repo.branches(Some(BranchType::Local))? {
         let (branch, _) = branch?;
         let branch_name = branch.name()?.context("non-utf8 branch name")?;
-        debug!("Branch: {:?}", branch.name()?);
+        let branch_ref = branch.get().name().context("non-utf8 branch ref")?;
+        let fetch_upstream = get_fetch_upstream(&git.repo, &git.config, branch_ref)?;
+        let push_upstream = get_push_upstream(&git.repo, &git.config, branch_ref)?;
+        debug!("Branch: {}", branch_name);
+        debug!("Branch ref: {}", branch_ref);
+        debug!("Fetch upstream: {:?}", fetch_upstream);
+        debug!("Push upstream: {:?}", push_upstream);
+
         let config_remote = config::get_remote(&git.config, branch_name)?;
         if config_remote.is_implicit() {
             debug!(
@@ -442,7 +449,7 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             debug!("Skip: the branch is protected branch: {:?}", branch_name);
             continue;
         }
-        if let Some(upstream) = get_fetch_upstream(&git.repo, &git.config, branch_name)? {
+        if let Some(upstream) = &fetch_upstream {
             if bases.contains(&upstream) {
                 debug!("Skip: the branch is the base: {:?}", branch_name);
                 continue;
@@ -457,7 +464,7 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
 
         let reference = branch.get();
         let local_hash = reference.peel_to_commit()?.id();
-        if let Some(upstream) = get_fetch_upstream(&git.repo, &git.config, branch_name)? {
+        if let Some(upstream) = &fetch_upstream {
             let upstream_hash = git
                 .repo
                 .find_reference(&upstream.refname)?
@@ -467,7 +474,7 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
                 warn!("fetch upstream is different from local branch");
             }
         }
-        if let Some(upstream) = get_push_upstream(&git.repo, &git.config, branch_name)? {
+        if let Some(upstream) = &push_upstream {
             let upstream_hash = git
                 .repo
                 .find_reference(&upstream.refname)?
