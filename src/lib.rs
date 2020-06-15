@@ -428,7 +428,7 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
         let config_remote = config::get_remote(&git.config, branch_name)?;
         if config_remote.is_implicit() {
             debug!(
-                "Skip: the branch doesn't have a tracking remote: {:?}",
+                "Skip: the branch doesn't have a tracking remote: {}",
                 branch_name
             );
             continue;
@@ -441,24 +441,21 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             remote_urls.push(config_remote.to_string());
         }
         if branch.get().symbolic_target().is_some() {
-            debug!("Skip: the branch is a symbolic ref: {:?}", branch_name);
+            debug!("Skip: the branch is a symbolic ref: {}", branch_name);
             continue;
         }
 
         if protected_refs.contains(branch_name) {
-            debug!("Skip: the branch is protected branch: {:?}", branch_name);
+            debug!("Skip: the branch is protected branch: {}", branch_name);
             continue;
         }
         if let Some(upstream) = &fetch_upstream {
             if bases.contains(&upstream) {
-                debug!("Skip: the branch is the base: {:?}", branch_name);
+                debug!("Skip: the branch is the base: {}", branch_name);
                 continue;
             }
             if protected_refs.contains(&upstream.refname) {
-                debug!(
-                    "Skip: the branch tracks protected branch: {:?}",
-                    branch_name
-                );
+                debug!("Skip: the branch tracks protected branch: {}", branch_name);
             }
         }
 
