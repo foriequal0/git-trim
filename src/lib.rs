@@ -433,6 +433,10 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             );
             remote_urls.push(config_remote.to_string());
         }
+        if branch.get().symbolic_target().is_some() {
+            debug!("Skip: the branch is a symbolic ref: {:?}", branch_name);
+            continue;
+        }
 
         if protected_refs.contains(branch_name) {
             debug!("Skip: the branch is protected branch: {:?}", branch_name);
@@ -450,12 +454,8 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
                 );
             }
         }
-        let reference = branch.get();
-        if reference.symbolic_target().is_some() {
-            debug!("Skip: the branch is a symbolic ref: {:?}", branch_name);
-            continue;
-        }
 
+        let reference = branch.get();
         let local_hash = reference.peel_to_commit()?.id();
         if let Some(upstream) = get_fetch_upstream(&git.repo, &git.config, branch_name)? {
             let upstream_hash = git
