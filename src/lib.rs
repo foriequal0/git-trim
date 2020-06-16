@@ -459,29 +459,6 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             }
         }
 
-        let reference = branch.get();
-        let local_hash = reference.peel_to_commit()?.id();
-        if let Some(upstream) = &fetch_upstream {
-            let upstream_hash = git
-                .repo
-                .find_reference(&upstream.refname)?
-                .peel_to_commit()?
-                .id();
-            if upstream_hash != local_hash {
-                warn!("fetch upstream is different from local branch");
-            }
-        }
-        if let Some(upstream) = &push_upstream {
-            let upstream_hash = git
-                .repo
-                .find_reference(&upstream.refname)?
-                .peel_to_commit()?
-                .id();
-            if upstream_hash != local_hash {
-                warn!("fetch upstream is different from local branch");
-            }
-        }
-
         for base in &bases {
             base_and_branch_to_compare.push((base, branch_name.to_string()));
         }
