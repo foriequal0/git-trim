@@ -630,45 +630,30 @@ fn classify(
     };
 
     match (fetch, push) {
-        (Some(fetch), Some(push)) if branch_is_merged => {
-            c.messages.push("local is merged");
-            c.result.merged_locals.insert(branch_name.to_string());
-            c.merged_or_stray_remote(&git.repo, &fetch)?;
-            c.merged_or_stray_remote(&git.repo, &push)?;
-        }
         (Some(fetch), Some(push)) => {
-            if fetch.merged || push.merged {
+            if branch_is_merged {
+                c.messages.push("local is merged");
+                c.result.merged_locals.insert(branch_name.to_string());
+                c.merged_or_stray_remote(&git.repo, &fetch)?;
+                c.merged_or_stray_remote(&git.repo, &push)?;
+            } else if fetch.merged || push.merged {
                 c.messages
-                    .push("some upstreams merged, but the local strays");
+                    .push("some upstreams are merged, but the local strays");
                 c.result.stray_locals.insert(branch_name.to_string());
                 c.merged_or_stray_remote(&git.repo, &push)?;
                 c.merged_or_stray_remote(&git.repo, &fetch)?;
             }
         }
 
-        (Some(fetch), None) => {
+        (Some(upstream), None) | (None, Some(upstream)) => {
             if branch_is_merged {
                 c.messages.push("local is merged");
                 c.result.merged_locals.insert(branch_name.to_string());
-                c.merged_or_stray_remote(&git.repo, &fetch)?;
-            } else if fetch.merged {
-                c.messages
-                    .push("fetch upstream is merged, but the local strays");
+                c.merged_or_stray_remote(&git.repo, &upstream)?;
+            } else if upstream.merged {
+                c.messages.push("upstream is merged, but the local strays");
                 c.result.stray_locals.insert(branch_name.to_string());
-                c.merged_remote(&git.repo, &fetch.upstream)?;
-            }
-        }
-
-        (None, Some(push)) => {
-            if branch_is_merged {
-                c.messages.push("local is merged");
-                c.result.merged_locals.insert(branch_name.to_string());
-                c.merged_or_stray_remote(&git.repo, &push)?;
-            } else if push.merged {
-                c.messages
-                    .push("push upstream is merged, but the local strays");
-                c.result.stray_locals.insert(branch_name.to_string());
-                c.merged_remote(&git.repo, &push.upstream)?;
+                c.merged_remote(&git.repo, &upstream.upstream)?;
             }
         }
 
