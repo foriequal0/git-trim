@@ -675,14 +675,15 @@ fn classify(
         // `hub-cli` sets config `branch.{branch_name}.remote` as URL without `remote.{remote}` entry.
         // so `get_push_upstream` and `get_fetch_upstream` returns None.
         // However we can try manual classification without `remote.{remote}` entry.
-        (None, None) if branch_is_merged => {
+        (None, None) => {
             let remote = config::get_remote_raw(&git.config, branch_name)?
                 .expect("should have it if it has an upstream");
             let merge = config::get_merge(&git.config, branch_name)?
                 .expect("should have it if it has an upstream");
-            if remote_heads_per_url.contains_key(&remote)
-                && remote_heads_per_url[&remote].contains(&merge)
-            {
+            let upstream_is_exists = remote_heads_per_url.contains_key(&remote)
+                && remote_heads_per_url[&remote].contains(&merge);
+
+            if upstream_is_exists && branch_is_merged {
                 c.messages.push(
                     "merged local, merged remote: the branch is merged, but forgot to delete",
                 );
@@ -691,26 +692,16 @@ fn classify(
                     remote,
                     refname: merge,
                 });
-            } else {
+            } else if branch_is_merged {
                 c.messages
                     .push("merged local: the branch is merged, and deleted");
                 c.result.merged_locals.insert(branch_name.to_string());
-            }
-        }
-        (None, None) => {
-            // `origin` or `git@github.com:someone/fork.git`
-            let remote = config::get_remote_raw(&git.config, branch_name)?
-                .expect("should have it if it has an upstream");
-            let merge = config::get_merge(&git.config, branch_name)?
-                .expect("should have it if it has an upstream");
-            if remote_heads_per_url.contains_key(&remote)
-                && remote_heads_per_url[&remote].contains(&merge)
-            {
-                c.messages.push("skip: the branch is alive");
-            } else {
+            } else if !upstream_is_exists {
                 c.messages
                     .push("the branch is not merged but the remote is gone somehow");
                 c.result.stray_locals.insert(branch_name.to_string());
+            } else {
+                c.messages.push("skip: the branch is alive");
             }
         }
     }
