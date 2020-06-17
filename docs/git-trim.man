@@ -25,11 +25,17 @@ FLAGS
 OPTIONS
        -b, --bases=bases
               Comma separated multiple names of branches. All the other branches are compared with the upstream
-              branches of those branches. [default: master] [config: trim.bases]
+              branches of those branches. [default: branches that tracks `git symbolic-ref refs/remotes/*/HEAD`]
+              [config: trim.bases]
+
+              The default value is a branch that tracks `git symbolic-ref refs/remotes/*/HEAD`. They might not be
+              reflected correctly when the HEAD branch of your remote repository is changed. You can see the changed
+              HEAD branch name with `git remote show <remote>` and apply it to your local repository with `git remote
+              set-head <remote> --auto`.
 
        -p, --protected=protected
               Comma separated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches that should never be
-              deleted. [default: <bases>] [config: trim.protected]
+              deleted. [config: trim.protected]
 
        --update-interval=update-interval
               Prevents too frequent updates. Seconds between updates in seconds. 0 to disable. [default: 5] [config:
