@@ -319,8 +319,6 @@ impl MergedOrStrayAndKeptBacks {
         }
         let head = repo.head()?;
         let head_name = head.name().context("non-utf8 head ref name")?;
-        assert!(head_name.starts_with("refs/heads/"));
-        let head_name = &head_name["refs/heads/".len()..];
 
         if self.to_delete.merged_locals.contains(head_name) {
             self.to_delete.merged_locals.remove(head_name);
@@ -350,25 +348,20 @@ fn keep_branches(
     repo: &Repository,
     protected_refs: &HashSet<String>,
     reason: Reason,
-    branch_names: &mut HashSet<String>,
+    references: &mut HashSet<String>,
 ) -> Result<HashMap<String, Reason>> {
     let mut kept_back = HashMap::new();
     let mut bag = HashSet::new();
-    for branch_name in branch_names.iter() {
-        let branch = repo.find_branch(branch_name, BranchType::Local)?;
-        let reference = branch.into_reference();
+    for refname in references.iter() {
+        let reference = repo.find_reference(refname)?;
         let refname = reference.name().context("non utf-8 branch ref")?;
-        if protected_refs.contains(branch_name) {
-            bag.insert(branch_name.to_string());
+        if protected_refs.contains(refname) {
             bag.insert(refname.to_string());
-            kept_back.insert(branch_name.to_string(), reason.clone());
-        } else if protected_refs.contains(refname) {
-            bag.insert(branch_name.to_string());
             kept_back.insert(refname.to_string(), reason.clone());
         }
     }
     for branch in bag.into_iter() {
-        branch_names.remove(&branch);
+        references.remove(&branch);
     }
     Ok(kept_back)
 }
@@ -462,7 +455,7 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
         }
 
         for base in &base_upstreams {
-            base_and_branch_to_compare.push((base, branch_name.to_string()));
+            base_and_branch_to_compare.push((base, refname.to_string()));
         }
     }
 
@@ -536,7 +529,7 @@ impl Ref {
         Ok(Ref {
             name: refname.to_string(),
             commit: repo
-                .resolve_reference_from_short_name(refname)?
+                .find_reference(refname)?
                 .peel_to_commit()?
                 .id()
                 .to_string(),
@@ -697,14 +690,8 @@ fn classify(
 }
 
 fn is_merged(repo: &Repository, base: &str, refname: &str) -> Result<bool> {
-    let base_oid = repo
-        .resolve_reference_from_short_name(base)?
-        .peel_to_commit()?
-        .id();
-    let other_oid = repo
-        .resolve_reference_from_short_name(refname)?
-        .peel_to_commit()?
-        .id();
+    let base_oid = repo.find_reference(base)?.peel_to_commit()?.id();
+    let other_oid = repo.find_reference(refname)?.peel_to_commit()?.id();
     // git merge-base {base} {refname}
     let merge_base = repo.merge_base(base_oid, other_oid)?.to_string();
     Ok(is_merged_by_rev_list(repo, base, refname)?
@@ -770,22 +757,25 @@ fn resolve_base_refs(
 ) -> Result<HashSet<String>> {
     let mut result = HashSet::new();
     for base in bases {
-        match repo.find_branch(base, BranchType::Local) {
-            Ok(branch) => {
-                let refname = branch.get().name().context("non utf-8 base branch ref")?;
-                result.insert((*base).to_string());
+        let reference = match repo.resolve_reference_from_short_name(base) {
+            Ok(reference) => {
+                let refname = reference.name().context("non utf-8 base branch ref")?;
                 result.insert((*refname).to_string());
+                reference
             }
             Err(err) if err.code() == ErrorCode::NotFound => continue,
             Err(err) => return Err(err.into()),
-        }
+        };
 
-        if let Some(upstream) = get_fetch_upstream(repo, config, base)? {
-            result.insert(upstream.refname);
-        }
+        if reference.is_branch() {
+            let refname = reference.name().context("non utf-8 base refname")?;
+            if let Some(upstream) = get_fetch_upstream(repo, config, refname)? {
+                result.insert(upstream.refname);
+            }
 
-        if let Some(upstream) = get_push_upstream(repo, config, base)? {
-            result.insert(upstream.refname);
+            if let Some(upstream) = get_push_upstream(repo, config, refname)? {
+                result.insert(upstream.refname);
+            }
         }
     }
     Ok(result)
@@ -861,16 +851,15 @@ fn resolve_protected_refs(
             let (branch, _) = branch?;
             let branch_name = branch.name()?.context("non utf-8 branch name")?;
             if Pattern::new(protected_branch)?.matches(branch_name) {
-                result.insert(branch_name.to_string());
-                if let Some(upstream) = get_fetch_upstream(repo, config, branch_name)? {
-                    result.insert(upstream.refname);
-                }
-                if let Some(upstream) = get_push_upstream(repo, config, branch_name)? {
-                    result.insert(upstream.refname);
-                }
                 let reference = branch.into_reference();
                 let refname = reference.name().context("non utf-8 ref")?;
                 result.insert(refname.to_string());
+                if let Some(upstream) = get_fetch_upstream(repo, config, refname)? {
+                    result.insert(upstream.refname);
+                }
+                if let Some(upstream) = get_push_upstream(repo, config, refname)? {
+                    result.insert(upstream.refname);
+                }
             }
         }
     }
@@ -887,9 +876,7 @@ pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool
     } else {
         let head = repo.head()?;
         let head_refname = head.name().context("non-utf8 head ref name")?;
-        assert!(head_refname.starts_with("refs/heads/"));
-        let head_name = &head_refname["refs/heads/".len()..];
-        if branches.contains(&head_name) {
+        if branches.contains(&head_refname) {
             Some(head)
         } else {
             None

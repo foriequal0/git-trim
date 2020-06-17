@@ -138,17 +138,18 @@ pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) ->
     let local_branches_to_delete: HashSet<_> = branches.to_delete.locals().into_iter().collect();
     for local_branch in repo.branches(Some(BranchType::Local))? {
         let (branch, _) = local_branch?;
-        let name = branch.name()?.context("non utf-8 local branch name")?;
-        if local_branches_to_delete.contains(name) {
+        let branch_name = branch.name()?.context("non utf-8 local branch name")?;
+        let refname = branch.get().name().context("non utf-8 local refname")?;
+        if local_branches_to_delete.contains(refname) {
             continue;
         }
-        if let Some(reason) = branches.kept_backs.get(name) {
+        if let Some(reason) = branches.kept_backs.get(refname) {
             println!(
                 "    {} [{}, but: {}]",
-                name, reason.original_classification, reason.message
+                branch_name, reason.original_classification, reason.message
             );
         } else {
-            println!("    {}", name);
+            println!("    {}", branch_name);
         }
     }
     println!("  remote references:");
