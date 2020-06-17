@@ -17,7 +17,7 @@ use clap::Clap;
 pub struct Args {
     /// Comma separated multiple names of branches.
     /// All the other branches are compared with the upstream branches of those branches.
-    /// [default: master] [config: trim.base]
+    /// [default: master] [config: trim.bases]
     #[clap(short, long, value_delimiter = ",", aliases=&["base"])]
     pub bases: Vec<String>,
 

@@ -25,7 +25,7 @@ FLAGS
 OPTIONS
        -b, --bases=bases
               Comma  separated  multiple  names  of  branches.  All the other branches are compared with the upstream
-              branches of those branches. [default: master] [config: trim.base]
+              branches of those branches. [default: master] [config: trim.bases]
 
        -p, --protected=protected
               Comma separated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches that should never be
