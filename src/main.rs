@@ -31,7 +31,7 @@ fn main(args: Args) -> Result<()> {
         return Err(anyhow::anyhow!("git-trim requires at least one remote").into());
     }
 
-    let config = Config::read(&git.config, &args)?;
+    let config = Config::read(&git.repo, &git.config, &args)?;
     info!("config: {:?}", config);
 
     if *config.update {

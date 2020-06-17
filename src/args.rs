@@ -18,12 +18,17 @@ use clap::Clap;
 pub struct Args {
     /// Comma separated multiple names of branches.
     /// All the other branches are compared with the upstream branches of those branches.
-    /// [default: master] [config: trim.bases]
+    /// [default: branches that tracks `git symbolic-ref refs/remotes/*/HEAD`] [config: trim.bases]
+    ///
+    /// The default value is a branch that tracks `git symbolic-ref refs/remotes/*/HEAD`.
+    /// They might not be reflected correctly when the HEAD branch of your remote repository is changed.
+    /// You can see the changed HEAD branch name with `git remote show <remote>`
+    /// and apply it to your local repository with `git remote set-head <remote> --auto`.
     #[clap(short, long, value_delimiter = ",", aliases=&["base"])]
     pub bases: Vec<String>,
 
     /// Comma separated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches that should never be deleted.
-    /// [default: <bases>] [config: trim.protected]
+    /// [config: trim.protected]
     #[clap(short, long, value_delimiter = ",")]
     pub protected: Vec<String>,
 

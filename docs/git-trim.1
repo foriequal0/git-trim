@@ -26,11 +26,13 @@ Do not delete branches, show what branches will be deleted
 .SH OPTIONS
 .TP
 \fB\-b\fR, \fB\-\-bases\fR=\fIbases\fR
-Comma separated multiple names of branches. All the other branches are compared with the upstream branches of those branches. [default: master] [config: trim.bases]
+Comma separated multiple names of branches. All the other branches are compared with the upstream branches of those branches. [default: branches that tracks `git symbolic\-ref refs/remotes/*/HEAD`] [config: trim.bases]
+
+The default value is a branch that tracks `git symbolic\-ref refs/remotes/*/HEAD`. They might not be reflected correctly when the HEAD branch of your remote repository is changed. You can see the changed HEAD branch name with `git remote show <remote>` and apply it to your local repository with `git remote set\-head <remote> \-\-auto`.
 
 .TP
 \fB\-p\fR, \fB\-\-protected\fR=\fIprotected\fR
-Comma separated multiple glob patterns (e.g. `release\-*`, `feature/*`) of branches that should never be deleted. [default: <bases>] [config: trim.protected]
+Comma separated multiple glob patterns (e.g. `release\-*`, `feature/*`) of branches that should never be deleted. [config: trim.protected]
 
 .TP
 \fB\-\-update\-interval\fR=\fIupdate\-interval\fR

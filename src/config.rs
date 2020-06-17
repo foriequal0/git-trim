@@ -1,14 +1,15 @@
+use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::iter::FromIterator;
 use std::ops::Deref;
 use std::str::FromStr;
 
-use anyhow::Result;
-use git2::{Config as GitConfig, ErrorClass, ErrorCode};
+use anyhow::{Context, Result};
+use git2::{BranchType, Config as GitConfig, ErrorClass, ErrorCode, Repository};
 use log::*;
 
 use crate::args::{Args, DeleteFilter};
-use crate::branch::LocalBranch;
+use crate::branch::{get_fetch_upstream, LocalBranch};
 
 type GitResult<T> = std::result::Result<T, git2::Error>;
 
@@ -24,7 +25,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn read(config: &GitConfig, args: &Args) -> Result<Self> {
+    pub fn read(repo: &Repository, config: &GitConfig, args: &Args) -> Result<Self> {
         fn non_empty<T>(x: Vec<T>) -> Option<Vec<T>> {
             if x.is_empty() {
                 None
@@ -35,11 +36,11 @@ impl Config {
 
         let bases = get(config, "trim.bases")
             .with_explicit("cli", non_empty(args.bases.clone()))
-            .with_default(vec![String::from("develop"), String::from("master")])
+            .with_default(get_branches_tracks_remote_heads(repo, config)?)
             .parses_and_collect::<CommaSeparatedSet<String>>()?;
         let protected = get(config, "trim.protected")
             .with_explicit("cli", non_empty(args.protected.clone()))
-            .with_default(bases.iter().cloned().collect())
+            .with_default(vec![String::from("develop"), String::from("master")])
             .parses_and_collect::<CommaSeparatedSet<String>>()?;
         let update = get(config, "trim.update")
             .with_explicit("cli", args.update())
@@ -76,6 +77,37 @@ impl Config {
             filter,
         })
     }
+}
+
+fn get_branches_tracks_remote_heads(repo: &Repository, config: &GitConfig) -> Result<Vec<String>> {
+    let mut result = Vec::new();
+    for reference in repo.references_glob("refs/remotes/*/HEAD")? {
+        let reference = reference?;
+        // git symbolic-ref refs/remotes/*/HEAD
+        let resolved = match reference.resolve() {
+            Ok(resolved) => resolved,
+            Err(_) => {
+                debug!(
+                    "Reference {:?} is expected to be an symbolic ref, but it isn't",
+                    reference.name()
+                );
+                continue;
+            }
+        };
+        let refname = resolved.name().context("non utf-8 reference name")?;
+
+        for branch in repo.branches(Some(BranchType::Local))? {
+            let (branch, _) = branch?;
+            let branch = LocalBranch::try_from(&branch)?;
+
+            if let Some(upstream) = get_fetch_upstream(repo, config, &branch)? {
+                if upstream.refname == refname {
+                    result.push(branch.short_name().to_owned());
+                }
+            }
+        }
+    }
+    Ok(result)
 }
 
 #[derive(Debug, Eq, PartialEq)]

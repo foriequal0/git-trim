@@ -38,7 +38,7 @@ fn fixture() -> Fixture {
 
 fn param() -> PlanParam<'static> {
     PlanParam {
-        bases: vec!["refs/heads/develop", "refs/heads/master"],
+        bases: vec!["develop", "master"], // Need to set bases manually for git flow
         protected_branches: set! {},
         filter: DeleteFilter::all(),
         detach: true,

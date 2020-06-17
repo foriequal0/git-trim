@@ -42,7 +42,7 @@ fn fixture() -> Fixture {
 
 fn param() -> PlanParam<'static> {
     PlanParam {
-        bases: vec!["refs/heads/master"],
+        bases: vec!["master"],
         protected_branches: set! {},
         filter: DeleteFilter::all(),
         detach: true,

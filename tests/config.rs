@@ -15,7 +15,15 @@ use fixture::{rc, Fixture};
 fn fixture() -> Fixture {
     rc().append_fixture_trace(
         r#"
-        git init origin --bare
+        git init origin
+        origin <<EOF
+            git config user.name "UpstreamTest"
+            git config user.email "upstream@test"
+            echo "Hello World!" > README.md
+            git add README.md
+            git commit -m "Initial commit"
+        EOF
+
         git clone origin local
         "#,
     )
@@ -32,14 +40,11 @@ fn test_bases_implicit_value() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let config = Config::read(&git.config, &Args { ..Args::default() })?;
+    let config = Config::read(&git.repo, &git.config, &Args { ..Args::default() })?;
 
     assert_eq!(
         config.bases,
-        ConfigValue::Implicit(CommaSeparatedSet::new(vec![
-            "develop".to_owned(),
-            "master".to_owned()
-        ]))
+        ConfigValue::Implicit(CommaSeparatedSet::new(vec!["master".to_owned()]))
     );
     Ok(())
 }
@@ -56,7 +61,7 @@ fn test_bases_config_value() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let config = Config::read(&git.config, &Args::default())?;
+    let config = Config::read(&git.repo, &git.config, &Args::default())?;
 
     assert_eq!(
         config.bases,
@@ -81,6 +86,7 @@ fn test_bases_args_value() -> Result<()> {
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let config = Config::read(
+        &git.repo,
         &git.config,
         &Args {
             bases: vec!["another-branch".to_owned()],
@@ -113,7 +119,7 @@ fn test_bases_multiple_comma_separated_values() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let config = Config::read(&git.config, &Args::default())?;
+    let config = Config::read(&git.repo, &git.config, &Args::default())?;
 
     assert_eq!(
         config.bases,
@@ -143,7 +149,7 @@ fn test_protected_multiple_comma_separated_values() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let config = Config::read(&git.config, &Args::default())?;
+    let config = Config::read(&git.repo, &git.config, &Args::default())?;
 
     assert_eq!(
         config.protected,
@@ -173,7 +179,7 @@ fn test_delete_filter_multiple_comma_separated_values() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let config = Config::read(&git.config, &Args::default())?;
+    let config = Config::read(&git.repo, &git.config, &Args::default())?;
 
     assert_eq!(
         config.filter,
