@@ -51,7 +51,7 @@ fn fixture() -> Fixture {
 
 fn config() -> Config<'static> {
     Config {
-        bases: vec!["master"],
+        bases: vec!["refs/heads/master"],
         protected_branches: set! {},
         filter: DeleteFilter::all(),
         detach: true,

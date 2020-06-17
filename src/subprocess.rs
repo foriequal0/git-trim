@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Config, Reference, Repository};
+use git2::{Config, Reference, Repository};
 use log::*;
 
 use crate::branch::{get_fetch_upstream, RemoteTrackingBranch};
@@ -82,36 +82,35 @@ pub fn get_noff_merged_locals(
 ) -> Result<HashSet<String>> {
     let mut result = HashSet::new();
     for base in bases {
-        let branch_names = git_output(
+        let refnames = git_output(
             repo,
             &[
                 "branch",
                 "--format",
-                "%(refname:short)",
+                "%(refname)",
                 "--merged",
                 &base.refname,
             ],
             Level::Trace,
         )?;
-        for branch_name in branch_names.lines() {
-            debug!("refname: {}", branch_name);
-            if get_remote(config, branch_name)?.is_implicit() {
+        for refname in refnames.lines() {
+            debug!("refname: {}", refname);
+            if get_remote(config, refname)?.is_implicit() {
                 debug!("skip: it is not a tracking branch");
                 continue;
             }
-            let upstream = get_fetch_upstream(repo, config, branch_name)?;
+            let upstream = get_fetch_upstream(repo, config, refname)?;
             if Some(base) == upstream.as_ref() {
-                debug!("skip: {} tracks {:?}", branch_name, base);
+                debug!("skip: {} tracks {:?}", refname, base);
                 continue;
             }
-            let branch = repo.find_branch(&branch_name, BranchType::Local)?;
-            if branch.get().symbolic_target().is_some() {
+            let reference = repo.find_reference(&refname)?;
+            if reference.symbolic_target().is_some() {
                 debug!("skip: it is symbolic");
                 continue;
             }
-            let branch_name = branch.name()?.context("no utf-8 branch name")?.to_string();
             debug!("noff merged local: it is merged to {:?}", base);
-            result.insert(branch_name);
+            result.insert(refname.to_string());
         }
     }
     Ok(result)
@@ -146,9 +145,17 @@ pub fn checkout(repo: &Repository, head: Reference, dry_run: bool) -> Result<()>
     }
 }
 
-pub fn branch_delete(repo: &Repository, branch_names: &[&str], dry_run: bool) -> Result<()> {
+pub fn branch_delete(repo: &Repository, refnames: &[&str], dry_run: bool) -> Result<()> {
     let mut args = vec!["branch", "--delete", "--force"];
-    args.extend(branch_names);
+    let mut branch_names = Vec::new();
+    for refname in refnames {
+        let reference = repo.find_reference(refname)?;
+        assert!(reference.is_branch());
+        let branch_name = reference.shorthand().context("non utf-8 branch name")?;
+        branch_names.push(branch_name.to_owned());
+    }
+    args.extend(branch_names.iter().map(|x| x.as_str()));
+
     if !dry_run {
         git(repo, &args, Level::Info)
     } else {
