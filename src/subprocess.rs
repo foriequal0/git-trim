@@ -55,8 +55,8 @@ pub fn remote_update(repo: &Repository, dry_run: bool) -> Result<()> {
     }
 }
 
-pub(crate) fn is_merged_by_rev_list(repo: &Repository, base: &str, refname: &str) -> Result<bool> {
-    let range = format!("{}...{}", base, refname);
+pub fn is_merged_by_rev_list(repo: &Repository, base: &str, commit: &str) -> Result<bool> {
+    let range = format!("{}...{}", base, commit);
     // Is there any revs that are not applied to the base in the branch?
     let output = git_output(
         repo,
