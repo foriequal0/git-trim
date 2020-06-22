@@ -75,34 +75,6 @@ pub(crate) fn is_merged_by_rev_list(repo: &Repository, base: &str, refname: &str
     Ok(output.is_empty())
 }
 
-/// Source: https://stackoverflow.com/a/56026209
-pub(crate) fn is_squash_merged(
-    repo: &Repository,
-    merge_base: &str,
-    base: &str,
-    refname: &str,
-) -> Result<bool> {
-    let tree = git_output(
-        repo,
-        &["rev-parse", &format!("{}^{{tree}}", refname)],
-        Level::Trace,
-    )?;
-    let dangling_commit = git_output(
-        repo,
-        &[
-            "commit-tree",
-            &tree,
-            "-p",
-            &merge_base,
-            "-m",
-            "git-trim: squash merge test",
-        ],
-        Level::Trace,
-    )?;
-
-    is_merged_by_rev_list(repo, base, &dangling_commit)
-}
-
 pub fn get_noff_merged_locals(
     repo: &Repository,
     config: &Config,

@@ -9,7 +9,9 @@ use std::convert::TryFrom;
 use std::ops::Deref;
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Config as GitConfig, Error as GitError, ErrorCode, Repository};
+use git2::{
+    BranchType, Config as GitConfig, Error as GitError, ErrorCode, Oid, Repository, Signature,
+};
 use glob::Pattern;
 use log::*;
 use rayon::prelude::*;
@@ -18,7 +20,7 @@ use crate::args::DeleteFilter;
 use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote};
 pub use crate::branch::{RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
 pub use crate::subprocess::remote_update;
-use crate::subprocess::{is_merged_by_rev_list, is_squash_merged, ls_remote_heads};
+use crate::subprocess::{is_merged_by_rev_list, ls_remote_heads};
 
 pub struct Git {
     pub repo: Repository,
@@ -707,6 +709,29 @@ fn is_merged(repo: &Repository, base: &str, refname: &str) -> Result<bool> {
     let merge_base = repo.merge_base(base_oid, other_oid)?.to_string();
     Ok(is_merged_by_rev_list(repo, base, refname)?
         || is_squash_merged(repo, &merge_base, base, refname)?)
+}
+
+/// Source: https://stackoverflow.com/a/56026209
+fn is_squash_merged(
+    repo: &Repository,
+    merge_base: &str,
+    base: &str,
+    refname: &str,
+) -> Result<bool> {
+    let tree = repo
+        .revparse_single(&format!("{}^{{tree}}", refname))?
+        .peel_to_tree()?;
+    let tmp_sig = Signature::now("git-trim", "git-trim@squash.merge.test.local")?;
+    let dangling_commit = repo.commit(
+        None,
+        &tmp_sig,
+        &tmp_sig,
+        "git-trim: squash merge test",
+        &tree,
+        &[&repo.find_commit(Oid::from_str(merge_base)?)?],
+    )?;
+
+    is_merged_by_rev_list(repo, base, &dangling_commit.to_string())
 }
 
 /// Use with caution.
