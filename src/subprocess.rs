@@ -55,13 +55,7 @@ pub fn remote_update(repo: &Repository, dry_run: bool) -> Result<()> {
     }
 }
 
-pub fn is_merged(repo: &Repository, base: &str, refname: &str) -> Result<bool> {
-    let merge_base = git_output(&repo, &["merge-base", base, refname], Level::Trace)?;
-    Ok(is_merged_by_rev_list(repo, base, refname)?
-        || is_squash_merged(repo, &merge_base, base, refname)?)
-}
-
-fn is_merged_by_rev_list(repo: &Repository, base: &str, refname: &str) -> Result<bool> {
+pub(crate) fn is_merged_by_rev_list(repo: &Repository, base: &str, refname: &str) -> Result<bool> {
     let range = format!("{}...{}", base, refname);
     // Is there any revs that are not applied to the base in the branch?
     let output = git_output(
@@ -82,7 +76,7 @@ fn is_merged_by_rev_list(repo: &Repository, base: &str, refname: &str) -> Result
 }
 
 /// Source: https://stackoverflow.com/a/56026209
-fn is_squash_merged(
+pub(crate) fn is_squash_merged(
     repo: &Repository,
     merge_base: &str,
     base: &str,

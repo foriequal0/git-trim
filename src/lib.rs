@@ -17,8 +17,8 @@ use rayon::prelude::*;
 use crate::args::DeleteFilter;
 use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote};
 pub use crate::branch::{RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
-use crate::subprocess::ls_remote_heads;
 pub use crate::subprocess::remote_update;
+use crate::subprocess::{is_merged_by_rev_list, is_squash_merged, ls_remote_heads};
 
 pub struct Git {
     pub repo: Repository,
@@ -597,12 +597,12 @@ fn classify(
     branch_name: &str,
 ) -> Result<Classification> {
     let branch = Ref::from_name(&git.repo, branch_name)?;
-    let branch_is_merged = merged_locals.contains(branch_name)
-        || subprocess::is_merged(&git.repo, &base.refname, branch_name)?;
+    let branch_is_merged =
+        merged_locals.contains(branch_name) || is_merged(&git.repo, &base.refname, branch_name)?;
     let fetch = if let Some(fetch) = get_fetch_upstream(&git.repo, &git.config, branch_name)? {
         let upstream = Ref::from_name(&git.repo, &fetch.refname)?;
         let merged = (branch_is_merged && upstream.commit == branch.commit)
-            || subprocess::is_merged(&git.repo, &base.refname, &upstream.name)?;
+            || is_merged(&git.repo, &base.refname, &upstream.name)?;
         Some(UpstreamMergeState { upstream, merged })
     } else {
         None
@@ -614,7 +614,7 @@ fn classify(
                 .as_ref()
                 .map(|x| x.merged && upstream.commit == x.upstream.commit)
                 == Some(true)
-            || subprocess::is_merged(&git.repo, &base.refname, &upstream.name)?;
+            || is_merged(&git.repo, &base.refname, &upstream.name)?;
         Some(UpstreamMergeState { upstream, merged })
     } else {
         None
@@ -692,6 +692,21 @@ fn classify(
     }
 
     Ok(c)
+}
+
+fn is_merged(repo: &Repository, base: &str, refname: &str) -> Result<bool> {
+    let base_oid = repo
+        .resolve_reference_from_short_name(base)?
+        .peel_to_commit()?
+        .id();
+    let other_oid = repo
+        .resolve_reference_from_short_name(refname)?
+        .peel_to_commit()?
+        .id();
+    // git merge-base {base} {refname}
+    let merge_base = repo.merge_base(base_oid, other_oid)?.to_string();
+    Ok(is_merged_by_rev_list(repo, base, refname)?
+        || is_squash_merged(repo, &merge_base, base, refname)?)
 }
 
 /// Use with caution.
