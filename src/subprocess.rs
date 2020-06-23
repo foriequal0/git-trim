@@ -152,8 +152,8 @@ pub fn branch_delete(repo: &Repository, branch_names: &[&str], dry_run: bool) ->
     if !dry_run {
         git(repo, &args, Level::Info)
     } else {
+        info!("> git {} (dry-run)", args.join(" "));
         for branch_name in branch_names {
-            info!("> git {} (dry-run)", args.join(" "));
             println!("Delete branch {} (dry run).", branch_name);
         }
         Ok(())
