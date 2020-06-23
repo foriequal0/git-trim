@@ -397,16 +397,16 @@ fn keep_remote_branches(
 
 #[allow(clippy::cognitive_complexity, clippy::implicit_hasher)]
 pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAndKeptBacks> {
-    let bases = resolve_base_upstream(&git.repo, &git.config, &config.bases)?;
-    trace!("base_upstreams: {:#?}", bases);
-
+    let base_upstreams = resolve_base_upstream(&git.repo, &git.config, &config.bases)?;
     let protected_refs =
         resolve_protected_refs(&git.repo, &git.config, &config.protected_branches)?;
+    trace!("base_upstreams: {:#?}", base_upstreams);
     trace!("protected_refs: {:#?}", protected_refs);
 
     let mut merged_or_stray = MergedOrStray::default();
     // Fast filling ff merged branches
-    let noff_merged_locals = subprocess::get_noff_merged_locals(&git.repo, &git.config, &bases)?;
+    let noff_merged_locals =
+        subprocess::get_noff_merged_locals(&git.repo, &git.config, &base_upstreams)?;
     merged_or_stray
         .merged_locals
         .extend(noff_merged_locals.clone());
@@ -452,7 +452,7 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             continue;
         }
         if let Some(upstream) = &fetch_upstream {
-            if bases.contains(&upstream) {
+            if base_upstreams.contains(&upstream) {
                 debug!("Skip: the branch is the base: {}", branch_name);
                 continue;
             }
@@ -461,7 +461,7 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             }
         }
 
-        for base in &bases {
+        for base in &base_upstreams {
             base_and_branch_to_compare.push((base, branch_name.to_string()));
         }
     }
