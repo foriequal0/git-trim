@@ -145,13 +145,13 @@ fn get_push_remote_branch(
     config: &Config,
     branch: &str,
 ) -> Result<Option<RemoteBranch>> {
-    let remote_name = config::get_push_remote(config, branch)?;
     let reference = repo.resolve_reference_from_short_name(branch)?;
     if !reference.is_branch() || reference.is_remote() {
         return Err(anyhow::anyhow!("Not a local branch: {}", branch));
     }
     let refname = reference.name().context("non utf-8 refname")?;
 
+    let remote_name = config::get_push_remote(config, refname)?;
     if let Some(remote) = get_remote(repo, &remote_name)? {
         let refname = if let Some(expanded) =
             expand_refspec(&remote, &refname, Direction::Push, ExpansionSide::Right)?
