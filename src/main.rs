@@ -10,7 +10,8 @@ use log::*;
 use git_trim::args::{Args, DeleteFilter};
 use git_trim::config::{CommaSeparatedSet, ConfigValue};
 use git_trim::{
-    config, Config, Git, MergedOrStrayAndKeptBacks, RemoteBranchError, RemoteTrackingBranch,
+    config, Config, Git, MergedOrStrayAndKeptBacks, RemoteBranch, RemoteBranchError,
+    RemoteTrackingBranch,
 };
 use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_stray, remote_update};
 
@@ -190,25 +191,51 @@ pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) ->
     }
     println!();
 
-    fn print<T>(label: &str, branches: &HashSet<T>)
+    fn print<T, F>(label: &str, branches: &HashSet<T>, stringify: F) -> Result<()>
     where
-        T: std::fmt::Display + std::cmp::Ord,
+        T: std::cmp::Ord,
+        for<'a> F: Fn(&'a T) -> Result<String>,
     {
         if branches.is_empty() {
-            return;
+            return Ok(());
         }
         let mut branches: Vec<_> = branches.iter().collect();
         branches.sort();
         println!("Delete {}:", label);
         for branch in branches {
-            println!("  - {}", branch);
+            println!("  - {}", stringify(branch)?);
         }
+        Ok(())
     }
 
-    print("merged local branches", &branches.to_delete.merged_locals);
-    print("merged remote refs", &branches.to_delete.merged_remotes);
-    print("stray local branches", &branches.to_delete.stray_locals);
-    print("stray remote refs", &branches.to_delete.stray_remotes);
+    let shorthand = |refname: &String| {
+        let reference = repo.find_reference(refname)?;
+        let shorthand = reference.shorthand().context("non utf-8 refname")?;
+        Ok(shorthand.to_string())
+    };
+
+    let stringify = |refname: &RemoteBranch| Ok(refname.to_string());
+
+    print(
+        "merged local branches",
+        &branches.to_delete.merged_locals,
+        shorthand,
+    )?;
+    print(
+        "merged remote refs",
+        &branches.to_delete.merged_remotes,
+        stringify,
+    )?;
+    print(
+        "stray local branches",
+        &branches.to_delete.stray_locals,
+        shorthand,
+    )?;
+    print(
+        "stray remote refs",
+        &branches.to_delete.stray_remotes,
+        stringify,
+    )?;
 
     Ok(())
 }
