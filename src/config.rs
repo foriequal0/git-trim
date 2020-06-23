@@ -323,7 +323,7 @@ fn short_local_branch_name(branch: &str) -> Result<&str> {
     }
 }
 
-#[derive(derive_deref::Deref, Debug, Clone, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct CommaSeparatedSet<T>(Vec<T>);
 
 impl<T> FromStr for CommaSeparatedSet<T>
@@ -366,6 +366,14 @@ impl<T> IntoIterator for CommaSeparatedSet<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl<T> Deref for CommaSeparatedSet<T> {
+    type Target = Vec<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
