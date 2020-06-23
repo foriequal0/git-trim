@@ -155,8 +155,12 @@ pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) ->
     let mut printed_remotes = HashSet::new();
     for remote_ref in repo.branches(Some(BranchType::Remote))? {
         let (branch, _) = remote_ref?;
-        let name = branch.get().name().context("non utf-8 remote ref name")?;
-        let remote_branch = match RemoteTrackingBranch::new(&name).remote_branch(&repo) {
+        let refname = branch.get().name().context("non utf-8 remote ref name")?;
+        let shorthand = branch
+            .get()
+            .shorthand()
+            .context("non utf-8 remote ref name")?;
+        let remote_branch = match RemoteTrackingBranch::new(&refname).remote_branch(&repo) {
             Ok(remote_branch) => remote_branch,
             Err(RemoteBranchError::RemoteNotFound) => continue,
             Err(err) => return Err(err.into()),
@@ -167,10 +171,10 @@ pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) ->
         if let Some(reason) = branches.kept_back_remotes.get(&remote_branch) {
             println!(
                 "    {} [{}, but: {}]",
-                name, reason.original_classification, reason.message
+                shorthand, reason.original_classification, reason.message
             );
         } else {
-            println!("    {}", name);
+            println!("    {}", shorthand);
         }
         printed_remotes.insert(remote_branch);
     }
