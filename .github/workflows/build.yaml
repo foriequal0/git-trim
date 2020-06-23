@@ -66,6 +66,8 @@ jobs:
           short: linux
         - long: macOS-latest
           short: mac
+        - long: windows-latest
+          short: win
       fail-fast: false
     steps:
     - uses: actions/checkout@v1

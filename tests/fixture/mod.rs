@@ -60,14 +60,17 @@ impl Fixture {
 
         let tempdir = tempdir()?;
         println!("{:?}", tempdir.path());
-        let mut bash = Command::new("bash")
+        let mut command = Command::new("bash");
+        command
             .args(&["--noprofile", "--norc", "-xeo", "pipefail"])
             .current_dir(tempdir.path())
-            .env_clear()
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
+            .stderr(Stdio::piped());
+        if !cfg!(windows) {
+            command.env_clear();
+        }
+        let mut bash = command.spawn()?;
 
         let mut stdin = bash.stdin.take().unwrap();
         let merged_fixture = self
