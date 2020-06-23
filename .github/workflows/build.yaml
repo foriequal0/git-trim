@@ -91,15 +91,7 @@ jobs:
         profile: minimal
     - run: cargo fetch --verbose
     - run: cargo build --tests
-    - run: |
-        echo "::group::fast test"
-        if ! cargo test --all; then
-          TEST_FAILED=1
-        fi
-        echo "::endgroup::"
-        if [ "$TEST_FAILED" -ne 0 ]; then
-           cargo test --all -- --test-thread=1 --nocapture
-        fi
+    - run: cargo test --all
       env:
         RUST_LOG: trace
         RUST_BACKTRACE: 1
