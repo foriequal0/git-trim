@@ -25,7 +25,6 @@ build-man = ["man", "rson_rs", "regex"]
 vergen = "3"
 
 [dependencies]
-derive_deref = "1.1.0"
 dialoguer = "0.5.0"
 env_logger = "0.7.1"
 git2 = "0.10"
