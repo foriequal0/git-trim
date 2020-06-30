@@ -10,6 +10,7 @@ use clap::Clap;
 
 #[derive(Clap)]
 #[clap(
+    version,
     about = "Automatically trims your tracking branches whose upstream branches are merged or stray.",
     long_about = "Automatically trims your tracking branches whose upstream branches are merged or stray.
 `git-trim` is a missing companion to the `git fetch --prune` and a proper, safer, faster alternative to your `<bash oneliner HERE>`."
