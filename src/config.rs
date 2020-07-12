@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::iter::FromIterator;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -5,7 +6,6 @@ use std::str::FromStr;
 use anyhow::{anyhow, Result};
 use git2::{Config, ErrorClass, ErrorCode};
 use log::*;
-use std::fmt::Debug;
 
 type GitResult<T> = std::result::Result<T, git2::Error>;
 
