@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use git2::{Config, Reference, Repository};
 use log::*;
 
-use crate::branch::{get_fetch_upstream, RemoteTrackingBranch};
+use crate::branch::{get_fetch_upstream, RemoteBranch, RemoteTrackingBranch};
 use crate::config::get_remote;
 
 fn git(repo: &Repository, args: &[&str], level: log::Level) -> Result<()> {
@@ -170,14 +170,19 @@ pub fn branch_delete(repo: &Repository, refnames: &[&str], dry_run: bool) -> Res
 pub fn push_delete(
     repo: &Repository,
     remote_name: &str,
-    remote_refnames: &[&str],
+    remote_branches: &[&RemoteBranch],
     dry_run: bool,
 ) -> Result<()> {
+    assert!(remote_branches
+        .iter()
+        .all(|branch| branch.remote == remote_name));
     let mut command = vec!["push", "--delete"];
     if dry_run {
         command.push("--dry-run");
     }
     command.push(remote_name);
-    command.extend(remote_refnames);
+    for remote_branch in remote_branches {
+        command.push(&remote_branch.refname);
+    }
     git(repo, &command, Level::Trace)
 }

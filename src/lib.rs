@@ -334,11 +334,11 @@ pub fn delete_remote_branches(
         return Ok(());
     }
     let mut per_remote = HashMap::new();
-    for remote_branch in remote_branches {
+    for remote_branch in remote_branches.iter().copied() {
         let entry = per_remote
             .entry(&remote_branch.remote)
             .or_insert_with(Vec::new);
-        entry.push(remote_branch.refname.as_str());
+        entry.push(remote_branch);
     }
     for (remote_name, remote_refnames) in per_remote.iter() {
         subprocess::push_delete(repo, remote_name, remote_refnames, dry_run)?;
