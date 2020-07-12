@@ -3,9 +3,11 @@ use std::iter::FromIterator;
 use std::ops::Deref;
 use std::str::FromStr;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use git2::{Config, ErrorClass, ErrorCode};
 use log::*;
+
+use crate::branch::LocalBranch;
 
 type GitResult<T> = std::result::Result<T, git2::Error>;
 
@@ -193,10 +195,8 @@ fn config_not_exist(err: &git2::Error) -> bool {
     err.code() == ErrorCode::NotFound && err.class() == ErrorClass::Config
 }
 
-pub fn get_push_remote(config: &Config, refname: &str) -> Result<ConfigValue<String>> {
-    let branch_name = short_local_branch_name(refname)?;
-
-    let push_remote_key = format!("branch.{}.pushRemote", branch_name);
+pub fn get_push_remote(config: &Config, branch: &LocalBranch) -> Result<ConfigValue<String>> {
+    let push_remote_key = format!("branch.{}.pushRemote", branch.short_name());
     if let Some(push_remote) = get(config, &push_remote_key).read()? {
         return Ok(push_remote);
     }
@@ -205,22 +205,19 @@ pub fn get_push_remote(config: &Config, refname: &str) -> Result<ConfigValue<Str
         return Ok(push_default);
     }
 
-    get_remote(config, refname)
+    get_remote(config, branch)
 }
 
-pub fn get_remote(config: &Config, refname: &str) -> Result<ConfigValue<String>> {
-    let branch_name = short_local_branch_name(refname)?;
-
-    Ok(get(config, &format!("branch.{}.remote", branch_name))
+pub fn get_remote(config: &Config, branch: &LocalBranch) -> Result<ConfigValue<String>> {
+    let value = get(config, &format!("branch.{}.remote", branch.short_name()))
         .with_default(String::from("origin"))
         .read()?
-        .expect("has default"))
+        .expect("has default");
+    Ok(value)
 }
 
-pub fn get_remote_raw(config: &Config, refname: &str) -> Result<Option<String>> {
-    let branch_name = short_local_branch_name(refname)?;
-
-    let key = format!("branch.{}.remote", branch_name);
+pub fn get_remote_raw(config: &Config, branch: &LocalBranch) -> Result<Option<String>> {
+    let key = format!("branch.{}.remote", branch.short_name());
     match config.get_string(&key) {
         Ok(remote) => Ok(Some(remote)),
         Err(err) if config_not_exist(&err) => Ok(None),
@@ -228,24 +225,12 @@ pub fn get_remote_raw(config: &Config, refname: &str) -> Result<Option<String>> 
     }
 }
 
-pub fn get_merge(config: &Config, refname: &str) -> Result<Option<String>> {
-    let branch_name = short_local_branch_name(refname)?;
-
-    let key = format!("branch.{}.merge", branch_name);
+pub fn get_merge(config: &Config, branch: &LocalBranch) -> Result<Option<String>> {
+    let key = format!("branch.{}.merge", branch.short_name());
     match config.get_string(&key) {
         Ok(merge) => Ok(Some(merge)),
         Err(err) if config_not_exist(&err) => Ok(None),
         Err(err) => Err(err.into()),
-    }
-}
-
-fn short_local_branch_name(refname: &str) -> Result<&str> {
-    if refname.starts_with("refs/heads/") {
-        Ok(&refname["refs/heads/".len()..])
-    } else if !refname.starts_with("refs/") {
-        Ok(refname)
-    } else {
-        Err(anyhow!("It is not a local branch"))
     }
 }
 

@@ -17,7 +17,7 @@ use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
 use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote_entry};
-pub use crate::branch::{RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
+pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
 pub use crate::core::{MergedOrStray, MergedOrStrayAndKeptBacks};
 use crate::subprocess::ls_remote_heads;
 pub use crate::subprocess::remote_update;
@@ -66,19 +66,18 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
     let mut base_and_branch_to_compare = Vec::new();
     let mut remote_urls = Vec::new();
     for branch in git.repo.branches(Some(BranchType::Local))? {
-        let (branch, _) = branch?;
-        let refname = branch.get().name().context("non-utf8 branch ref")?;
-        let fetch_upstream = get_fetch_upstream(&git.repo, &git.config, refname)?;
-        let push_upstream = get_push_upstream(&git.repo, &git.config, refname)?;
-        debug!("Branch ref: {}", refname);
+        let branch = LocalBranch::try_from(&branch?.0)?;
+        let fetch_upstream = get_fetch_upstream(&git.repo, &git.config, &branch)?;
+        let push_upstream = get_push_upstream(&git.repo, &git.config, &branch)?;
+        debug!("Branch ref: {:?}", branch);
         debug!("Fetch upstream: {:?}", fetch_upstream);
         debug!("Push upstream: {:?}", push_upstream);
 
-        let config_remote = config::get_remote(&git.config, refname)?;
+        let config_remote = config::get_remote(&git.config, &branch)?;
         if config_remote.is_implicit() {
             debug!(
-                "Skip: the branch doesn't have a tracking remote: {}",
-                refname
+                "Skip: the branch doesn't have a tracking remote: {:?}",
+                branch
             );
             continue;
         }
@@ -89,27 +88,23 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             );
             remote_urls.push(config_remote.to_string());
         }
-        if branch.get().symbolic_target().is_some() {
-            debug!("Skip: the branch is a symbolic ref: {}", refname);
-            continue;
-        }
 
-        if protected_refs.contains(refname) {
-            debug!("Skip: the branch is protected branch: {}", refname);
+        if protected_refs.contains(&branch.refname) {
+            debug!("Skip: the branch is protected branch: {:?}", branch);
             continue;
         }
         if let Some(upstream) = &fetch_upstream {
             if base_upstreams.contains(&upstream) {
-                debug!("Skip: the branch is the base: {}", refname);
+                debug!("Skip: the branch is the base: {:?}", branch);
                 continue;
             }
             if protected_refs.contains(&upstream.refname) {
-                debug!("Skip: the branch tracks protected branch: {}", refname);
+                debug!("Skip: the branch tracks protected branch: {:?}", branch);
             }
         }
 
         for base in &base_upstreams {
-            base_and_branch_to_compare.push((base, refname.to_string()));
+            base_and_branch_to_compare.push((base, branch.clone()));
         }
     }
 
@@ -133,9 +128,9 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             // It is denoted that it is safe in that case
             // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
             let git = ForceSendSync::new(git);
-            move |(base, refname)| {
-                core::classify(git, &merged_locals, &remote_heads_per_url, &base, &refname)
-                    .with_context(|| format!("base={:?}, refname={}", base, refname))
+            move |(base, branch)| {
+                core::classify(git, &merged_locals, &remote_heads_per_url, &base, &branch)
+                    .with_context(|| format!("base={:?}, branch={:?}", base, branch))
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -198,11 +193,12 @@ fn resolve_base_refs(
 
         if reference.is_branch() {
             let refname = reference.name().context("non utf-8 base refname")?;
-            if let Some(upstream) = get_fetch_upstream(repo, config, refname)? {
+            let branch = LocalBranch::new(refname);
+            if let Some(upstream) = get_fetch_upstream(repo, config, &branch)? {
                 result.insert(upstream.refname);
             }
 
-            if let Some(upstream) = get_push_upstream(repo, config, refname)? {
+            if let Some(upstream) = get_push_upstream(repo, config, &branch)? {
                 result.insert(upstream.refname);
             }
         }
@@ -226,19 +222,19 @@ fn resolve_base_upstream(
                 // Just skip.
             }
         } else {
-            // find "master, refs/heads/master -> refs/remotes/origin/master"
-            if let Some(upstream) = get_fetch_upstream(repo, config, base)? {
-                result.push(upstream);
-                continue;
-            }
+            let reference = repo.resolve_reference_from_short_name(base)?;
+            if let Ok(branch) = LocalBranch::try_from(&reference) {
+                if let Some(upstream) = get_fetch_upstream(repo, config, &branch)? {
+                    result.push(upstream);
+                    continue;
+                }
             // We compares this functions's results with other branches.
             // Our concern is whether the branches are safe to delete.
             // Safe means we can be fetch the entire content of the branches from the base.
             // So we skips get_push_upstream since we don't fetch from them.
-
-            // match "origin/master -> refs/remotes/origin/master"
-            if let Ok(remote_ref) = repo.find_reference(&format!("refs/remotes/{}", base)) {
-                let refname = remote_ref.name().context("non-utf8 reference name")?;
+            } else if reference.is_remote() {
+                // match "origin/master -> refs/remotes/origin/master"
+                let refname = reference.name().context("non-utf8 reference name")?;
                 result.push(RemoteTrackingBranch::new(refname));
                 continue;
             }
@@ -285,13 +281,12 @@ fn resolve_protected_refs(
             let (branch, _) = branch?;
             let branch_name = branch.name()?.context("non utf-8 branch name")?;
             if Pattern::new(protected_branch)?.matches(branch_name) {
-                let reference = branch.into_reference();
-                let refname = reference.name().context("non utf-8 ref")?;
-                result.insert(refname.to_string());
-                if let Some(upstream) = get_fetch_upstream(repo, config, refname)? {
+                let branch = LocalBranch::try_from(&branch)?;
+                result.insert(branch.refname.to_string());
+                if let Some(upstream) = get_fetch_upstream(repo, config, &branch)? {
                     result.insert(upstream.refname);
                 }
-                if let Some(upstream) = get_push_upstream(repo, config, refname)? {
+                if let Some(upstream) = get_push_upstream(repo, config, &branch)? {
                     result.insert(upstream.refname);
                 }
             }
@@ -300,7 +295,11 @@ fn resolve_protected_refs(
     Ok(result)
 }
 
-pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool) -> Result<()> {
+pub fn delete_local_branches(
+    repo: &Repository,
+    branches: &[&LocalBranch],
+    dry_run: bool,
+) -> Result<()> {
     if branches.is_empty() {
         return Ok(());
     }
@@ -310,7 +309,7 @@ pub fn delete_local_branches(repo: &Repository, branches: &[&str], dry_run: bool
     } else {
         let head = repo.head()?;
         let head_refname = head.name().context("non-utf8 head ref name")?;
-        if branches.contains(&head_refname) {
+        if branches.iter().any(|branch| branch.refname == head_refname) {
             Some(head)
         } else {
             None

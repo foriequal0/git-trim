@@ -9,7 +9,7 @@ use log::*;
 use git_trim::args::{Args, DeleteFilter};
 use git_trim::config::{CommaSeparatedSet, ConfigValue};
 use git_trim::{
-    config, Config, Git, MergedOrStrayAndKeptBacks, RemoteBranch, RemoteBranchError,
+    config, Config, Git, LocalBranch, MergedOrStrayAndKeptBacks, RemoteBranch, RemoteBranchError,
     RemoteTrackingBranch,
 };
 use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_stray, remote_update};
@@ -132,10 +132,11 @@ pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) ->
         let (branch, _) = local_branch?;
         let branch_name = branch.name()?.context("non utf-8 local branch name")?;
         let refname = branch.get().name().context("non utf-8 local refname")?;
-        if local_branches_to_delete.contains(refname) {
+        let branch = LocalBranch::new(refname);
+        if local_branches_to_delete.contains(&branch) {
             continue;
         }
-        if let Some(reason) = branches.kept_backs.get(refname) {
+        if let Some(reason) = branches.kept_backs.get(&branch) {
             println!(
                 "    {} [{}, but: {}]",
                 branch_name, reason.original_classification, reason.message
@@ -201,11 +202,7 @@ pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) ->
         Ok(())
     }
 
-    let shorthand = |refname: &String| {
-        let reference = repo.find_reference(refname)?;
-        let shorthand = reference.shorthand().context("non utf-8 refname")?;
-        Ok(shorthand.to_string())
-    };
+    let shorthand = |branch: &LocalBranch| Ok(branch.short_name().to_string());
 
     let stringify = |refname: &RemoteBranch| Ok(refname.to_string());
 

@@ -5,18 +5,18 @@ use git2::{Oid, Repository, Signature};
 use log::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{get_fetch_upstream, get_push_upstream, RemoteBranch, RemoteTrackingBranch};
+use crate::branch::{
+    get_fetch_upstream, get_push_upstream, LocalBranch, RemoteBranch, RemoteTrackingBranch,
+};
 use crate::subprocess::is_merged_by_rev_list;
 use crate::util::ForceSendSync;
 use crate::{config, Git};
 
 #[derive(Default, Eq, PartialEq, Debug)]
 pub struct MergedOrStray {
-    // local branches
-    pub merged_locals: HashSet<String>,
-    pub stray_locals: HashSet<String>,
+    pub merged_locals: HashSet<LocalBranch>,
+    pub stray_locals: HashSet<LocalBranch>,
 
-    /// remote refs
     pub merged_remotes: HashSet<RemoteBranch>,
     pub stray_remotes: HashSet<RemoteBranch>,
 }
@@ -31,11 +31,10 @@ impl MergedOrStray {
         self
     }
 
-    pub fn locals(&self) -> Vec<&str> {
+    pub fn locals(&self) -> Vec<&LocalBranch> {
         self.merged_locals
             .iter()
             .chain(self.stray_locals.iter())
-            .map(String::as_str)
             .collect()
     }
 
@@ -50,7 +49,7 @@ impl MergedOrStray {
 #[derive(Default, Eq, PartialEq, Debug)]
 pub struct MergedOrStrayAndKeptBacks {
     pub to_delete: MergedOrStray,
-    pub kept_backs: HashMap<String, Reason>,
+    pub kept_backs: HashMap<LocalBranch, Reason>,
     pub kept_back_remotes: HashMap<RemoteBranch, Reason>,
 }
 
@@ -83,7 +82,6 @@ impl MergedOrStrayAndKeptBacks {
     pub fn keep_base(&mut self, repo: &Repository, base_refs: &HashSet<String>) -> Result<()> {
         trace!("base_refs: {:#?}", base_refs);
         self.kept_backs.extend(keep_branches(
-            repo,
             &base_refs,
             Reason {
                 original_classification: OriginalClassification::MergedLocal,
@@ -92,7 +90,6 @@ impl MergedOrStrayAndKeptBacks {
             &mut self.to_delete.merged_locals,
         )?);
         self.kept_backs.extend(keep_branches(
-            repo,
             &base_refs,
             Reason {
                 original_classification: OriginalClassification::StrayLocal,
@@ -128,7 +125,6 @@ impl MergedOrStrayAndKeptBacks {
     ) -> Result<()> {
         trace!("protected_refs: {:#?}", protected_refs);
         self.kept_backs.extend(keep_branches(
-            repo,
             &protected_refs,
             Reason {
                 original_classification: OriginalClassification::MergedLocal,
@@ -137,7 +133,6 @@ impl MergedOrStrayAndKeptBacks {
             &mut self.to_delete.merged_locals,
         )?);
         self.kept_backs.extend(keep_branches(
-            repo,
             &protected_refs,
             Reason {
                 original_classification: OriginalClassification::StrayLocal,
@@ -283,21 +278,22 @@ impl MergedOrStrayAndKeptBacks {
         }
         let head = repo.head()?;
         let head_name = head.name().context("non-utf8 head ref name")?;
+        let head_branch = LocalBranch::new(head_name);
 
-        if self.to_delete.merged_locals.contains(head_name) {
-            self.to_delete.merged_locals.remove(head_name);
+        if self.to_delete.merged_locals.contains(&head_branch) {
+            self.to_delete.merged_locals.remove(&head_branch);
             self.kept_backs.insert(
-                head_name.to_string(),
+                head_branch.clone(),
                 Reason {
                     original_classification: OriginalClassification::MergedLocal,
                     message: "not to make detached HEAD",
                 },
             );
         }
-        if self.to_delete.stray_locals.contains(head_name) {
-            self.to_delete.stray_locals.remove(head_name);
+        if self.to_delete.stray_locals.contains(&head_branch) {
+            self.to_delete.stray_locals.remove(&head_branch);
             self.kept_backs.insert(
-                head_name.to_string(),
+                head_branch,
                 Reason {
                     original_classification: OriginalClassification::StrayLocal,
                     message: "not to make detached HEAD",
@@ -309,23 +305,20 @@ impl MergedOrStrayAndKeptBacks {
 }
 
 fn keep_branches(
-    repo: &Repository,
     protected_refs: &HashSet<String>,
     reason: Reason,
-    references: &mut HashSet<String>,
-) -> Result<HashMap<String, Reason>> {
+    branches: &mut HashSet<LocalBranch>,
+) -> Result<HashMap<LocalBranch, Reason>> {
     let mut kept_back = HashMap::new();
     let mut bag = HashSet::new();
-    for refname in references.iter() {
-        let reference = repo.find_reference(refname)?;
-        let refname = reference.name().context("non utf-8 branch ref")?;
-        if protected_refs.contains(refname) {
-            bag.insert(refname.to_string());
-            kept_back.insert(refname.to_string(), reason.clone());
+    for branch in branches.iter() {
+        if protected_refs.contains(&branch.refname) {
+            bag.insert(branch.clone());
+            kept_back.insert(branch.clone(), reason.clone());
         }
     }
-    for refname in bag.into_iter() {
-        references.remove(&refname);
+    for branch in bag.into_iter() {
+        branches.remove(&branch);
     }
     Ok(kept_back)
 }
@@ -420,25 +413,25 @@ impl Classification {
 /// Make sure repo and config are semantically Send + Sync.
 pub fn classify(
     git: ForceSendSync<&Git>,
-    merged_locals: &HashSet<String>,
+    merged_locals: &HashSet<LocalBranch>,
     remote_heads_per_url: &HashMap<String, HashSet<String>>,
     base: &RemoteTrackingBranch,
-    refname: &str,
+    branch: &LocalBranch,
 ) -> Result<Classification> {
-    let branch = Ref::from_name(&git.repo, refname)?;
+    let branch_ref = Ref::from_name(&git.repo, &branch.refname)?;
     let branch_is_merged =
-        merged_locals.contains(refname) || is_merged(&git.repo, &base.refname, refname)?;
-    let fetch = if let Some(fetch) = get_fetch_upstream(&git.repo, &git.config, refname)? {
+        merged_locals.contains(branch) || is_merged(&git.repo, &base.refname, &branch.refname)?;
+    let fetch = if let Some(fetch) = get_fetch_upstream(&git.repo, &git.config, branch)? {
         let upstream = Ref::from_name(&git.repo, &fetch.refname)?;
-        let merged = (branch_is_merged && upstream.commit == branch.commit)
+        let merged = (branch_is_merged && upstream.commit == branch_ref.commit)
             || is_merged(&git.repo, &base.refname, &upstream.name)?;
         Some(UpstreamMergeState { upstream, merged })
     } else {
         None
     };
-    let push = if let Some(push) = get_push_upstream(&git.repo, &git.config, refname)? {
+    let push = if let Some(push) = get_push_upstream(&git.repo, &git.config, branch)? {
         let upstream = Ref::from_name(&git.repo, &push.refname)?;
-        let merged = (branch_is_merged && upstream.commit == branch.commit)
+        let merged = (branch_is_merged && upstream.commit == branch_ref.commit)
             || fetch
                 .as_ref()
                 .map(|x| x.merged && upstream.commit == x.upstream.commit)
@@ -450,7 +443,7 @@ pub fn classify(
     };
 
     let mut c = Classification {
-        branch,
+        branch: branch_ref,
         branch_is_merged,
         fetch: fetch.clone(),
         push: push.clone(),
@@ -462,13 +455,13 @@ pub fn classify(
         (Some(fetch), Some(push)) => {
             if branch_is_merged {
                 c.messages.push("local is merged");
-                c.result.merged_locals.insert(refname.to_string());
+                c.result.merged_locals.insert(branch.clone());
                 c.merged_or_stray_remote(&git.repo, &fetch)?;
                 c.merged_or_stray_remote(&git.repo, &push)?;
             } else if fetch.merged || push.merged {
                 c.messages
                     .push("some upstreams are merged, but the local strays");
-                c.result.stray_locals.insert(refname.to_string());
+                c.result.stray_locals.insert(branch.clone());
                 c.merged_or_stray_remote(&git.repo, &push)?;
                 c.merged_or_stray_remote(&git.repo, &fetch)?;
             }
@@ -477,11 +470,11 @@ pub fn classify(
         (Some(upstream), None) | (None, Some(upstream)) => {
             if branch_is_merged {
                 c.messages.push("local is merged");
-                c.result.merged_locals.insert(refname.to_string());
+                c.result.merged_locals.insert(branch.clone());
                 c.merged_or_stray_remote(&git.repo, &upstream)?;
             } else if upstream.merged {
                 c.messages.push("upstream is merged, but the local strays");
-                c.result.stray_locals.insert(refname.to_string());
+                c.result.stray_locals.insert(branch.clone());
                 c.merged_remote(&git.repo, &upstream.upstream)?;
             }
         }
@@ -490,9 +483,9 @@ pub fn classify(
         // so `get_push_upstream` and `get_fetch_upstream` returns None.
         // However we can try manual classification without `remote.{remote}` entry.
         (None, None) => {
-            let remote = config::get_remote_raw(&git.config, refname)?
+            let remote = config::get_remote_raw(&git.config, branch)?
                 .expect("should have it if it has an upstream");
-            let merge = config::get_merge(&git.config, refname)?
+            let merge = config::get_merge(&git.config, branch)?
                 .expect("should have it if it has an upstream");
             let upstream_is_exists = remote_heads_per_url.contains_key(&remote)
                 && remote_heads_per_url[&remote].contains(&merge);
@@ -501,7 +494,7 @@ pub fn classify(
                 c.messages.push(
                     "merged local, merged remote: the branch is merged, but forgot to delete",
                 );
-                c.result.merged_locals.insert(refname.to_string());
+                c.result.merged_locals.insert(branch.clone());
                 c.result.merged_remotes.insert(RemoteBranch {
                     remote,
                     refname: merge,
@@ -509,11 +502,11 @@ pub fn classify(
             } else if branch_is_merged {
                 c.messages
                     .push("merged local: the branch is merged, and deleted");
-                c.result.merged_locals.insert(refname.to_string());
+                c.result.merged_locals.insert(branch.clone());
             } else if !upstream_is_exists {
                 c.messages
                     .push("the branch is not merged but the remote is gone somehow");
-                c.result.stray_locals.insert(refname.to_string());
+                c.result.stray_locals.insert(branch.clone());
             } else {
                 c.messages.push("skip: the branch is alive");
             }
