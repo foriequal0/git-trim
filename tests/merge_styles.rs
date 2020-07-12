@@ -5,10 +5,10 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::{get_merged_or_stray, Config, Git, MergedOrStray};
+use git_trim::args::DeleteFilter;
+use git_trim::{get_merged_or_stray, Config, Git, LocalBranch, MergedOrStray};
 
 use fixture::{rc, Fixture};
-use git_trim::args::DeleteFilter;
 
 fn fixture() -> Fixture {
     rc().append_fixture_trace(
@@ -70,7 +70,9 @@ fn test_noff() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"refs/heads/feature"},
+            merged_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             ..Default::default()
         },
     );
@@ -97,7 +99,9 @@ fn test_rebase() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"refs/heads/feature"},
+            merged_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             ..Default::default()
         },
     );
@@ -122,7 +126,9 @@ fn test_squash() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"refs/heads/feature"},
+            merged_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             ..Default::default()
         },
     );
@@ -197,7 +203,11 @@ fn test_mixed() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"refs/heads/squashme", "refs/heads/rebaseme", "refs/heads/noffme"},
+            merged_locals: set! {
+                LocalBranch::new("refs/heads/squashme"),
+                LocalBranch::new("refs/heads/rebaseme"),
+                LocalBranch::new("refs/heads/noffme"),
+            },
             ..Default::default()
         },
     );

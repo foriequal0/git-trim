@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::{get_merged_or_stray, Config, Git, MergedOrStray, RemoteBranch};
+use git_trim::{get_merged_or_stray, Config, Git, LocalBranch, MergedOrStray, RemoteBranch};
 
 use fixture::{rc, Fixture};
 use git_trim::args::DeleteFilter;
@@ -81,7 +81,9 @@ fn test_accepted() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"refs/heads/feature"},
+            merged_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             ..Default::default()
         },
     );
@@ -116,7 +118,9 @@ fn test_accepted_but_edited() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            stray_locals: set! {"refs/heads/feature"},
+            stray_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             ..Default::default()
         },
     );
@@ -142,7 +146,9 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"refs/heads/feature"},
+            merged_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             merged_remotes: set! {
                 RemoteBranch {
                     remote: "origin".to_string(),
@@ -179,7 +185,9 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            stray_locals: set! {"refs/heads/feature"},
+            stray_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             merged_remotes: set! {
                 RemoteBranch {
                     remote: "origin".to_string(),
@@ -209,7 +217,9 @@ fn test_rejected() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            stray_locals: set! {"refs/heads/feature"},
+            stray_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             ..Default::default()
         },
     );
@@ -238,7 +248,9 @@ fn test_rejected_but_edited() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            stray_locals: set! {"refs/heads/feature"},
+            stray_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             ..Default::default()
         },
     );

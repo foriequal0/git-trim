@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use git2::{Config, Reference, Repository};
 use log::*;
 
-use crate::branch::{get_fetch_upstream, RemoteBranch, RemoteTrackingBranch};
+use crate::branch::{get_fetch_upstream, LocalBranch, RemoteBranch, RemoteTrackingBranch};
 use crate::config::get_remote;
 
 fn git(repo: &Repository, args: &[&str], level: log::Level) -> Result<()> {
@@ -79,7 +79,7 @@ pub fn get_noff_merged_locals(
     repo: &Repository,
     config: &Config,
     bases: &[RemoteTrackingBranch],
-) -> Result<HashSet<String>> {
+) -> Result<HashSet<LocalBranch>> {
     let mut result = HashSet::new();
     for base in bases {
         let refnames = git_output(
@@ -95,11 +95,12 @@ pub fn get_noff_merged_locals(
         )?;
         for refname in refnames.lines() {
             debug!("refname: {}", refname);
-            if get_remote(config, refname)?.is_implicit() {
+            let branch = LocalBranch::new(refname);
+            if get_remote(config, &branch)?.is_implicit() {
                 debug!("skip: it is not a tracking branch");
                 continue;
             }
-            let upstream = get_fetch_upstream(repo, config, refname)?;
+            let upstream = get_fetch_upstream(repo, config, &branch)?;
             if Some(base) == upstream.as_ref() {
                 debug!("skip: {} tracks {:?}", refname, base);
                 continue;
@@ -110,7 +111,7 @@ pub fn get_noff_merged_locals(
                 continue;
             }
             debug!("noff merged local: it is merged to {:?}", base);
-            result.insert(refname.to_string());
+            result.insert(branch);
         }
     }
     Ok(result)
@@ -145,11 +146,11 @@ pub fn checkout(repo: &Repository, head: Reference, dry_run: bool) -> Result<()>
     }
 }
 
-pub fn branch_delete(repo: &Repository, refnames: &[&str], dry_run: bool) -> Result<()> {
+pub fn branch_delete(repo: &Repository, branches: &[&LocalBranch], dry_run: bool) -> Result<()> {
     let mut args = vec!["branch", "--delete", "--force"];
     let mut branch_names = Vec::new();
-    for refname in refnames {
-        let reference = repo.find_reference(refname)?;
+    for branch in branches {
+        let reference = repo.find_reference(&branch.refname)?;
         assert!(reference.is_branch());
         let branch_name = reference.shorthand().context("non utf-8 branch name")?;
         branch_names.push(branch_name.to_owned());

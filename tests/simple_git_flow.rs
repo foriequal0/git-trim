@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::{get_merged_or_stray, Config, Git, MergedOrStray, RemoteBranch};
+use git_trim::{get_merged_or_stray, Config, Git, LocalBranch, MergedOrStray, RemoteBranch};
 
 use fixture::{rc, Fixture};
 use git_trim::args::DeleteFilter;
@@ -72,7 +72,9 @@ fn test_feature_to_develop() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"refs/heads/feature"},
+            merged_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             ..Default::default()
         },
     );
@@ -105,7 +107,9 @@ fn test_feature_to_develop_but_forgot_to_delete() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"refs/heads/feature"},
+            merged_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             merged_remotes: set! {
                 RemoteBranch {
                     remote: "origin".to_string(),
@@ -148,7 +152,9 @@ fn test_develop_to_master() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"refs/heads/feature"},
+            merged_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             ..Default::default()
         },
     );
@@ -184,7 +190,9 @@ fn test_develop_to_master_but_forgot_to_delete() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"refs/heads/feature"},
+            merged_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             merged_remotes: set! {
                 RemoteBranch {
                     remote: "origin".to_string(),
@@ -226,7 +234,9 @@ fn test_hotfix_to_master() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"refs/heads/hotfix"},
+            merged_locals: set! {
+                LocalBranch::new("refs/heads/hotfix"),
+            },
             ..Default::default()
         },
     );
@@ -261,7 +271,9 @@ fn test_hotfix_to_master_forgot_to_delete() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            merged_locals: set! {"refs/heads/hotfix"},
+            merged_locals: set! {
+                LocalBranch::new("refs/heads/hotfix"),
+            },
             merged_remotes: set! {
                 RemoteBranch {
                     remote: "origin".to_string(),
@@ -299,7 +311,9 @@ fn test_rejected_feature_to_develop() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            stray_locals: set! {"refs/heads/feature"},
+            stray_locals: set! {
+                LocalBranch::new("refs/heads/feature"),
+            },
             ..Default::default()
         },
     );
@@ -333,7 +347,9 @@ fn test_rejected_hotfix_to_master() -> Result<()> {
     assert_eq!(
         branches.to_delete,
         MergedOrStray {
-            stray_locals: set! {"refs/heads/hotfix"},
+            stray_locals: set! {
+                LocalBranch::new("refs/heads/hotfix"),
+            },
             ..Default::default()
         },
     );
