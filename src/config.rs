@@ -104,113 +104,42 @@ where
     }
 }
 
-impl<'a, T> ConfigBuilder<'a, Vec<T>>
-where
-    Vec<T>: ConfigValues,
-{
-    pub fn read_multi(self) -> GitResult<ConfigValue<Vec<T>>> {
+impl<'a, T> ConfigBuilder<'a, T> {
+    pub fn parses_and_collect<U>(self) -> Result<ConfigValue<U>>
+    where
+        T: IntoIterator,
+        U: FromStr + FromIterator<<T as IntoIterator>::Item> + FromIterator<U> + Default,
+        U::Err: std::error::Error + Send + Sync + 'static,
+    {
         if let Some((source, value)) = self.explicit {
             return Ok(ConfigValue::Explicit {
-                value,
+                value: value.into_iter().collect(),
                 source: source.to_string(),
             });
         }
-        match Vec::<T>::get_config_value(self.config, self.key) {
-            Ok(value) if !value.is_empty() => Ok(ConfigValue::Explicit {
-                value,
-                source: self.key.to_string(),
-            }),
-            Err(err) if !config_not_exist(&err) => Err(err),
-            _ => {
-                if let Some(default) = self.default {
-                    Ok(ConfigValue::Implicit(default))
-                } else {
-                    Ok(ConfigValue::Implicit(Vec::new()))
-                }
-            }
-        }
-    }
-}
-
-impl<'a, T> ConfigBuilder<'a, T> {
-    pub fn parse_with<F>(self, parse: F) -> Result<Option<ConfigValue<T>>>
-    where
-        F: FnOnce(&str) -> Result<T>,
-    {
-        if let Some((source, value)) = self.explicit {
-            return Ok(Some(ConfigValue::Explicit {
-                value,
-                source: source.to_string(),
-            }));
-        }
-
-        let result = match self.config.get_str(self.key) {
-            Ok(value) => Some(ConfigValue::Explicit {
-                value: parse(value)?,
-                source: self.key.to_string(),
-            }),
-            Err(err) if config_not_exist(&err) => {
-                if let Some(default) = self.default {
-                    Some(ConfigValue::Implicit(default))
-                } else {
-                    None
-                }
-            }
-            Err(err) => return Err(err.into()),
-        };
-        Ok(result)
-    }
-
-    pub fn parse_multi_with<F>(self, parse: F) -> Result<Option<ConfigValue<T>>>
-    where
-        F: FnOnce(&[String]) -> Result<T>,
-    {
-        if let Some((source, value)) = self.explicit {
-            return Ok(Some(ConfigValue::Explicit {
-                value,
-                source: source.to_string(),
-            }));
-        }
 
         let result = match Vec::<String>::get_config_value(self.config, self.key) {
-            Ok(values) if !values.is_empty() => Some(ConfigValue::Explicit {
-                value: parse(&values)?,
-                source: self.key.to_string(),
-            }),
+            Ok(values) if !values.is_empty() => {
+                let mut result = Vec::new();
+                for x in values {
+                    result.push(U::from_str(&x)?)
+                }
+
+                ConfigValue::Explicit {
+                    value: result.into_iter().collect(),
+                    source: self.key.to_string(),
+                }
+            }
             Ok(_) => {
                 if let Some(default) = self.default {
-                    Some(ConfigValue::Implicit(default))
+                    ConfigValue::Implicit(default.into_iter().collect())
                 } else {
-                    None
+                    ConfigValue::Implicit(U::default())
                 }
             }
             Err(err) => return Err(err.into()),
         };
         Ok(result)
-    }
-}
-
-impl<'a, T> ConfigBuilder<'a, T> {
-    pub fn parse(self) -> Result<Option<ConfigValue<T>>>
-    where
-        T: FromStr,
-        T::Err: std::error::Error + Send + Sync + 'static,
-    {
-        self.parse_with(|str| Ok(str.parse()?))
-    }
-
-    pub fn parse_flatten<U>(self) -> Result<Option<ConfigValue<T>>>
-    where
-        T: FromStr + IntoIterator<Item = U> + FromIterator<U>,
-        T::Err: std::error::Error + Send + Sync + 'static,
-    {
-        self.parse_multi_with(|strings| {
-            let mut result = Vec::new();
-            for x in strings {
-                result.push(T::from_str(x)?.into_iter())
-            }
-            Ok(T::from_iter(result.into_iter().flatten()))
-        })
     }
 }
 
@@ -226,17 +155,13 @@ impl ConfigValues for String {
     }
 }
 
-impl<T> ConfigValues for Vec<T>
-where
-    T: FromStr,
-    T::Err: Debug,
-{
+impl ConfigValues for Vec<String> {
     fn get_config_value(config: &Config, key: &str) -> Result<Self, git2::Error> {
         let mut result = Vec::new();
         for entry in &config.entries(Some(key))? {
             let entry = entry?;
             if let Some(value) = entry.value() {
-                result.push(T::from_str(value).unwrap());
+                result.push(value.to_owned());
             } else {
                 warn!(
                     "non utf-8 config entry {}",
@@ -254,6 +179,16 @@ impl ConfigValues for bool {
     }
 }
 
+impl ConfigValues for u64 {
+    fn get_config_value(config: &Config, key: &str) -> Result<Self, git2::Error> {
+        let value = config.get_i64(key)?;
+        if value >= 0 {
+            return Ok(value as u64);
+        }
+        panic!("`git config {}` cannot be negative value", key);
+    }
+}
+
 fn config_not_exist(err: &git2::Error) -> bool {
     err.code() == ErrorCode::NotFound && err.class() == ErrorClass::Config
 }
@@ -261,15 +196,12 @@ fn config_not_exist(err: &git2::Error) -> bool {
 pub fn get_push_remote(config: &Config, refname: &str) -> Result<ConfigValue<String>> {
     let branch_name = short_local_branch_name(refname)?;
 
-    if let Some(push_remote) = get(config, &format!("branch.{}.pushRemote", branch_name))
-        .parse_with(|push_remote| Ok(push_remote.to_string()))?
-    {
+    let push_remote_key = format!("branch.{}.pushRemote", branch_name);
+    if let Some(push_remote) = get(config, &push_remote_key).read()? {
         return Ok(push_remote);
     }
 
-    if let Some(push_default) =
-        get(config, "remote.pushDefault").parse_with(|push_default| Ok(push_default.to_string()))?
-    {
+    if let Some(push_default) = get(config, "remote.pushDefault").read()? {
         return Ok(push_default);
     }
 
@@ -329,7 +261,7 @@ where
     fn from_str(args: &str) -> Result<Self, Self::Err> {
         let mut result = Vec::new();
         for arg in args.split(',') {
-            let parsed = arg.trim().parse()?;
+            let parsed: T = arg.trim().parse()?;
             result.push(parsed);
         }
         Ok(Self::from_iter(result))
@@ -354,6 +286,18 @@ where
     }
 }
 
+impl<T> FromIterator<Self> for CommaSeparatedSet<T>
+where
+    T: PartialEq,
+{
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        iter.into_iter().flatten().collect()
+    }
+}
+
 impl<T> IntoIterator for CommaSeparatedSet<T> {
     type Item = T;
     type IntoIter = std::vec::IntoIter<T>;
@@ -368,15 +312,5 @@ impl<T> Deref for CommaSeparatedSet<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-impl<T> CommaSeparatedSet<T> {
-    pub fn into_option(self) -> Option<Self> {
-        if self.0.is_empty() {
-            None
-        } else {
-            Some(self)
-        }
     }
 }

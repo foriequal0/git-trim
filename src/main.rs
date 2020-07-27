@@ -7,7 +7,7 @@ use git2::{BranchType, Repository};
 use log::*;
 
 use git_trim::args::{Args, DeleteFilter};
-use git_trim::config::ConfigValue;
+use git_trim::config::{CommaSeparatedSet, ConfigValue};
 use git_trim::{
     config, Config, Git, MergedOrStrayAndKeptBacks, RemoteBranch, RemoteBranchError,
     RemoteTrackingBranch,
@@ -33,15 +33,12 @@ fn main(args: Args) -> Result<()> {
 
     let bases = config::get(&git.config, "trim.bases")
         .with_explicit("cli", non_empty(args.bases.clone()))
-        .with_default(vec![
-            String::from("develop"),
-            String::from("master"),
-        ])
-        .read_multi()?;
+        .with_default(vec![String::from("develop"), String::from("master")])
+        .parses_and_collect::<CommaSeparatedSet<String>>()?;
     let protected = config::get(&git.config, "trim.protected")
         .with_explicit("cli", non_empty(args.protected.clone()))
-        .with_default(bases.clone())
-        .read_multi()?;
+        .with_default(bases.iter().cloned().collect())
+        .parses_and_collect::<CommaSeparatedSet<String>>()?;
     let update = config::get(&git.config, "trim.update")
         .with_explicit("cli", args.update())
         .with_default(true)
@@ -50,8 +47,8 @@ fn main(args: Args) -> Result<()> {
     let update_interval = config::get(&git.config, "trim.updateInterval")
         .with_explicit("cli", args.update_interval)
         .with_default(5)
-        .parse()?
-        .expect("has default in structopt");
+        .read()?
+        .expect("has default");
     let confirm = config::get(&git.config, "trim.confirm")
         .with_explicit("cli", args.confirm())
         .with_default(true)
@@ -63,13 +60,9 @@ fn main(args: Args) -> Result<()> {
         .read()?
         .expect("has default");
     let filter = config::get(&git.config, "trim.delete")
-        .with_explicit(
-            "cli",
-            non_empty(args.delete.clone()).map(|x| x.into_iter().flatten().collect()),
-        )
-        .with_default(DeleteFilter::merged_origin())
-        .parse_flatten()?
-        .expect("has default");
+        .with_explicit("cli", non_empty(args.delete.clone()))
+        .with_default(vec![DeleteFilter::merged_origin()])
+        .parses_and_collect::<DeleteFilter>()?;
 
     info!("bases: {:?}", bases);
     info!("protected: {:?}", protected);
@@ -252,7 +245,7 @@ fn should_update(git: &Git, interval: u64, explicit: bool) -> Result<bool> {
 
     let auto_prune = config::get(&git.config, "fetch.prune")
         .with_default(false)
-        .parse()?
+        .read()?
         .expect("default is provided");
     if !*auto_prune {
         trace!("`git config fetch.prune` is false. force update");
