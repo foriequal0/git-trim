@@ -133,26 +133,26 @@ pub enum FilterUnit {
     StrayRemote(Scope),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DeleteFilter(HashSet<FilterUnit>);
 
 impl DeleteFilter {
     pub fn merged_origin() -> Self {
         use FilterUnit::*;
-        DeleteFilter::from_iter(vec![
+        DeleteFilter(HashSet::from_iter(vec![
             MergedLocal,
             MergedRemote(Scope::Scoped("origin".to_string())),
-        ])
+        ]))
     }
 
     pub fn all() -> Self {
         use FilterUnit::*;
-        DeleteFilter::from_iter(vec![
+        DeleteFilter(HashSet::from_iter(vec![
             MergedLocal,
             MergedRemote(Scope::All),
             StrayLocal,
             StrayRemote(Scope::All),
-        ])
+        ]))
     }
 
     pub fn filter_merged_local(&self) -> bool {
@@ -187,14 +187,6 @@ impl DeleteFilter {
             }
         }
         false
-    }
-
-    pub fn into_option(self) -> Option<Self> {
-        if self.0.is_empty() {
-            None
-        } else {
-            Some(self)
-        }
     }
 }
 
@@ -240,7 +232,7 @@ impl FromStr for DeleteFilter {
             result.extend(filters);
         }
 
-        Ok(Self::from_iter(result))
+        Ok(Self(HashSet::from_iter(result)))
     }
 }
 
@@ -276,6 +268,15 @@ impl FromIterator<FilterUnit> for DeleteFilter {
         }
 
         Self(result)
+    }
+}
+
+impl FromIterator<Self> for DeleteFilter {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = Self>,
+    {
+        Self(iter.into_iter().flatten().collect())
     }
 }
 
