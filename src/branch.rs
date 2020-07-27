@@ -172,7 +172,7 @@ fn get_push_remote_branch(
     }
 
     let push_default = config::get(config, "push.default")
-        .with_default(&String::from("simple"))
+        .with_default(String::from("simple"))
         .read()?
         .expect("has default");
 

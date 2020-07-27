@@ -44,7 +44,7 @@ pub struct ConfigBuilder<'a, T> {
     config: &'a Config,
     key: &'a str,
     explicit: Option<(&'a str, T)>,
-    default: Option<&'a T>,
+    default: Option<T>,
 }
 
 pub fn get<'a, T>(config: &'a Config, key: &'a str) -> ConfigBuilder<'a, T> {
@@ -56,10 +56,7 @@ pub fn get<'a, T>(config: &'a Config, key: &'a str) -> ConfigBuilder<'a, T> {
     }
 }
 
-impl<'a, T> ConfigBuilder<'a, T>
-where
-    T: Clone,
-{
+impl<'a, T> ConfigBuilder<'a, T> {
     pub fn with_explicit(self, source: &'a str, value: Option<T>) -> ConfigBuilder<'a, T> {
         if let Some(value) = value {
             ConfigBuilder {
@@ -71,7 +68,7 @@ where
         }
     }
 
-    pub fn with_default(self, value: &'a T) -> ConfigBuilder<'a, T> {
+    pub fn with_default(self, value: T) -> ConfigBuilder<'a, T> {
         ConfigBuilder {
             default: Some(value),
             ..self
@@ -81,7 +78,7 @@ where
 
 impl<'a, T> ConfigBuilder<'a, T>
 where
-    T: ConfigValues + Clone,
+    T: ConfigValues,
 {
     pub fn read(self) -> GitResult<Option<ConfigValue<T>>> {
         if let Some((source, value)) = self.explicit {
@@ -97,7 +94,7 @@ where
             })),
             Err(err) if config_not_exist(&err) => {
                 if let Some(default) = self.default {
-                    Ok(Some(ConfigValue::Implicit(default.clone())))
+                    Ok(Some(ConfigValue::Implicit(default)))
                 } else {
                     Ok(None)
                 }
@@ -109,7 +106,7 @@ where
 
 impl<'a, T> ConfigBuilder<'a, Vec<T>>
 where
-    Vec<T>: ConfigValues + Clone,
+    Vec<T>: ConfigValues,
 {
     pub fn read_multi(self) -> GitResult<ConfigValue<Vec<T>>> {
         if let Some((source, value)) = self.explicit {
@@ -126,7 +123,7 @@ where
             Err(err) if !config_not_exist(&err) => Err(err),
             _ => {
                 if let Some(default) = self.default {
-                    Ok(ConfigValue::Implicit(default.clone()))
+                    Ok(ConfigValue::Implicit(default))
                 } else {
                     Ok(ConfigValue::Implicit(Vec::new()))
                 }
@@ -135,10 +132,7 @@ where
     }
 }
 
-impl<'a, T> ConfigBuilder<'a, T>
-where
-    T: Clone,
-{
+impl<'a, T> ConfigBuilder<'a, T> {
     pub fn parse_with<F>(self, parse: F) -> Result<Option<ConfigValue<T>>>
     where
         F: FnOnce(&str) -> Result<T>,
@@ -157,7 +151,7 @@ where
             }),
             Err(err) if config_not_exist(&err) => {
                 if let Some(default) = self.default {
-                    Some(ConfigValue::Implicit(default.clone()))
+                    Some(ConfigValue::Implicit(default))
                 } else {
                     None
                 }
@@ -185,7 +179,7 @@ where
             }),
             Ok(_) => {
                 if let Some(default) = self.default {
-                    Some(ConfigValue::Implicit(default.clone()))
+                    Some(ConfigValue::Implicit(default))
                 } else {
                     None
                 }
@@ -199,7 +193,7 @@ where
 impl<'a, T> ConfigBuilder<'a, T> {
     pub fn parse(self) -> Result<Option<ConfigValue<T>>>
     where
-        T: FromStr + Clone,
+        T: FromStr,
         T::Err: std::error::Error + Send + Sync + 'static,
     {
         self.parse_with(|str| Ok(str.parse()?))
@@ -207,7 +201,7 @@ impl<'a, T> ConfigBuilder<'a, T> {
 
     pub fn parse_flatten<U>(self) -> Result<Option<ConfigValue<T>>>
     where
-        T: FromStr + IntoIterator<Item = U> + FromIterator<U> + Clone,
+        T: FromStr + IntoIterator<Item = U> + FromIterator<U>,
         T::Err: std::error::Error + Send + Sync + 'static,
     {
         self.parse_multi_with(|strings| {
@@ -286,7 +280,7 @@ pub fn get_remote(config: &Config, refname: &str) -> Result<ConfigValue<String>>
     let branch_name = short_local_branch_name(refname)?;
 
     Ok(get(config, &format!("branch.{}.remote", branch_name))
-        .with_default(&String::from("origin"))
+        .with_default(String::from("origin"))
         .read()?
         .expect("has default"))
 }
