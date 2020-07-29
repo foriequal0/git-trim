@@ -91,6 +91,9 @@ jobs:
         profile: minimal
     - run: cargo fetch --verbose
     - run: cargo build --tests
+    - name: Add msys2 to PATH
+      run: echo "::add-path::C:\msys64\usr\bin"
+      if: runner.os == 'Windows'
     - run: cargo test --all
       env:
         RUST_LOG: trace

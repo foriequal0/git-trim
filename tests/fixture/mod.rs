@@ -69,6 +69,16 @@ impl Fixture {
             .stderr(Stdio::piped());
         if !cfg!(windows) {
             command.env_clear();
+        } else {
+            // If I don't touch any env, Rust just calls `CreateProcessW` with "bash"
+            // However, Windows finds the binary from "C:\windows\system32" first [1]
+            // and "bash.exe" is there if WSL is installed to the System.
+            // However, when there is no WSL distro (ex: GitHub Actions), it just raise an error.
+            // When I touch any of env, Rust finds the binary from `%PATH%` [2]
+            // It is weird and unreliable hack, but I DONT WANT WSL BASH AND IT WORKS FOR NOW.
+            // [1] https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw
+            // [2] https://github.com/rust-lang/rust/issues/37519
+            command.env("ASDF", "QWER");
         }
         let mut bash = command.spawn()?;
 
