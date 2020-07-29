@@ -92,7 +92,7 @@ jobs:
     - run: cargo fetch --verbose
     - run: cargo build --tests
     - name: Add msys2 to PATH
-      run: echo "::add-path::C:\msys64\usr\bin"
+      run: echo "::add-path::C:\Program Files\Git\bin"
       if: runner.os == 'Windows'
     - run: cargo test --all
       env:
