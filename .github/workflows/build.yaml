@@ -32,21 +32,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
-    - name: Cache cargo registry
-      uses: actions/cache@v1
+    - uses: actions/cache@v2
       with:
-        path: ~/.cargo/registry
-        key: ${{ runner.os }}-cargo-clippy-registry-${{ hashFiles('**/Cargo.lock') }}
-    - name: Cache cargo index
-      uses: actions/cache@v1
-      with:
-        path: ~/.cargo/git
-        key: ${{ runner.os }}-cargo-clippy-index-${{ hashFiles('**/Cargo.lock') }}
-    - name: Cache cargo build
-      uses: actions/cache@v1
-      with:
-        path: target
-        key: ${{ runner.os }}-cargo-clippy-build-target-${{ hashFiles('**/Cargo.lock') }}
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - uses: actions-rs/toolchain@v1.0.5
       with:
         profile: minimal
@@ -71,21 +63,13 @@ jobs:
       fail-fast: false
     steps:
     - uses: actions/checkout@v1
-    - name: Cache cargo registry
-      uses: actions/cache@v1
+    - uses: actions/cache@v2
       with:
-        path: ~/.cargo/registry
-        key: ${{ runner.os }}-cargo-test-registry-${{ hashFiles('**/Cargo.lock') }}
-    - name: Cache cargo index
-      uses: actions/cache@v1
-      with:
-        path: ~/.cargo/git
-        key: ${{ runner.os }}-cargo-test-index-${{ hashFiles('**/Cargo.lock') }}
-    - name: Cache cargo build
-      uses: actions/cache@v1
-      with:
-        path: target
-        key: ${{ runner.os }}-cargo-test-build-target-${{ hashFiles('**/Cargo.lock') }}
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - uses: actions-rs/toolchain@v1.0.5
       with:
         profile: minimal
