@@ -16,7 +16,7 @@ use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote};
+use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote_entry};
 pub use crate::branch::{RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
 pub use crate::core::{MergedOrStray, MergedOrStrayAndKeptBacks};
 use crate::subprocess::ls_remote_heads;
@@ -82,7 +82,7 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             );
             continue;
         }
-        if get_remote(&git.repo, &config_remote)?.is_none() {
+        if get_remote_entry(&git.repo, &config_remote)?.is_none() {
             debug!(
                 "The branch's remote is assumed to be an URL: {}",
                 config_remote.as_str()

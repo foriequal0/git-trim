@@ -23,7 +23,7 @@ impl RemoteTrackingBranch {
         repo: &Repository,
         remote_branch: &RemoteBranch,
     ) -> Result<Option<RemoteTrackingBranch>> {
-        let remote = get_remote(repo, &remote_branch.remote)?;
+        let remote = get_remote_entry(repo, &remote_branch.remote)?;
         if let Some(remote) = remote {
             let refname = if let Some(expanded) = expand_refspec(
                 &remote,
@@ -92,7 +92,7 @@ pub fn get_fetch_upstream(
     )
 }
 
-pub fn get_remote<'a>(repo: &'a Repository, remote_name: &str) -> Result<Option<Remote<'a>>> {
+pub fn get_remote_entry<'a>(repo: &'a Repository, remote_name: &str) -> Result<Option<Remote<'a>>> {
     fn error_is_missing_remote(err: &Error) -> bool {
         err.class() == ErrorClass::Config && err.code() == ErrorCode::InvalidSpec
     }
@@ -152,7 +152,7 @@ fn get_push_remote_branch(
     let refname = reference.name().context("non utf-8 refname")?;
 
     let remote_name = config::get_push_remote(config, refname)?;
-    if let Some(remote) = get_remote(repo, &remote_name)? {
+    if let Some(remote) = get_remote_entry(repo, &remote_name)? {
         let refname = if let Some(expanded) =
             expand_refspec(&remote, &refname, Direction::Push, ExpansionSide::Right)?
         {
