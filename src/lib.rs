@@ -18,6 +18,7 @@ use rayon::prelude::*;
 use crate::args::DeleteFilter;
 use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote_entry};
 pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
+use crate::core::MergeTracker;
 pub use crate::core::{MergedOrStray, MergedOrStrayAndKeptBacks};
 use crate::subprocess::ls_remote_heads;
 pub use crate::subprocess::remote_update;
@@ -52,16 +53,15 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
     trace!("base_upstreams: {:#?}", base_upstreams);
     trace!("protected_refs: {:#?}", protected_refs);
 
-    let mut merged_or_stray = MergedOrStray::default();
-    // Fast filling ff merged branches
-    let noff_merged_locals =
-        subprocess::get_noff_merged_locals(&git.repo, &git.config, &base_upstreams)?;
-    merged_or_stray
-        .merged_locals
-        .extend(noff_merged_locals.clone());
-
-    let mut merged_locals = HashSet::new();
-    merged_locals.extend(noff_merged_locals);
+    let merge_tracker = MergeTracker::new();
+    for base_upstream in &base_upstreams {
+        merge_tracker.track(&git.repo, &base_upstream.refname)?;
+    }
+    for merged_locals in
+        subprocess::get_noff_merged_locals(&git.repo, &git.config, &base_upstreams)?
+    {
+        merge_tracker.track(&git.repo, &merged_locals.refname)?;
+    }
 
     let mut base_and_branch_to_compare = Vec::new();
     let mut remote_urls = Vec::new();
@@ -129,12 +129,13 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
             let git = ForceSendSync::new(git);
             move |(base, branch)| {
-                core::classify(git, &merged_locals, &remote_heads_per_url, &base, &branch)
+                core::classify(git, &merge_tracker, &remote_heads_per_url, &base, &branch)
                     .with_context(|| format!("base={:?}, branch={:?}", base, branch))
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+    let mut merged_or_stray = MergedOrStray::default();
     for classification in classifications.into_iter() {
         debug!("branch: {:?}", classification.branch);
         trace!("merged: {}", classification.branch_is_merged);

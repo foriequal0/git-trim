@@ -102,7 +102,7 @@ pub fn get_noff_merged_locals(
             }
             let upstream = get_fetch_upstream(repo, config, &branch)?;
             if Some(base) == upstream.as_ref() {
-                debug!("skip: {} tracks {:?}", refname, base);
+                debug!("skip: tracks {}", base.refname);
                 continue;
             }
             let reference = repo.find_reference(&refname)?;
