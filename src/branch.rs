@@ -50,7 +50,7 @@ impl<'repo> TryFrom<&git2::Reference<'repo>> for LocalBranch {
     }
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash, Clone)]
 pub struct RemoteTrackingBranch {
     pub refname: String,
 }
