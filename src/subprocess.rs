@@ -117,6 +117,43 @@ pub fn get_noff_merged_locals(
     Ok(result)
 }
 
+pub fn get_noff_merged_remotes(
+    repo: &Repository,
+    bases: &[RemoteTrackingBranch],
+) -> Result<HashSet<RemoteTrackingBranch>> {
+    let mut result = HashSet::new();
+    for base in bases {
+        let refnames = git_output(
+            repo,
+            &[
+                "branch",
+                "--format",
+                "%(refname)",
+                "--remote",
+                "--merged",
+                &base.refname,
+            ],
+            Level::Trace,
+        )?;
+        for refname in refnames.lines() {
+            debug!("refname: {}", refname);
+            let branch = RemoteTrackingBranch::new(refname);
+            if base == &branch {
+                debug!("skip: {} is a base", branch.refname);
+                continue;
+            }
+            let reference = repo.find_reference(&refname)?;
+            if reference.symbolic_target().is_some() {
+                debug!("skip: it is symbolic");
+                continue;
+            }
+            debug!("noff merged remote: it is merged to {:?}", base);
+            result.insert(branch);
+        }
+    }
+    Ok(result)
+}
+
 pub fn ls_remote_heads(repo: &Repository, remote_name: &str) -> Result<HashSet<String>> {
     let mut result = HashSet::new();
     for line in git_output(repo, &["ls-remote", "--heads", remote_name], Level::Trace)?.lines() {
