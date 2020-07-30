@@ -347,35 +347,15 @@ fn keep_remote_branches(
 }
 
 #[derive(Debug, Clone)]
-pub struct Ref {
-    name: String,
-    commit: String,
-}
-
-impl Ref {
-    fn from_name(repo: &Repository, refname: &str) -> Result<Ref> {
-        Ok(Ref {
-            name: refname.to_string(),
-            commit: repo
-                .find_reference(refname)?
-                .peel_to_commit()?
-                .id()
-                .to_string(),
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct UpstreamMergeState {
-    upstream: Ref,
+pub struct MergeState<B> {
+    branch: B,
     merged: bool,
 }
 
 pub struct Classification {
-    pub branch: Ref,
-    pub branch_is_merged: bool,
-    pub fetch: Option<UpstreamMergeState>,
-    pub push: Option<UpstreamMergeState>,
+    pub local: MergeState<LocalBranch>,
+    pub fetch: Option<MergeState<RemoteTrackingBranch>>,
+    pub push: Option<MergeState<RemoteTrackingBranch>>,
     pub messages: Vec<&'static str>,
     pub result: MergedOrStray,
 }
@@ -384,29 +364,29 @@ impl Classification {
     fn merged_or_stray_remote(
         &mut self,
         repo: &Repository,
-        merge_state: &UpstreamMergeState,
+        merge_state: &MergeState<RemoteTrackingBranch>,
     ) -> Result<()> {
         if merge_state.merged {
             self.messages
                 .push("fetch upstream is merged, but forget to delete");
-            self.merged_remote(repo, &merge_state.upstream)
+            self.merged_remote(repo, &merge_state.branch)
         } else {
             self.messages.push("fetch upstream is not merged");
-            self.stray_remote(repo, &merge_state.upstream)
+            self.stray_remote(repo, &merge_state.branch)
         }
     }
 
-    fn merged_remote(&mut self, repo: &Repository, upstream: &Ref) -> Result<()> {
+    fn merged_remote(&mut self, repo: &Repository, upstream: &RemoteTrackingBranch) -> Result<()> {
         self.result
             .merged_remotes
-            .insert(RemoteTrackingBranch::new(&upstream.name).remote_branch(&repo)?);
+            .insert(upstream.remote_branch(&repo)?);
         Ok(())
     }
 
-    fn stray_remote(&mut self, repo: &Repository, upstream: &Ref) -> Result<()> {
+    fn stray_remote(&mut self, repo: &Repository, upstream: &RemoteTrackingBranch) -> Result<()> {
         self.result
             .stray_remotes
-            .insert(RemoteTrackingBranch::new(&upstream.name).remote_branch(&repo)?);
+            .insert(upstream.remote_branch(&repo)?);
         Ok(())
     }
 }
@@ -419,27 +399,34 @@ pub fn classify(
     base: &RemoteTrackingBranch,
     branch: &LocalBranch,
 ) -> Result<Classification> {
-    let branch_ref = Ref::from_name(&git.repo, &branch.refname)?;
-    let branch_is_merged =
-        merge_tracker.check_and_track(&git.repo, &base.refname, &branch.refname)?;
+    let local = {
+        let merged = merge_tracker.check_and_track(&git.repo, &base.refname, &branch.refname)?;
+        MergeState {
+            branch: branch.clone(),
+            merged,
+        }
+    };
     let fetch = if let Some(fetch) = get_fetch_upstream(&git.repo, &git.config, branch)? {
-        let upstream = Ref::from_name(&git.repo, &fetch.refname)?;
-        let merged = merge_tracker.check_and_track(&git.repo, &base.refname, &upstream.name)?;
-        Some(UpstreamMergeState { upstream, merged })
+        let merged = merge_tracker.check_and_track(&git.repo, &base.refname, &fetch.refname)?;
+        Some(MergeState {
+            branch: fetch,
+            merged,
+        })
     } else {
         None
     };
     let push = if let Some(push) = get_push_upstream(&git.repo, &git.config, branch)? {
-        let upstream = Ref::from_name(&git.repo, &push.refname)?;
-        let merged = merge_tracker.check_and_track(&git.repo, &base.refname, &upstream.name)?;
-        Some(UpstreamMergeState { upstream, merged })
+        let merged = merge_tracker.check_and_track(&git.repo, &base.refname, &push.refname)?;
+        Some(MergeState {
+            branch: push,
+            merged,
+        })
     } else {
         None
     };
 
     let mut c = Classification {
-        branch: branch_ref,
-        branch_is_merged,
+        local: local.clone(),
         fetch: fetch.clone(),
         push: push.clone(),
         messages: vec![],
@@ -448,7 +435,7 @@ pub fn classify(
 
     match (fetch, push) {
         (Some(fetch), Some(push)) => {
-            if branch_is_merged {
+            if local.merged {
                 c.messages.push("local is merged");
                 c.result.merged_locals.insert(branch.clone());
                 c.merged_or_stray_remote(&git.repo, &fetch)?;
@@ -463,14 +450,14 @@ pub fn classify(
         }
 
         (Some(upstream), None) | (None, Some(upstream)) => {
-            if branch_is_merged {
+            if local.merged {
                 c.messages.push("local is merged");
                 c.result.merged_locals.insert(branch.clone());
                 c.merged_or_stray_remote(&git.repo, &upstream)?;
             } else if upstream.merged {
                 c.messages.push("upstream is merged, but the local strays");
                 c.result.stray_locals.insert(branch.clone());
-                c.merged_remote(&git.repo, &upstream.upstream)?;
+                c.merged_remote(&git.repo, &upstream.branch)?;
             }
         }
 
@@ -485,7 +472,7 @@ pub fn classify(
             let upstream_is_exists = remote_heads_per_url.contains_key(&remote)
                 && remote_heads_per_url[&remote].contains(&merge);
 
-            if upstream_is_exists && branch_is_merged {
+            if upstream_is_exists && local.merged {
                 c.messages.push(
                     "merged local, merged remote: the branch is merged, but forgot to delete",
                 );
@@ -494,7 +481,7 @@ pub fn classify(
                     remote,
                     refname: merge,
                 });
-            } else if branch_is_merged {
+            } else if local.merged {
                 c.messages
                     .push("merged local: the branch is merged, and deleted");
                 c.result.merged_locals.insert(branch.clone());

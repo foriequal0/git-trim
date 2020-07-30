@@ -132,7 +132,7 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
             let git = ForceSendSync::new(git);
             move |(base, branch)| {
-                core::classify(git, &merge_tracker, &remote_heads_per_url, &base, &branch)
+                core::classify(git, &merge_tracker, &remote_heads_per_url, base, &branch)
                     .with_context(|| format!("base={:?}, branch={:?}", base, branch))
             }
         })
@@ -140,8 +140,7 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
 
     let mut merged_or_stray = MergedOrStray::default();
     for classification in classifications.into_iter() {
-        debug!("branch: {:?}", classification.branch);
-        trace!("merged: {}", classification.branch_is_merged);
+        debug!("branch: {:?}", classification.local);
         trace!("fetch: {:?}", classification.fetch);
         trace!("push: {:?}", classification.push);
         debug!("message: {:?}", classification.messages);
