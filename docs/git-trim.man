@@ -24,7 +24,7 @@ FLAGS
 
 OPTIONS
        -b, --bases=bases
-              Comma  separated  multiple  names  of  branches.  All the other branches are compared with the upstream
+              Comma separated multiple names of branches. All the other branches are compared with the upstream
               branches of those branches. [default: master] [config: trim.bases]
 
        -p, --protected=protected
@@ -32,20 +32,20 @@ OPTIONS
               deleted. [default: <bases>] [config: trim.protected]
 
        --update-interval=update-interval
-              Prevents  too frequent updates. Seconds between updates in seconds. 0 to disable. [default: 5] [config:
+              Prevents too frequent updates. Seconds between updates in seconds. 0 to disable. [default: 5] [config:
               trim.updateInterval]
 
        -d, --delete=delete
-              Comma separated values of `<filter unit>[:<remote name>]`. Filter unit is  one  of  the  `all,  merged,
-              gone,  local,  remote,  merged-local, merged-remote, stray-local, stray-remote`. You can scope a filter
-              unit  to  specific  remote  `:<remote  name>`  to  a  `filter  unit`  when  the  filter  unit   implies
+              Comma separated values of `<filter unit>[:<remote name>]`. Filter unit is one of the `all, merged,
+              gone, local, remote, merged-local, merged-remote, stray-local, stray-remote`. You can scope a filter
+              unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies
               `merged-remote` or `stray-remote`. [default : `merged:origin`] [config: trim.filter]
 
-              If  there  are  filter units that are scoped, it trims remote branches only in the specified remote. If
+              If there are filter units that are scoped, it trims remote branches only in the specified remote. If
               there are any filter unit that isn`t scoped, it trims all remote branches.
 
-              `all`     implies     `merged-local,merged-remote,stray-local,stray-remote`.      `merged`      implies
-              `merged-local,merged-remote`.    `stray`    implies    `stray-local,stray-remote`.    `local`   implies
+              `all` implies `merged-local,merged-remote,stray-local,stray-remote`. `merged` implies
+              `merged-local,merged-remote`. `stray` implies `stray-local,stray-remote`. `local` implies
               `merged-local,stray-local`. `remote` implies `merged-remote,stray-remote`.
 
 EXIT STATUS
