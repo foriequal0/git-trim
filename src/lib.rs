@@ -91,18 +91,10 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
             );
             remote_urls.push(config_remote.to_string());
         }
-
-        if protected_refs.contains(&branch.refname) {
-            debug!("Skip: the branch is protected branch: {:?}", branch);
-            continue;
-        }
         if let Some(upstream) = &fetch_upstream {
             if base_upstreams.contains(&upstream) {
-                debug!("Skip: the branch is the base: {:?}", branch);
+                debug!("Skip: the branch tracks the base: {:?}", branch);
                 continue;
-            }
-            if protected_refs.contains(&upstream.refname) {
-                debug!("Skip: the branch tracks protected branch: {:?}", branch);
             }
         }
 
