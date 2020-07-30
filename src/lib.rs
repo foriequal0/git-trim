@@ -62,6 +62,9 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
     {
         merge_tracker.track(&git.repo, &merged_locals.refname)?;
     }
+    for merged_remotes in subprocess::get_noff_merged_remotes(&git.repo, &base_upstreams)? {
+        merge_tracker.track(&git.repo, &merged_remotes.refname)?;
+    }
 
     let mut base_and_branch_to_compare = Vec::new();
     let mut remote_urls = Vec::new();
