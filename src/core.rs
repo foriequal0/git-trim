@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
 use git2::{Oid, Repository, Signature};
@@ -413,30 +414,24 @@ impl Classification {
 /// Make sure repo and config are semantically Send + Sync.
 pub fn classify(
     git: ForceSendSync<&Git>,
-    merged_locals: &HashSet<LocalBranch>,
+    merge_tracker: &MergeTracker,
     remote_heads_per_url: &HashMap<String, HashSet<String>>,
     base: &RemoteTrackingBranch,
     branch: &LocalBranch,
 ) -> Result<Classification> {
     let branch_ref = Ref::from_name(&git.repo, &branch.refname)?;
     let branch_is_merged =
-        merged_locals.contains(branch) || is_merged(&git.repo, &base.refname, &branch.refname)?;
+        merge_tracker.check_and_track(&git.repo, &base.refname, &branch.refname)?;
     let fetch = if let Some(fetch) = get_fetch_upstream(&git.repo, &git.config, branch)? {
         let upstream = Ref::from_name(&git.repo, &fetch.refname)?;
-        let merged = (branch_is_merged && upstream.commit == branch_ref.commit)
-            || is_merged(&git.repo, &base.refname, &upstream.name)?;
+        let merged = merge_tracker.check_and_track(&git.repo, &base.refname, &upstream.name)?;
         Some(UpstreamMergeState { upstream, merged })
     } else {
         None
     };
     let push = if let Some(push) = get_push_upstream(&git.repo, &git.config, branch)? {
         let upstream = Ref::from_name(&git.repo, &push.refname)?;
-        let merged = (branch_is_merged && upstream.commit == branch_ref.commit)
-            || fetch
-                .as_ref()
-                .map(|x| x.merged && upstream.commit == x.upstream.commit)
-                == Some(true)
-            || is_merged(&git.repo, &base.refname, &upstream.name)?;
+        let merged = merge_tracker.check_and_track(&git.repo, &base.refname, &upstream.name)?;
         Some(UpstreamMergeState { upstream, merged })
     } else {
         None
@@ -516,13 +511,58 @@ pub fn classify(
     Ok(c)
 }
 
-fn is_merged(repo: &Repository, base: &str, refname: &str) -> Result<bool> {
-    let base_oid = repo.find_reference(base)?.peel_to_commit()?.id();
-    let other_oid = repo.find_reference(refname)?.peel_to_commit()?.id();
-    // git merge-base {base} {refname}
-    let merge_base = repo.merge_base(base_oid, other_oid)?.to_string();
-    Ok(is_merged_by_rev_list(repo, base, refname)?
-        || is_squash_merged(repo, &merge_base, base, refname)?)
+#[derive(Clone)]
+pub struct MergeTracker {
+    merged_set: Arc<Mutex<HashSet<String>>>,
+}
+
+impl MergeTracker {
+    pub fn new() -> Self {
+        Self {
+            merged_set: Arc::new(Mutex::new(HashSet::new())),
+        }
+    }
+
+    pub fn track(&self, repo: &Repository, refname: &str) -> Result<()> {
+        let oid = repo
+            .find_reference(refname)?
+            .peel_to_commit()?
+            .id()
+            .to_string();
+        let mut set = self.merged_set.lock().unwrap();
+        set.insert(oid);
+        Ok(())
+    }
+
+    pub fn check_and_track(&self, repo: &Repository, base: &str, refname: &str) -> Result<bool> {
+        let base_oid = repo.find_reference(base)?.peel_to_commit()?.id();
+        let target_oid = repo.find_reference(refname)?.peel_to_commit()?.id();
+        let target_oid_string = target_oid.to_string();
+
+        // I know the locking is ugly. I'm trying to hold the lock as short as possible.
+        // Operations against `repo` take long time up to several seconds when the disk is slow.
+        {
+            let set = self.merged_set.lock().unwrap().clone();
+            if set.contains(&target_oid_string) {
+                return Ok(true);
+            }
+        }
+
+        if is_merged_by_rev_list(repo, base, refname)? {
+            let mut set = self.merged_set.lock().unwrap();
+            set.insert(target_oid_string);
+            return Ok(true);
+        }
+
+        let merge_base = repo.merge_base(base_oid, target_oid)?.to_string();
+        if is_squash_merged(repo, &merge_base, base, refname)? {
+            let mut set = self.merged_set.lock().unwrap();
+            set.insert(target_oid_string);
+            return Ok(true);
+        }
+
+        Ok(false)
+    }
 }
 
 /// Source: https://stackoverflow.com/a/56026209
