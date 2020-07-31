@@ -4,12 +4,79 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use anyhow::Result;
-use git2::{Config, ErrorClass, ErrorCode};
+use git2::{Config as GitConfig, ErrorClass, ErrorCode};
 use log::*;
 
+use crate::args::{Args, DeleteFilter};
 use crate::branch::LocalBranch;
 
 type GitResult<T> = std::result::Result<T, git2::Error>;
+
+#[derive(Debug)]
+pub struct Config {
+    pub bases: ConfigValue<CommaSeparatedSet<String>>,
+    pub protected: ConfigValue<CommaSeparatedSet<String>>,
+    pub update: ConfigValue<bool>,
+    pub update_interval: ConfigValue<u64>,
+    pub confirm: ConfigValue<bool>,
+    pub detach: ConfigValue<bool>,
+    pub filter: ConfigValue<DeleteFilter>,
+}
+
+impl Config {
+    pub fn read(config: &GitConfig, args: &Args) -> Result<Self> {
+        fn non_empty<T>(x: Vec<T>) -> Option<Vec<T>> {
+            if x.is_empty() {
+                None
+            } else {
+                Some(x)
+            }
+        }
+
+        let bases = get(config, "trim.bases")
+            .with_explicit("cli", non_empty(args.bases.clone()))
+            .with_default(vec![String::from("develop"), String::from("master")])
+            .parses_and_collect::<CommaSeparatedSet<String>>()?;
+        let protected = get(config, "trim.protected")
+            .with_explicit("cli", non_empty(args.protected.clone()))
+            .with_default(bases.iter().cloned().collect())
+            .parses_and_collect::<CommaSeparatedSet<String>>()?;
+        let update = get(config, "trim.update")
+            .with_explicit("cli", args.update())
+            .with_default(true)
+            .read()?
+            .expect("has default");
+        let update_interval = get(config, "trim.updateInterval")
+            .with_explicit("cli", args.update_interval)
+            .with_default(5)
+            .read()?
+            .expect("has default");
+        let confirm = get(config, "trim.confirm")
+            .with_explicit("cli", args.confirm())
+            .with_default(true)
+            .read()?
+            .expect("has default");
+        let detach = get(config, "trim.detach")
+            .with_explicit("cli", args.detach())
+            .with_default(true)
+            .read()?
+            .expect("has default");
+        let filter = get(config, "trim.delete")
+            .with_explicit("cli", non_empty(args.delete.clone()))
+            .with_default(vec![DeleteFilter::merged_origin()])
+            .parses_and_collect::<DeleteFilter>()?;
+
+        Ok(Config {
+            bases,
+            protected,
+            update,
+            update_interval,
+            confirm,
+            detach,
+            filter,
+        })
+    }
+}
 
 #[derive(Debug)]
 pub enum ConfigValue<T> {
@@ -43,13 +110,13 @@ impl<T> Deref for ConfigValue<T> {
 }
 
 pub struct ConfigBuilder<'a, T> {
-    config: &'a Config,
+    config: &'a GitConfig,
     key: &'a str,
     explicit: Option<(&'a str, T)>,
     default: Option<T>,
 }
 
-pub fn get<'a, T>(config: &'a Config, key: &'a str) -> ConfigBuilder<'a, T> {
+pub fn get<'a, T>(config: &'a GitConfig, key: &'a str) -> ConfigBuilder<'a, T> {
     ConfigBuilder {
         config,
         key,
@@ -59,7 +126,7 @@ pub fn get<'a, T>(config: &'a Config, key: &'a str) -> ConfigBuilder<'a, T> {
 }
 
 impl<'a, T> ConfigBuilder<'a, T> {
-    pub fn with_explicit(self, source: &'a str, value: Option<T>) -> ConfigBuilder<'a, T> {
+    fn with_explicit(self, source: &'a str, value: Option<T>) -> ConfigBuilder<'a, T> {
         if let Some(value) = value {
             ConfigBuilder {
                 explicit: Some((source, value)),
@@ -107,7 +174,7 @@ where
 }
 
 impl<'a, T> ConfigBuilder<'a, T> {
-    pub fn parses_and_collect<U>(self) -> Result<ConfigValue<U>>
+    fn parses_and_collect<U>(self) -> Result<ConfigValue<U>>
     where
         T: IntoIterator,
         U: FromStr + FromIterator<<T as IntoIterator>::Item> + FromIterator<U> + Default,
@@ -146,19 +213,19 @@ impl<'a, T> ConfigBuilder<'a, T> {
 }
 
 pub trait ConfigValues {
-    fn get_config_value(config: &Config, key: &str) -> Result<Self, git2::Error>
+    fn get_config_value(config: &GitConfig, key: &str) -> Result<Self, git2::Error>
     where
         Self: Sized;
 }
 
 impl ConfigValues for String {
-    fn get_config_value(config: &Config, key: &str) -> Result<Self, git2::Error> {
+    fn get_config_value(config: &GitConfig, key: &str) -> Result<Self, git2::Error> {
         config.get_string(key)
     }
 }
 
 impl ConfigValues for Vec<String> {
-    fn get_config_value(config: &Config, key: &str) -> Result<Self, git2::Error> {
+    fn get_config_value(config: &GitConfig, key: &str) -> Result<Self, git2::Error> {
         let mut result = Vec::new();
         for entry in &config.entries(Some(key))? {
             let entry = entry?;
@@ -176,13 +243,13 @@ impl ConfigValues for Vec<String> {
 }
 
 impl ConfigValues for bool {
-    fn get_config_value(config: &Config, key: &str) -> Result<Self, git2::Error> {
+    fn get_config_value(config: &GitConfig, key: &str) -> Result<Self, git2::Error> {
         config.get_bool(key)
     }
 }
 
 impl ConfigValues for u64 {
-    fn get_config_value(config: &Config, key: &str) -> Result<Self, git2::Error> {
+    fn get_config_value(config: &GitConfig, key: &str) -> Result<Self, git2::Error> {
         let value = config.get_i64(key)?;
         if value >= 0 {
             return Ok(value as u64);
@@ -195,7 +262,7 @@ fn config_not_exist(err: &git2::Error) -> bool {
     err.code() == ErrorCode::NotFound && err.class() == ErrorClass::Config
 }
 
-pub fn get_push_remote(config: &Config, branch: &LocalBranch) -> Result<ConfigValue<String>> {
+pub fn get_push_remote(config: &GitConfig, branch: &LocalBranch) -> Result<ConfigValue<String>> {
     let push_remote_key = format!("branch.{}.pushRemote", branch.short_name());
     if let Some(push_remote) = get(config, &push_remote_key).read()? {
         return Ok(push_remote);
@@ -208,7 +275,7 @@ pub fn get_push_remote(config: &Config, branch: &LocalBranch) -> Result<ConfigVa
     get_remote(config, branch)
 }
 
-pub fn get_remote(config: &Config, branch: &LocalBranch) -> Result<ConfigValue<String>> {
+pub fn get_remote(config: &GitConfig, branch: &LocalBranch) -> Result<ConfigValue<String>> {
     let value = get(config, &format!("branch.{}.remote", branch.short_name()))
         .with_default(String::from("origin"))
         .read()?
@@ -216,7 +283,7 @@ pub fn get_remote(config: &Config, branch: &LocalBranch) -> Result<ConfigValue<S
     Ok(value)
 }
 
-pub fn get_remote_raw(config: &Config, branch: &LocalBranch) -> Result<Option<String>> {
+pub fn get_remote_raw(config: &GitConfig, branch: &LocalBranch) -> Result<Option<String>> {
     let key = format!("branch.{}.remote", branch.short_name());
     match config.get_string(&key) {
         Ok(remote) => Ok(Some(remote)),
@@ -225,7 +292,7 @@ pub fn get_remote_raw(config: &Config, branch: &LocalBranch) -> Result<Option<St
     }
 }
 
-pub fn get_merge(config: &Config, branch: &LocalBranch) -> Result<Option<String>> {
+pub fn get_merge(config: &GitConfig, branch: &LocalBranch) -> Result<Option<String>> {
     let key = format!("branch.{}.merge", branch.short_name());
     match config.get_string(&key) {
         Ok(merge) => Ok(Some(merge)),
