@@ -8,7 +8,7 @@ use std::str::FromStr;
 
 use clap::Clap;
 
-#[derive(Clap)]
+#[derive(Clap, Default)]
 #[clap(
     version,
     about = "Automatically trims your tracking branches whose upstream branches are merged or stray.",
@@ -133,7 +133,7 @@ pub enum FilterUnit {
     StrayRemote(Scope),
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct DeleteFilter(HashSet<FilterUnit>);
 
 impl DeleteFilter {
