@@ -78,7 +78,7 @@ impl Config {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ConfigValue<T> {
     Explicit { value: T, source: String },
     Implicit(T),
@@ -301,8 +301,17 @@ pub fn get_merge(config: &GitConfig, branch: &LocalBranch) -> Result<Option<Stri
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct CommaSeparatedSet<T>(Vec<T>);
+
+impl<T> CommaSeparatedSet<T>
+where
+    T: PartialEq,
+{
+    pub fn new(value: Vec<T>) -> Self {
+        Self::from_iter(value)
+    }
+}
 
 impl<T> FromStr for CommaSeparatedSet<T>
 where
