@@ -217,7 +217,12 @@ fn resolve_base_upstream(
                 // Just skip.
             }
         } else {
-            let reference = repo.resolve_reference_from_short_name(base)?;
+            let reference = match repo.resolve_reference_from_short_name(base) {
+                Ok(reference) => reference,
+                Err(err) if err.code() == ErrorCode::NotFound => continue,
+                Err(err) => return Err(err.into()),
+            };
+
             if let Ok(branch) = LocalBranch::try_from(&reference) {
                 if let Some(upstream) = get_fetch_upstream(repo, config, &branch)? {
                     result.push(upstream);
