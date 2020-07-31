@@ -781,8 +781,13 @@ fn resolve_base_upstream(
     let mut result = Vec::new();
     for base in bases {
         if base.starts_with("refs/remotes/") {
-            result.push(RemoteTrackingBranch::new(base));
-            continue;
+            if repo.find_reference(base).is_ok() {
+                result.push(RemoteTrackingBranch::new(base));
+                continue;
+            } else {
+                // The tracking remote branch is not fetched.
+                // Just skip.
+            }
         } else {
             // find "master, refs/heads/master -> refs/remotes/origin/master"
             if let Some(upstream) = get_fetch_upstream(repo, config, base)? {
