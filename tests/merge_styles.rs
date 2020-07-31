@@ -6,7 +6,7 @@ use anyhow::Result;
 use git2::Repository;
 
 use git_trim::args::DeleteFilter;
-use git_trim::{get_merged_or_stray, Config, Git, LocalBranch, MergedOrStray};
+use git_trim::{get_trim_plan, ClassifiedBranch, Config, Git, LocalBranch};
 
 use fixture::{rc, Fixture};
 
@@ -66,14 +66,11 @@ fn test_noff() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(&git, &config())?;
+    let plan = get_trim_plan(&git, &config())?;
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            merged_locals: set! {
-                LocalBranch::new("refs/heads/feature"),
-            },
-            ..Default::default()
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/feature")),
         },
     );
     Ok(())
@@ -95,14 +92,11 @@ fn test_rebase() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(&git, &config())?;
+    let plan = get_trim_plan(&git, &config())?;
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            merged_locals: set! {
-                LocalBranch::new("refs/heads/feature"),
-            },
-            ..Default::default()
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/feature")),
         },
     );
     Ok(())
@@ -122,14 +116,11 @@ fn test_squash() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(&git, &config())?;
+    let plan = get_trim_plan(&git, &config())?;
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            merged_locals: set! {
-                LocalBranch::new("refs/heads/feature"),
-            },
-            ..Default::default()
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/feature")),
         },
     );
     Ok(())
@@ -199,16 +190,13 @@ fn test_mixed() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(&git, &config())?;
+    let plan = get_trim_plan(&git, &config())?;
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            merged_locals: set! {
-                LocalBranch::new("refs/heads/squashme"),
-                LocalBranch::new("refs/heads/rebaseme"),
-                LocalBranch::new("refs/heads/noffme"),
-            },
-            ..Default::default()
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/squashme")),
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/rebaseme")),
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/noffme")),
         },
     );
     Ok(())

@@ -155,11 +155,11 @@ impl DeleteFilter {
         ]))
     }
 
-    pub fn filter_merged_local(&self) -> bool {
+    pub fn delete_merged_local(&self) -> bool {
         self.0.contains(&FilterUnit::MergedLocal)
     }
 
-    pub fn filter_merged_remote(&self, remote: &str) -> bool {
+    pub fn delete_merged_remote(&self, remote: &str) -> bool {
         for filter in self.0.iter() {
             match filter {
                 FilterUnit::MergedRemote(Scope::All) => return true,
@@ -172,11 +172,11 @@ impl DeleteFilter {
         false
     }
 
-    pub fn filter_stray_local(&self) -> bool {
+    pub fn delete_stray_local(&self) -> bool {
         self.0.contains(&FilterUnit::StrayLocal)
     }
 
-    pub fn filter_stray_remote(&self, remote: &str) -> bool {
+    pub fn delete_stray_remote(&self, remote: &str) -> bool {
         for filter in self.0.iter() {
             match filter {
                 FilterUnit::StrayRemote(Scope::All) => return true,

@@ -6,7 +6,7 @@ use anyhow::Result;
 use git2::Repository;
 
 use git_trim::args::{DeleteFilter, FilterUnit, Scope};
-use git_trim::{get_merged_or_stray, Config, Git, LocalBranch, MergedOrStray, RemoteBranch};
+use git_trim::{get_trim_plan, ClassifiedBranch, Config, Git, LocalBranch, RemoteBranch};
 
 use fixture::{rc, Fixture};
 use std::iter::FromIterator;
@@ -84,7 +84,7 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(
+    let plan = get_trim_plan(
         &git,
         &Config {
             filter: DeleteFilter::all(),
@@ -92,16 +92,15 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
         },
     )?;
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            merged_locals: set! { LocalBranch::new("refs/heads/feature") },
-            merged_remotes: set! {
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/feature")),
+            ClassifiedBranch::MergedRemote(
                 RemoteBranch {
                     remote: "contributer".to_string(),
                     refname: "refs/heads/feature".to_string()
                 },
-            },
-            ..Default::default()
+            ),
         },
     );
     Ok(())
@@ -123,12 +122,11 @@ fn test_accidential_track() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(&git, &config())?;
+    let plan = get_trim_plan(&git, &config())?;
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            merged_locals: set! { LocalBranch::new("refs/heads/feature") },
-            ..Default::default()
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/feature")),
         },
     );
     Ok(())

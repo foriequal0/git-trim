@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::{get_merged_or_stray, Config, Git, LocalBranch, MergedOrStray, RemoteBranch};
+use git_trim::{get_trim_plan, ClassifiedBranch, Config, Git, LocalBranch, RemoteBranch};
 
 use fixture::{rc, Fixture};
 use git_trim::args::DeleteFilter;
@@ -87,15 +87,12 @@ fn test_feature_to_develop() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(&git, &config())?;
+    let plan = get_trim_plan(&git, &config())?;
 
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            merged_locals: set! {
-                LocalBranch::new("refs/heads/feature"),
-            },
-            ..Default::default()
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/feature")),
         },
     );
     Ok(())
@@ -127,21 +124,18 @@ fn test_feature_to_develop_but_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(&git, &config())?;
+    let plan = get_trim_plan(&git, &config())?;
 
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            merged_locals: set! {
-                LocalBranch::new("refs/heads/feature"),
-            },
-            merged_remotes: set! {
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/feature")),
+            ClassifiedBranch::MergedRemote(
                 RemoteBranch {
                     remote: "origin".to_string(),
                     refname: "refs/heads/feature".to_string(),
                 },
-            },
-            ..Default::default()
+            ),
         },
     );
     Ok(())
@@ -181,15 +175,12 @@ fn test_develop_to_master() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(&git, &config())?;
+    let plan = get_trim_plan(&git, &config())?;
 
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            merged_locals: set! {
-                LocalBranch::new("refs/heads/feature"),
-            },
-            ..Default::default()
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/feature")),
         },
     );
     Ok(())
@@ -224,21 +215,18 @@ fn test_develop_to_master_but_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(&git, &config())?;
+    let plan = get_trim_plan(&git, &config())?;
 
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            merged_locals: set! {
-                LocalBranch::new("refs/heads/feature"),
-            },
-            merged_remotes: set! {
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/feature")),
+            ClassifiedBranch::MergedRemote(
                 RemoteBranch {
                     remote: "origin".to_string(),
                     refname: "refs/heads/feature".to_string(),
                 },
-            },
-            ..Default::default()
+            ),
         },
     );
     Ok(())
@@ -277,15 +265,12 @@ fn test_hotfix_to_master() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(&git, &config())?;
+    let plan = get_trim_plan(&git, &config())?;
 
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            merged_locals: set! {
-                LocalBranch::new("refs/heads/hotfix"),
-            },
-            ..Default::default()
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/hotfix")),
         },
     );
     Ok(())
@@ -319,21 +304,18 @@ fn test_hotfix_to_master_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(&git, &config())?;
+    let plan = get_trim_plan(&git, &config())?;
 
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            merged_locals: set! {
-                LocalBranch::new("refs/heads/hotfix"),
-            },
-            merged_remotes: set! {
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/hotfix")),
+            ClassifiedBranch::MergedRemote(
                 RemoteBranch {
                     remote: "origin".to_string(),
                     refname: "refs/heads/hotfix".to_string(),
                 },
-            },
-            ..Default::default()
+            ),
         },
     );
     Ok(())
@@ -365,15 +347,12 @@ fn test_rejected_feature_to_develop() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(&git, &config())?;
+    let plan = get_trim_plan(&git, &config())?;
 
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            stray_locals: set! {
-                LocalBranch::new("refs/heads/feature"),
-            },
-            ..Default::default()
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::StrayLocal(LocalBranch::new("refs/heads/feature")),
         },
     );
     Ok(())
@@ -407,15 +386,12 @@ fn test_rejected_hotfix_to_master() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(&git, &config())?;
+    let plan = get_trim_plan(&git, &config())?;
 
     assert_eq!(
-        branches.to_delete,
-        MergedOrStray {
-            stray_locals: set! {
-                LocalBranch::new("refs/heads/hotfix"),
-            },
-            ..Default::default()
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::StrayLocal(LocalBranch::new("refs/heads/hotfix")),
         },
     );
     Ok(())
@@ -452,7 +428,7 @@ fn test_protected_feature_to_develop() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(
+    let plan = get_trim_plan(
         &git,
         &Config {
             protected_branches: set! {"refs/heads/feature"},
@@ -460,7 +436,7 @@ fn test_protected_feature_to_develop() -> Result<()> {
         },
     )?;
 
-    assert_eq!(branches.to_delete, MergedOrStray::default(),);
+    assert_eq!(plan.to_delete, set! {});
     Ok(())
 }
 
@@ -498,7 +474,7 @@ fn test_protected_feature_to_master() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(
+    let plan = get_trim_plan(
         &git,
         &Config {
             protected_branches: set! {"refs/heads/feature"},
@@ -506,7 +482,7 @@ fn test_protected_feature_to_master() -> Result<()> {
         },
     )?;
 
-    assert_eq!(branches.to_delete, MergedOrStray::default(),);
+    assert_eq!(plan.to_delete, set! {});
     Ok(())
 }
 
@@ -536,7 +512,7 @@ fn test_rejected_protected_feature_to_develop() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let branches = get_merged_or_stray(
+    let plan = get_trim_plan(
         &git,
         &Config {
             protected_branches: set! {"refs/heads/feature"},
@@ -544,6 +520,6 @@ fn test_rejected_protected_feature_to_develop() -> Result<()> {
         },
     )?;
 
-    assert_eq!(branches.to_delete, MergedOrStray::default(),);
+    assert_eq!(plan.to_delete, set! {});
     Ok(())
 }
