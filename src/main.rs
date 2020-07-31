@@ -7,13 +7,12 @@ use dialoguer::Confirmation;
 use git2::{BranchType, Repository};
 use log::*;
 
-use git_trim::args::{Args, DeleteFilter};
-use git_trim::config::{CommaSeparatedSet, ConfigValue};
+use git_trim::args::Args;
+use git_trim::config::{self, Config, ConfigValue};
 use git_trim::{
-    config, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteBranchError, RemoteTrackingBranch,
-    TrimPlan,
+    delete_local_branches, delete_remote_branches, get_trim_plan, remote_update, ClassifiedBranch,
+    Git, LocalBranch, PlanParam, RemoteBranchError, RemoteTrackingBranch, TrimPlan,
 };
-use git_trim::{delete_local_branches, delete_remote_branches, get_trim_plan, remote_update};
 
 type Result<T> = ::std::result::Result<T, Error>;
 type Error = Box<dyn std::error::Error>;
@@ -32,51 +31,14 @@ fn main(args: Args) -> Result<()> {
         return Err(anyhow::anyhow!("git-trim requires at least one remote").into());
     }
 
-    let bases = config::get(&git.config, "trim.bases")
-        .with_explicit("cli", non_empty(args.bases.clone()))
-        .with_default(vec![String::from("develop"), String::from("master")])
-        .parses_and_collect::<CommaSeparatedSet<String>>()?;
-    let protected = config::get(&git.config, "trim.protected")
-        .with_explicit("cli", non_empty(args.protected.clone()))
-        .with_default(bases.iter().cloned().collect())
-        .parses_and_collect::<CommaSeparatedSet<String>>()?;
-    let update = config::get(&git.config, "trim.update")
-        .with_explicit("cli", args.update())
-        .with_default(true)
-        .read()?
-        .expect("has default");
-    let update_interval = config::get(&git.config, "trim.updateInterval")
-        .with_explicit("cli", args.update_interval)
-        .with_default(5)
-        .read()?
-        .expect("has default");
-    let confirm = config::get(&git.config, "trim.confirm")
-        .with_explicit("cli", args.confirm())
-        .with_default(true)
-        .read()?
-        .expect("has default");
-    let detach = config::get(&git.config, "trim.detach")
-        .with_explicit("cli", args.detach())
-        .with_default(true)
-        .read()?
-        .expect("has default");
-    let filter = config::get(&git.config, "trim.delete")
-        .with_explicit("cli", non_empty(args.delete.clone()))
-        .with_default(vec![DeleteFilter::merged_origin()])
-        .parses_and_collect::<DeleteFilter>()?;
+    let config = Config::read(&git.config, &args)?;
+    info!("config: {:?}", config);
 
-    info!("bases: {:?}", bases);
-    info!("protected: {:?}", protected);
-    info!("update: {:?}", update);
-    info!("confirm: {:?}", confirm);
-    info!("detach: {:?}", detach);
-    info!("filter: {:?}", filter);
-
-    if *update {
+    if *config.update {
         if should_update(
             &git,
-            *update_interval,
-            matches!(update, ConfigValue::Explicit { value: true , .. }),
+            *config.update_interval,
+            matches!(config.update, ConfigValue::Explicit { value: true , .. }),
         )? {
             remote_update(&git.repo, args.dry_run)?;
             println!();
@@ -88,10 +50,10 @@ fn main(args: Args) -> Result<()> {
     let plan = get_trim_plan(
         &git,
         &PlanParam {
-            bases: bases.iter().map(String::as_str).collect(),
-            protected_branches: protected.iter().map(String::as_str).collect(),
-            filter: filter.clone(),
-            detach: *detach,
+            bases: config.bases.iter().map(String::as_str).collect(),
+            protected_branches: config.protected.iter().map(String::as_str).collect(),
+            filter: config.filter.clone(),
+            detach: *config.detach,
         },
     )?;
 
@@ -102,7 +64,7 @@ fn main(args: Args) -> Result<()> {
     let any_branches_to_remove = !(locals.is_empty() && remotes.is_empty());
 
     if !args.dry_run
-        && *confirm
+        && *config.confirm
         && any_branches_to_remove
         && !Confirmation::new()
             .with_text("Confirm?")
@@ -116,14 +78,6 @@ fn main(args: Args) -> Result<()> {
     delete_remote_branches(&git.repo, &remotes, args.dry_run)?;
     delete_local_branches(&git.repo, &locals, args.dry_run)?;
     Ok(())
-}
-
-fn non_empty<T>(x: Vec<T>) -> Option<Vec<T>> {
-    if x.is_empty() {
-        None
-    } else {
-        Some(x)
-    }
 }
 
 pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
