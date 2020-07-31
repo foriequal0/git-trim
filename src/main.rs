@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::convert::TryFrom;
+use std::iter::FromIterator;
 
 use anyhow::Context;
 use dialoguer::Confirmation;
@@ -9,10 +10,10 @@ use log::*;
 use git_trim::args::{Args, DeleteFilter};
 use git_trim::config::{CommaSeparatedSet, ConfigValue};
 use git_trim::{
-    config, Config, Git, LocalBranch, MergedOrStrayAndKeptBacks, RemoteBranch, RemoteBranchError,
-    RemoteTrackingBranch,
+    config, ClassifiedBranch, Config, Git, LocalBranch, RemoteBranchError, RemoteTrackingBranch,
+    TrimPlan,
 };
-use git_trim::{delete_local_branches, delete_remote_branches, get_merged_or_stray, remote_update};
+use git_trim::{delete_local_branches, delete_remote_branches, get_trim_plan, remote_update};
 
 type Result<T> = ::std::result::Result<T, Error>;
 type Error = Box<dyn std::error::Error>;
@@ -84,7 +85,7 @@ fn main(args: Args) -> Result<()> {
         }
     }
 
-    let branches = get_merged_or_stray(
+    let plan = get_trim_plan(
         &git,
         &Config {
             bases: bases.iter().map(String::as_str).collect(),
@@ -94,10 +95,11 @@ fn main(args: Args) -> Result<()> {
         },
     )?;
 
-    print_summary(&branches, &git.repo)?;
+    print_summary(&plan, &git.repo)?;
 
-    let to_delete = branches.to_delete;
-    let any_branches_to_remove = !(to_delete.locals().is_empty() && to_delete.remotes().is_empty());
+    let locals = plan.locals_to_delete();
+    let remotes = plan.remotes_to_delete();
+    let any_branches_to_remove = !(locals.is_empty() && remotes.is_empty());
 
     if !args.dry_run
         && *confirm
@@ -111,8 +113,8 @@ fn main(args: Args) -> Result<()> {
         return Ok(());
     }
 
-    delete_remote_branches(&git.repo, &to_delete.remotes(), args.dry_run)?;
-    delete_local_branches(&git.repo, &to_delete.locals(), args.dry_run)?;
+    delete_remote_branches(&git.repo, &remotes, args.dry_run)?;
+    delete_local_branches(&git.repo, &locals, args.dry_run)?;
     Ok(())
 }
 
@@ -124,10 +126,10 @@ fn non_empty<T>(x: Vec<T>) -> Option<Vec<T>> {
     }
 }
 
-pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) -> Result<()> {
+pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
     println!("Branches that will remain:");
     println!("  local branches:");
-    let local_branches_to_delete: HashSet<_> = branches.to_delete.locals().into_iter().collect();
+    let local_branches_to_delete = HashSet::<_>::from_iter(plan.locals_to_delete());
     for local_branch in repo.branches(Some(BranchType::Local))? {
         let (branch, _) = local_branch?;
         let branch_name = branch.name()?.context("non utf-8 local branch name")?;
@@ -136,17 +138,19 @@ pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) ->
         if local_branches_to_delete.contains(&branch) {
             continue;
         }
-        if let Some(reason) = branches.kept_backs.get(&branch) {
+        if let Some(preserved) = plan.get_preserved_local(&branch) {
             println!(
                 "    {} [{}, but: {}]",
-                branch_name, reason.original_classification, reason.message
+                branch_name,
+                preserved.branch.class(),
+                preserved.reason
             );
         } else {
             println!("    {}", branch_name);
         }
     }
     println!("  remote references:");
-    let remote_refs_to_delete: HashSet<_> = branches.to_delete.remotes().into_iter().collect();
+    let remote_refs_to_delete = HashSet::<_>::from_iter(plan.remotes_to_delete());
     let mut printed_remotes = HashSet::new();
     for remote_ref in repo.branches(Some(BranchType::Remote))? {
         let (branch, _) = remote_ref?;
@@ -163,69 +167,66 @@ pub fn print_summary(branches: &MergedOrStrayAndKeptBacks, repo: &Repository) ->
         if remote_refs_to_delete.contains(&remote_branch) {
             continue;
         }
-        if let Some(reason) = branches.kept_back_remotes.get(&remote_branch) {
+        if let Some(preserved) = plan.get_preserved_remote(&remote_branch) {
             println!(
                 "    {} [{}, but: {}]",
-                shorthand, reason.original_classification, reason.message
+                shorthand,
+                preserved.branch.class(),
+                preserved.reason
             );
         } else {
             println!("    {}", shorthand);
         }
         printed_remotes.insert(remote_branch);
     }
-    for (remote_branch, reason) in branches.kept_back_remotes.iter() {
-        if !printed_remotes.contains(&remote_branch) {
-            println!(
-                "    {} [{}, but: {}]",
-                remote_branch.to_string(),
-                reason.original_classification,
-                reason.message
-            );
+    for preserved in &plan.preserved {
+        match &preserved.branch {
+            ClassifiedBranch::MergedRemote(remote) | ClassifiedBranch::StrayRemote(remote) => {
+                if !printed_remotes.contains(&remote) {
+                    println!(
+                        "    {} [{}, but: {}]",
+                        remote.to_string(),
+                        preserved.branch.class(),
+                        preserved.reason,
+                    );
+                }
+            }
+            _ => {}
         }
     }
     println!();
 
-    fn print<T, F>(label: &str, branches: &HashSet<T>, stringify: F) -> Result<()>
-    where
-        T: std::cmp::Ord,
-        for<'a> F: Fn(&'a T) -> Result<String>,
-    {
+    let mut merged_locals = Vec::new();
+    let mut merged_remotes = Vec::new();
+    let mut stray_locals = Vec::new();
+    let mut stray_remotes = Vec::new();
+    for branch in &plan.to_delete {
+        match branch {
+            ClassifiedBranch::MergedLocal(local) => {
+                merged_locals.push(local.short_name().to_owned())
+            }
+            ClassifiedBranch::StrayLocal(local) => stray_locals.push(local.short_name().to_owned()),
+            ClassifiedBranch::MergedRemote(remote) => merged_remotes.push(remote.to_string()),
+            ClassifiedBranch::StrayRemote(remote) => stray_remotes.push(remote.to_string()),
+        }
+    }
+
+    fn print(label: &str, mut branches: Vec<String>) -> Result<()> {
         if branches.is_empty() {
             return Ok(());
         }
-        let mut branches: Vec<_> = branches.iter().collect();
         branches.sort();
         println!("Delete {}:", label);
         for branch in branches {
-            println!("  - {}", stringify(branch)?);
+            println!("  - {}", branch);
         }
         Ok(())
     }
 
-    let shorthand = |branch: &LocalBranch| Ok(branch.short_name().to_string());
-
-    let stringify = |refname: &RemoteBranch| Ok(refname.to_string());
-
-    print(
-        "merged local branches",
-        &branches.to_delete.merged_locals,
-        shorthand,
-    )?;
-    print(
-        "merged remote refs",
-        &branches.to_delete.merged_remotes,
-        stringify,
-    )?;
-    print(
-        "stray local branches",
-        &branches.to_delete.stray_locals,
-        shorthand,
-    )?;
-    print(
-        "stray remote refs",
-        &branches.to_delete.stray_remotes,
-        stringify,
-    )?;
+    print("merged local branches", merged_locals)?;
+    print("merged remote refs", merged_remotes)?;
+    print("stray local branches", stray_locals)?;
+    print("stray remote refs", stray_remotes)?;
 
     Ok(())
 }

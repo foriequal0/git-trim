@@ -19,7 +19,7 @@ use crate::args::DeleteFilter;
 use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote_entry};
 pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
 use crate::core::MergeTracker;
-pub use crate::core::{MergedOrStray, MergedOrStrayAndKeptBacks};
+pub use crate::core::{ClassifiedBranch, TrimPlan};
 use crate::subprocess::ls_remote_heads;
 pub use crate::subprocess::remote_update;
 use crate::util::ForceSendSync;
@@ -46,7 +46,7 @@ pub struct Config<'a> {
 }
 
 #[allow(clippy::cognitive_complexity, clippy::implicit_hasher)]
-pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAndKeptBacks> {
+pub fn get_trim_plan(git: &Git, config: &Config) -> Result<TrimPlan> {
     let base_upstreams = resolve_base_upstream(&git.repo, &git.config, &config.bases)?;
     let protected_refs =
         resolve_protected_refs(&git.repo, &git.config, &config.protected_branches)?;
@@ -115,6 +115,7 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
         })
         .collect::<Result<HashMap<String, HashSet<String>>, _>>()?;
 
+    info!("Start classify:");
     let classifications = base_and_branch_to_compare
         .into_par_iter()
         .map({
@@ -130,24 +131,23 @@ pub fn get_merged_or_stray(git: &Git, config: &Config) -> Result<MergedOrStrayAn
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let mut merged_or_stray = MergedOrStray::default();
+    let mut delete = HashSet::new();
     for classification in classifications.into_iter() {
         debug!("branch: {:?}", classification.local);
         trace!("fetch: {:?}", classification.fetch);
         trace!("push: {:?}", classification.push);
         debug!("message: {:?}", classification.messages);
-        merged_or_stray = merged_or_stray.accumulate(classification.result);
+        delete.extend(classification.result.into_iter());
     }
 
-    let mut result = MergedOrStrayAndKeptBacks {
-        to_delete: merged_or_stray,
-        kept_backs: HashMap::new(),
-        kept_back_remotes: HashMap::new(),
+    let mut result = TrimPlan {
+        to_delete: delete,
+        preserved: Vec::new(),
     };
     let base_refs = resolve_base_refs(&git.repo, &git.config, &config.bases)?;
-    result.keep_base(&git.repo, &base_refs)?;
-    result.keep_protected(&git.repo, &protected_refs)?;
-    result.keep_non_heads_remotes();
+    result.preserve(&git.repo, &base_refs, "a base")?;
+    result.preserve(&git.repo, &protected_refs, "a protected")?;
+    result.preserve_non_heads_remotes();
     result.apply_filter(&config.filter)?;
 
     if !config.detach {
