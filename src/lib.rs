@@ -38,7 +38,7 @@ impl TryFrom<Repository> for Git {
     }
 }
 
-pub struct Config<'a> {
+pub struct PlanParam<'a> {
     pub bases: Vec<&'a str>,
     pub protected_branches: HashSet<&'a str>,
     pub filter: DeleteFilter,
@@ -46,10 +46,9 @@ pub struct Config<'a> {
 }
 
 #[allow(clippy::cognitive_complexity, clippy::implicit_hasher)]
-pub fn get_trim_plan(git: &Git, config: &Config) -> Result<TrimPlan> {
-    let base_upstreams = resolve_base_upstream(&git.repo, &git.config, &config.bases)?;
-    let protected_refs =
-        resolve_protected_refs(&git.repo, &git.config, &config.protected_branches)?;
+pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
+    let base_upstreams = resolve_base_upstream(&git.repo, &git.config, &param.bases)?;
+    let protected_refs = resolve_protected_refs(&git.repo, &git.config, &param.protected_branches)?;
     trace!("base_upstreams: {:#?}", base_upstreams);
     trace!("protected_refs: {:#?}", protected_refs);
 
@@ -144,13 +143,13 @@ pub fn get_trim_plan(git: &Git, config: &Config) -> Result<TrimPlan> {
         to_delete: delete,
         preserved: Vec::new(),
     };
-    let base_refs = resolve_base_refs(&git.repo, &git.config, &config.bases)?;
+    let base_refs = resolve_base_refs(&git.repo, &git.config, &param.bases)?;
     result.preserve(&git.repo, &base_refs, "a base")?;
     result.preserve(&git.repo, &protected_refs, "a protected")?;
     result.preserve_non_heads_remotes();
-    result.apply_filter(&config.filter)?;
+    result.apply_filter(&param.filter)?;
 
-    if !config.detach {
+    if !param.detach {
         result.adjust_not_to_detach(&git.repo)?;
     }
 

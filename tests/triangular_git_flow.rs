@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::{get_trim_plan, ClassifiedBranch, Config, Git, LocalBranch, RemoteBranch};
+use git_trim::{get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteBranch};
 
 use fixture::{rc, Fixture};
 use git_trim::args::DeleteFilter;
@@ -47,8 +47,8 @@ fn fixture() -> Fixture {
     )
 }
 
-fn config() -> Config<'static> {
-    Config {
+fn param() -> PlanParam<'static> {
+    PlanParam {
         bases: vec!["refs/heads/develop", "refs/heads/master"],
         protected_branches: set! {},
         filter: DeleteFilter::all(),
@@ -87,7 +87,7 @@ fn test_feature_to_develop() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &config())?;
+    let plan = get_trim_plan(&git, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -124,7 +124,7 @@ fn test_feature_to_develop_but_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &config())?;
+    let plan = get_trim_plan(&git, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -175,7 +175,7 @@ fn test_develop_to_master() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &config())?;
+    let plan = get_trim_plan(&git, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -215,7 +215,7 @@ fn test_develop_to_master_but_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &config())?;
+    let plan = get_trim_plan(&git, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -265,7 +265,7 @@ fn test_hotfix_to_master() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &config())?;
+    let plan = get_trim_plan(&git, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -304,7 +304,7 @@ fn test_hotfix_to_master_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &config())?;
+    let plan = get_trim_plan(&git, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -347,7 +347,7 @@ fn test_rejected_feature_to_develop() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &config())?;
+    let plan = get_trim_plan(&git, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -386,7 +386,7 @@ fn test_rejected_hotfix_to_master() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &config())?;
+    let plan = get_trim_plan(&git, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -430,9 +430,9 @@ fn test_protected_feature_to_develop() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let plan = get_trim_plan(
         &git,
-        &Config {
+        &PlanParam {
             protected_branches: set! {"refs/heads/feature"},
-            ..config()
+            ..param()
         },
     )?;
 
@@ -476,9 +476,9 @@ fn test_protected_feature_to_master() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let plan = get_trim_plan(
         &git,
-        &Config {
+        &PlanParam {
             protected_branches: set! {"refs/heads/feature"},
-            ..config()
+            ..param()
         },
     )?;
 
@@ -514,9 +514,9 @@ fn test_rejected_protected_feature_to_develop() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let plan = get_trim_plan(
         &git,
-        &Config {
+        &PlanParam {
             protected_branches: set! {"refs/heads/feature"},
-            ..config()
+            ..param()
         },
     )?;
 
