@@ -5,10 +5,10 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use git2::Repository;
 
+use git_trim::args::DeleteFilter;
 use git_trim::{get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteBranch};
 
 use fixture::{rc, Fixture};
-use git_trim::args::DeleteFilter;
 
 fn fixture() -> Fixture {
     rc().append_fixture_trace(

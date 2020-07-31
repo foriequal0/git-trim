@@ -1,6 +1,7 @@
 mod fixture;
 
 use std::convert::TryFrom;
+use std::iter::FromIterator;
 
 use anyhow::Result;
 use git2::Repository;
@@ -9,7 +10,6 @@ use git_trim::args::{DeleteFilter, FilterUnit, Scope};
 use git_trim::{get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteBranch};
 
 use fixture::{rc, Fixture};
-use std::iter::FromIterator;
 
 fn fixture() -> Fixture {
     rc().append_fixture_trace(
