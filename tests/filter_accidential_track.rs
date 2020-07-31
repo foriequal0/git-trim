@@ -6,7 +6,7 @@ use anyhow::Result;
 use git2::Repository;
 
 use git_trim::args::{DeleteFilter, FilterUnit, Scope};
-use git_trim::{get_trim_plan, ClassifiedBranch, Config, Git, LocalBranch, RemoteBranch};
+use git_trim::{get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteBranch};
 
 use fixture::{rc, Fixture};
 use std::iter::FromIterator;
@@ -56,8 +56,8 @@ fn fixture() -> Fixture {
     )
 }
 
-fn config() -> Config<'static> {
-    Config {
+fn param() -> PlanParam<'static> {
+    PlanParam {
         bases: vec!["refs/heads/master"],
         protected_branches: set! {},
         filter: DeleteFilter::from_iter(vec![
@@ -86,9 +86,9 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let plan = get_trim_plan(
         &git,
-        &Config {
+        &PlanParam {
             filter: DeleteFilter::all(),
-            ..config()
+            ..param()
         },
     )?;
     assert_eq!(
@@ -122,7 +122,7 @@ fn test_accidential_track() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &config())?;
+    let plan = get_trim_plan(&git, &param())?;
     assert_eq!(
         plan.to_delete,
         set! {

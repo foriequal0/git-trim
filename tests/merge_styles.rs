@@ -6,7 +6,7 @@ use anyhow::Result;
 use git2::Repository;
 
 use git_trim::args::DeleteFilter;
-use git_trim::{get_trim_plan, ClassifiedBranch, Config, Git, LocalBranch};
+use git_trim::{get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam};
 
 use fixture::{rc, Fixture};
 
@@ -43,8 +43,8 @@ fn fixture() -> Fixture {
     )
 }
 
-fn config() -> Config<'static> {
-    Config {
+fn param() -> PlanParam<'static> {
+    PlanParam {
         bases: vec!["refs/heads/master"],
         protected_branches: set! {},
         filter: DeleteFilter::all(),
@@ -66,7 +66,7 @@ fn test_noff() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &config())?;
+    let plan = get_trim_plan(&git, &param())?;
     assert_eq!(
         plan.to_delete,
         set! {
@@ -92,7 +92,7 @@ fn test_rebase() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &config())?;
+    let plan = get_trim_plan(&git, &param())?;
     assert_eq!(
         plan.to_delete,
         set! {
@@ -116,7 +116,7 @@ fn test_squash() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &config())?;
+    let plan = get_trim_plan(&git, &param())?;
     assert_eq!(
         plan.to_delete,
         set! {
@@ -190,7 +190,7 @@ fn test_mixed() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &config())?;
+    let plan = get_trim_plan(&git, &param())?;
     assert_eq!(
         plan.to_delete,
         set! {
