@@ -546,6 +546,22 @@ impl MergeTracker {
             if set.contains(&target_oid_string) {
                 return Ok(true);
             }
+
+            for merged in set.iter() {
+                let merged = Oid::from_str(merged)?;
+                //         B  A
+                //     *--*--*
+                //   /        \
+                // *--*--*--*--* base
+                // In this diagram, `$(git merge-base A B) == B`.
+                // When we're sure that A is merged into base, then we can safely conclude that
+                // B is also merged into base.
+                if repo.merge_base(merged, target_oid)? == target_oid {
+                    let mut set = self.merged_set.lock().unwrap();
+                    set.insert(target_oid_string);
+                    return Ok(true);
+                }
+            }
         }
 
         if is_merged_by_rev_list(repo, base, refname)? {
