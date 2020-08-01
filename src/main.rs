@@ -33,6 +33,9 @@ fn main(args: Args) -> Result<()> {
 
     let config = Config::read(&git.repo, &git.config, &args)?;
     info!("config: {:?}", config);
+    if config.bases.is_empty() {
+        return error_no_bases();
+    }
 
     if *config.update {
         if should_update(
@@ -78,6 +81,19 @@ fn main(args: Args) -> Result<()> {
     delete_remote_branches(&git.repo, &remotes, args.dry_run)?;
     delete_local_branches(&git.repo, &locals, args.dry_run)?;
     Ok(())
+}
+
+fn error_no_bases() -> Result<()> {
+    eprintln!(
+        "\
+No base branch is found! Try following any resolution:
+ * `git remote set-head origin --auto` will sync `refs/remotes/origin/HEAD` automatically.
+ * `git config trim.bases develop,master` will set base branches for git-trim for a repository.
+ * `git config --global trim.bases develop,master` will set base branches for `git-trim` globally.
+ * `git trim --bases develop,master` will temporarily set base branches for `git-trim`"
+    );
+
+    Err(anyhow::anyhow!("No base branch is found!").into())
 }
 
 pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
