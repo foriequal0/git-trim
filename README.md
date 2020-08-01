@@ -32,6 +32,10 @@ You might need to install `libssl-dev` and `pkg-config` packages if you build fr
 1. If you need more power, try `git trim --delete all`
 1. You can also `git trim --dry-run` when you don't trust me.
 
+#### Are you using git-flow?
+
+Don't forget to `git config trim.bases develop,master`.
+
 ## Why have you made this? Show me how it works.
 
 ### `git fetch --prune` doesn't do all the works for you
