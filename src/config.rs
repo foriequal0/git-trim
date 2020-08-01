@@ -40,7 +40,6 @@ impl Config {
             .parses_and_collect::<CommaSeparatedSet<String>>()?;
         let protected = get(config, "trim.protected")
             .with_explicit("cli", non_empty(args.protected.clone()))
-            .with_default(vec![String::from("develop"), String::from("master")])
             .parses_and_collect::<CommaSeparatedSet<String>>()?;
         let update = get(config, "trim.update")
             .with_explicit("cli", args.update())
