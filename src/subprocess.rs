@@ -95,6 +95,11 @@ pub fn get_noff_merged_locals(
         )?;
         for refname in refnames.lines() {
             debug!("refname: {}", refname);
+            if !refnames.starts_with("refs/") {
+                // Detached HEAD is printed as '(HEAD detached at 1234abc)'
+                debug!("skip: it is not a valid branch name");
+                continue;
+            }
             let branch = LocalBranch::new(refname);
             if get_remote(config, &branch)?.is_implicit() {
                 debug!("skip: it is not a tracking branch");
@@ -175,26 +180,21 @@ pub fn get_worktrees(repo: &Repository) -> Result<HashMap<LocalBranch, String>> 
         } else if line.starts_with("branch ") {
             branch = Some(LocalBranch::new(&line["branch ".len()..]));
         } else if line.is_empty() {
-            match (worktree.take(), branch.take()) {
-                (Some(worktree), Some(branch)) => {
-                    result.insert(branch, worktree);
-                }
-                _ => panic!("Unexpected format of `git worktree list --porcelain`"),
+            if let (Some(worktree), Some(branch)) = (worktree.take(), branch.take()) {
+                result.insert(branch, worktree);
             }
         }
     }
 
-    match (worktree.take(), branch.take()) {
-        (Some(worktree), Some(branch)) => {
-            result.insert(branch, worktree);
-        }
-        (None, None) => {}
-        _ => panic!("Unexpected format of `git worktree list --porcelain`"),
+    if let (Some(worktree), Some(branch)) = (worktree.take(), branch.take()) {
+        result.insert(branch, worktree);
     }
 
-    let head = LocalBranch::new(repo.head()?.name().context("non-utf8 head branch name")?);
-    result.remove(&head);
-
+    let head = repo.head()?;
+    if head.is_branch() {
+        let head_branch = LocalBranch::new(head.name().context("non-utf8 head branch name")?);
+        result.remove(&head_branch);
+    }
     Ok(result)
 }
 
