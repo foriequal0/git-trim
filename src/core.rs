@@ -21,7 +21,7 @@ pub struct TrimPlan {
 
 pub struct Preserved {
     pub branch: ClassifiedBranch,
-    pub reason: &'static str,
+    pub reason: String,
 }
 
 impl TrimPlan {
@@ -66,7 +66,7 @@ impl TrimPlan {
                     if preserved_refnames.contains(&local.refname) {
                         preserve.push(Preserved {
                             branch: branch.clone(),
-                            reason,
+                            reason: reason.to_owned(),
                         })
                     }
                 }
@@ -77,7 +77,7 @@ impl TrimPlan {
                         if preserved_refnames.contains(&remote_tracking.refname) {
                             preserve.push(Preserved {
                                 branch: branch.clone(),
-                                reason,
+                                reason: reason.to_owned(),
                             })
                         }
                     }
@@ -110,7 +110,7 @@ impl TrimPlan {
                 trace!("filter-out: remote ref {}", remote);
                 preserve.push(Preserved {
                     branch: branch.clone(),
-                    reason: "a non-heads remote",
+                    reason: "a non-heads remote".to_owned(),
                 });
             }
         }
@@ -142,7 +142,7 @@ impl TrimPlan {
             if !delete {
                 preserve.push(Preserved {
                     branch: branch.clone(),
-                    reason: "filtered",
+                    reason: "filtered".to_owned(),
                 });
             }
         }
@@ -173,7 +173,7 @@ impl TrimPlan {
             if local == &head_branch {
                 preserve.push(Preserved {
                     branch: branch.clone(),
-                    reason: "HEAD",
+                    reason: "HEAD".to_owned(),
                 });
             }
         }
