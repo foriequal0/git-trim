@@ -156,7 +156,7 @@ pub fn get_push_upstream(
     config: &Config,
     branch: &LocalBranch,
 ) -> Result<Option<RemoteTrackingBranch>> {
-    if let Some(remote_branch) = get_push_remote_branch(repo, config, branch)? {
+    if let Some(remote_branch) = get_explicit_push_remote_branch(repo, config, branch)? {
         return RemoteTrackingBranch::from_remote_branch(repo, &remote_branch);
     }
     Ok(None)
@@ -184,7 +184,7 @@ pub enum RemoteBranchError {
     RemoteNotFound,
 }
 
-fn get_push_remote_branch(
+fn get_explicit_push_remote_branch(
     repo: &Repository,
     config: &Config,
     branch: &LocalBranch,
@@ -199,6 +199,9 @@ fn get_push_remote_branch(
         )? {
             expanded
         } else {
+            // `git push` will fallback to `push.default`.
+            // However we'll stop here since we want to distinguish explicit tracking
+            // and implicit tracking.
             return Ok(None);
         };
 
