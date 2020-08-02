@@ -147,6 +147,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     result.preserve(&git.repo, &base_refs, "a base")?;
     result.preserve(&git.repo, &protected_refs, "a protected")?;
     result.preserve_non_heads_remotes();
+    result.preserve_worktree(&git.repo)?;
     result.apply_filter(&param.filter)?;
 
     if !param.detach {

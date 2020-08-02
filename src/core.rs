@@ -9,7 +9,7 @@ use crate::args::DeleteFilter;
 use crate::branch::{
     get_fetch_upstream, get_push_upstream, LocalBranch, RemoteBranch, RemoteTrackingBranch,
 };
-use crate::subprocess::is_merged_by_rev_list;
+use crate::subprocess::{get_worktrees, is_merged_by_rev_list};
 use crate::util::ForceSendSync;
 use crate::{config, Git};
 
@@ -119,6 +119,30 @@ impl TrimPlan {
             self.to_delete.remove(&preserved.branch);
         }
         self.preserved.extend(preserve);
+    }
+
+    pub fn preserve_worktree(&mut self, repo: &Repository) -> Result<()> {
+        let worktrees = get_worktrees(repo)?;
+        let mut preserve = Vec::new();
+        for branch in &self.to_delete {
+            let local = match branch {
+                ClassifiedBranch::MergedLocal(local) | ClassifiedBranch::StrayLocal(local) => local,
+                _ => continue,
+            };
+            if let Some(path) = worktrees.get(local) {
+                preserve.push(Preserved {
+                    branch: branch.clone(),
+                    reason: format!("worktree at {}", path),
+                });
+            }
+        }
+
+        for preserved in &preserve {
+            self.to_delete.remove(&preserved.branch);
+        }
+        self.preserved.extend(preserve);
+
+        Ok(())
     }
 
     pub fn apply_filter(&mut self, filter: &DeleteFilter) -> Result<()> {

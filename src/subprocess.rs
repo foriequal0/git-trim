@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
@@ -160,6 +160,41 @@ pub fn ls_remote_heads(repo: &Repository, remote_name: &str) -> Result<HashSet<S
         let records = line.split_whitespace().collect::<Vec<_>>();
         result.insert(records[1].to_string());
     }
+    Ok(result)
+}
+
+/// Get worktrees and its paths without HEAD
+pub fn get_worktrees(repo: &Repository) -> Result<HashMap<LocalBranch, String>> {
+    // TODO: `libgit2` has `git2_worktree_*` APIs. However it is not ported to `git2`. Use subprocess directly.
+    let mut result = HashMap::new();
+    let mut worktree = None;
+    let mut branch = None;
+    for line in git_output(repo, &["worktree", "list", "--porcelain"], Level::Trace)?.lines() {
+        if line.starts_with("worktree ") {
+            worktree = Some(line["worktree ".len()..].to_owned());
+        } else if line.starts_with("branch ") {
+            branch = Some(LocalBranch::new(&line["branch ".len()..]));
+        } else if line.is_empty() {
+            match (worktree.take(), branch.take()) {
+                (Some(worktree), Some(branch)) => {
+                    result.insert(branch, worktree);
+                }
+                _ => panic!("Unexpected format of `git worktree list --porcelain`"),
+            }
+        }
+    }
+
+    match (worktree.take(), branch.take()) {
+        (Some(worktree), Some(branch)) => {
+            result.insert(branch, worktree);
+        }
+        (None, None) => {}
+        _ => panic!("Unexpected format of `git worktree list --porcelain`"),
+    }
+
+    let head = LocalBranch::new(repo.head()?.name().context("non-utf8 head branch name")?);
+    result.remove(&head);
+
     Ok(result)
 }
 
