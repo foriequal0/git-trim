@@ -40,7 +40,7 @@ fn test_bases_implicit_value() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let config = Config::read(&git.repo, &git.config, &Args { ..Args::default() })?;
+    let config = Config::read(&git.repo, &git.config, &Args::default())?;
 
     assert_eq!(
         config.bases,
