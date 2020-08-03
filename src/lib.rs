@@ -75,14 +75,16 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
         debug!("Fetch upstream: {:?}", fetch_upstream);
         debug!("Push upstream: {:?}", push_upstream);
 
-        let config_remote = config::get_remote(&git.config, &branch)?;
-        if config_remote.is_implicit() {
+        let config_remote = if let Some(remote) = config::get_remote_raw(&git.config, &branch)? {
+            remote
+        } else {
             debug!(
                 "Skip: the branch doesn't have a tracking remote: {:?}",
                 branch
             );
             continue;
-        }
+        };
+
         if get_remote_entry(&git.repo, &config_remote)?.is_none() {
             debug!(
                 "The branch's remote is assumed to be an URL: {}",
