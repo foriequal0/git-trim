@@ -270,14 +270,14 @@ impl Classification {
 
     fn merged_remote(&mut self, repo: &Repository, upstream: &RemoteTrackingBranch) -> Result<()> {
         self.result.insert(ClassifiedBranch::MergedRemote(
-            upstream.remote_branch(&repo)?,
+            upstream.to_remote_branch(&repo)?,
         ));
         Ok(())
     }
 
     fn stray_remote(&mut self, repo: &Repository, upstream: &RemoteTrackingBranch) -> Result<()> {
         self.result.insert(ClassifiedBranch::StrayRemote(
-            upstream.remote_branch(&repo)?,
+            upstream.to_remote_branch(&repo)?,
         ));
         Ok(())
     }

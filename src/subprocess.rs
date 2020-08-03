@@ -55,6 +55,8 @@ pub fn remote_update(repo: &Repository, dry_run: bool) -> Result<()> {
     }
 }
 
+/// Get whether there any commits are not in the `base` from the `commit`
+/// `git rev-list --cherry-pick --right-only --no-merges -n1 <base>..<commit>`
 pub fn is_merged_by_rev_list(repo: &Repository, base: &str, commit: &str) -> Result<bool> {
     let range = format!("{}...{}", base, commit);
     // Is there any revs that are not applied to the base in the branch?
@@ -75,6 +77,8 @@ pub fn is_merged_by_rev_list(repo: &Repository, base: &str, commit: &str) -> Res
     Ok(output.is_empty())
 }
 
+/// Get branches that are merged with merge commit.
+/// `git branch --format '%(refname)' --merged <base>`
 pub fn get_noff_merged_locals(
     repo: &Repository,
     config: &Config,
@@ -122,6 +126,8 @@ pub fn get_noff_merged_locals(
     Ok(result)
 }
 
+/// Get remote tracking branches that are merged with merge commit.
+/// `git branch --format '%(refname)' --remote --merged <base>`
 pub fn get_noff_merged_remotes(
     repo: &Repository,
     bases: &[RemoteTrackingBranch],

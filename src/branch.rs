@@ -89,7 +89,7 @@ impl RemoteTrackingBranch {
         Ok(None)
     }
 
-    pub fn remote_branch(
+    pub fn to_remote_branch(
         &self,
         repo: &Repository,
     ) -> std::result::Result<RemoteBranch, RemoteBranchError> {
@@ -112,9 +112,6 @@ impl RemoteTrackingBranch {
     }
 }
 
-// given refspec for a remote: refs/heads/*:refs/remotes/origin
-// master -> refs/remotes/origin/master
-// refs/head/master -> refs/remotes/origin/master
 pub fn get_fetch_upstream(
     repo: &Repository,
     config: &Config,
@@ -148,9 +145,6 @@ pub fn get_remote_entry<'a>(repo: &'a Repository, remote_name: &str) -> Result<O
     }
 }
 
-// given refspec for a remote: refs/heads/*:refs/heads/*
-// master -> refs/remotes/origin/master
-// refs/head/master -> refs/remotes/origin/master
 pub fn get_push_upstream(
     repo: &Repository,
     config: &Config,

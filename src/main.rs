@@ -129,7 +129,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             .get()
             .shorthand()
             .context("non utf-8 remote ref name")?;
-        let remote_branch = match RemoteTrackingBranch::new(&refname).remote_branch(&repo) {
+        let remote_branch = match RemoteTrackingBranch::new(&refname).to_remote_branch(&repo) {
             Ok(remote_branch) => remote_branch,
             Err(RemoteBranchError::RemoteNotFound) => continue,
             Err(err) => return Err(err.into()),

@@ -17,7 +17,7 @@ pub fn expand_refspec(
     side: ExpansionSide,
 ) -> Result<Option<String>> {
     for refspec in remote.refspecs() {
-        let left = refspec.src().context("non-utf8 src dst")?;
+        let left = refspec.src().context("non-utf8 refspec src")?;
         let right = refspec.dst().context("non-utf8 refspec dst")?;
         if matches!(
             (direction, refspec.direction()),
