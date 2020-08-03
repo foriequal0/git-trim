@@ -145,17 +145,6 @@ pub fn get_remote_entry<'a>(repo: &'a Repository, remote_name: &str) -> Result<O
     }
 }
 
-pub fn get_push_upstream(
-    repo: &Repository,
-    config: &Config,
-    branch: &LocalBranch,
-) -> Result<Option<RemoteTrackingBranch>> {
-    if let Some(remote_branch) = get_explicit_push_remote_branch(repo, config, branch)? {
-        return RemoteTrackingBranch::from_remote_branch(repo, &remote_branch);
-    }
-    Ok(None)
-}
-
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug)]
 pub struct RemoteBranch {
     pub remote: String,
@@ -176,64 +165,4 @@ pub enum RemoteBranchError {
     GitError(#[from] git2::Error),
     #[error("remote with matching refspec not found")]
     RemoteNotFound,
-}
-
-fn get_explicit_push_remote_branch(
-    repo: &Repository,
-    config: &Config,
-    branch: &LocalBranch,
-) -> Result<Option<RemoteBranch>> {
-    let remote_name = config::get_push_remote(config, branch)?;
-    if let Some(remote) = get_remote_entry(repo, &remote_name)? {
-        let refname = if let Some(expanded) = expand_refspec(
-            &remote,
-            &branch.refname,
-            Direction::Push,
-            ExpansionSide::Right,
-        )? {
-            expanded
-        } else {
-            // `git push` will fallback to `push.default`.
-            // However we'll stop here since we want to distinguish explicit tracking
-            // and implicit tracking.
-            return Ok(None);
-        };
-
-        if repo.find_reference(&refname).is_ok() {
-            return Ok(Some(RemoteBranch {
-                remote: remote_name,
-                refname,
-            }));
-        } else {
-            return Ok(None);
-        }
-    }
-
-    let push_default = config::get(config, "push.default")
-        .with_default(String::from("simple"))
-        .read()?
-        .expect("has default");
-
-    match push_default.as_str() {
-        "current" => Ok(Some(RemoteBranch {
-            remote: remote_name,
-            refname: branch.refname.clone(),
-        })),
-        "upstream" | "tracking" | "simple" | "matching" => {
-            if let Some(merge) = config::get_merge(config, &branch)? {
-                Ok(Some(RemoteBranch {
-                    remote: remote_name,
-                    refname: merge,
-                }))
-            } else {
-                warn!(
-                    "The current branch {} has no upstream branch.",
-                    branch.refname
-                );
-                Ok(None)
-            }
-        }
-        "nothing" => unimplemented!("push.default=nothing is not implemented."),
-        _ => panic!("unexpected config push.default"),
-    }
 }

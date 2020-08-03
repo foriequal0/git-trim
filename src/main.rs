@@ -8,7 +8,7 @@ use git2::{BranchType, Repository};
 use log::*;
 
 use git_trim::args::Args;
-use git_trim::config::{self, Config, ConfigValue};
+use git_trim::config::{self, get, Config, ConfigValue};
 use git_trim::{
     delete_local_branches, delete_remote_branches, get_trim_plan, remote_update, ClassifiedBranch,
     Git, LocalBranch, PlanParam, RemoteBranchError, RemoteTrackingBranch, TrimPlan,
@@ -80,6 +80,8 @@ fn main(args: Args) -> Result<()> {
 
     delete_remote_branches(&git.repo, &remotes, args.dry_run)?;
     delete_local_branches(&git.repo, &locals, args.dry_run)?;
+
+    prompt_survey_on_push_upstream(&git)?;
     Ok(())
 }
 
@@ -232,4 +234,27 @@ fn should_update(git: &Git, interval: u64, explicit: bool) -> Result<bool> {
     };
 
     Ok(elapsed.as_secs() >= interval)
+}
+
+fn prompt_survey_on_push_upstream(git: &Git) -> Result<()> {
+    for remote_name in git.repo.remotes()?.iter() {
+        let remote_name = remote_name.context("non-utf8 remote name")?;
+        let key = format!("remote.{}.push", remote_name);
+        if get::<String>(&git.config, &key).read()?.is_some() {
+            println!(
+                r#"
+
+Help wanted!
+I recognize that you've set a config `git config remote.{}.push`!
+I once (mis)used that config to classify branches, but I retracted it after realizing that I don't understand the config well.
+It would be very helpful to me if you share your use cases of the config to me.
+Here's the survey URL: https://github.com/foriequal0/git-trim/issues/134
+Thank you!
+                "#,
+                remote_name
+            );
+            break;
+        }
+    }
+    Ok(())
 }

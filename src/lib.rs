@@ -16,7 +16,7 @@ use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{get_fetch_upstream, get_push_upstream, get_remote_entry};
+use crate::branch::{get_fetch_upstream, get_remote_entry};
 pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
 use crate::core::MergeTracker;
 pub use crate::core::{ClassifiedBranch, TrimPlan};
@@ -70,10 +70,8 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     for branch in git.repo.branches(Some(BranchType::Local))? {
         let branch = LocalBranch::try_from(&branch?.0)?;
         let fetch_upstream = get_fetch_upstream(&git.repo, &git.config, &branch)?;
-        let push_upstream = get_push_upstream(&git.repo, &git.config, &branch)?;
         debug!("Branch ref: {:?}", branch);
         debug!("Fetch upstream: {:?}", fetch_upstream);
-        debug!("Push upstream: {:?}", push_upstream);
 
         let config_remote = if let Some(remote) = config::get_remote_raw(&git.config, &branch)? {
             remote
@@ -136,7 +134,6 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     for classification in classifications.into_iter() {
         debug!("branch: {:?}", classification.local);
         trace!("fetch: {:?}", classification.fetch);
-        trace!("push: {:?}", classification.push);
         debug!("message: {:?}", classification.messages);
         delete.extend(classification.result.into_iter());
     }
@@ -192,10 +189,6 @@ fn resolve_base_refs(
             let refname = reference.name().context("non utf-8 base refname")?;
             let branch = LocalBranch::new(refname);
             if let Some(upstream) = get_fetch_upstream(repo, config, &branch)? {
-                result.insert(upstream.refname);
-            }
-
-            if let Some(upstream) = get_push_upstream(repo, config, &branch)? {
                 result.insert(upstream.refname);
             }
         }
@@ -286,9 +279,6 @@ fn resolve_protected_refs(
                 let branch = LocalBranch::try_from(&branch)?;
                 result.insert(branch.refname.to_string());
                 if let Some(upstream) = get_fetch_upstream(repo, config, &branch)? {
-                    result.insert(upstream.refname);
-                }
-                if let Some(upstream) = get_push_upstream(repo, config, &branch)? {
                     result.insert(upstream.refname);
                 }
             }
