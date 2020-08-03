@@ -6,9 +6,7 @@ use git2::{Oid, Repository, Signature};
 use log::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{
-    get_fetch_upstream, get_push_upstream, LocalBranch, RemoteBranch, RemoteTrackingBranch,
-};
+use crate::branch::{get_fetch_upstream, LocalBranch, RemoteBranch, RemoteTrackingBranch};
 use crate::subprocess::{get_worktrees, is_merged_by_rev_list};
 use crate::util::ForceSendSync;
 use crate::{config, Git};
@@ -247,7 +245,6 @@ pub struct MergeState<B> {
 pub struct Classification {
     pub local: MergeState<LocalBranch>,
     pub fetch: Option<MergeState<RemoteTrackingBranch>>,
-    pub push: Option<MergeState<RemoteTrackingBranch>>,
     pub messages: Vec<&'static str>,
     pub result: HashSet<ClassifiedBranch>,
 }
@@ -324,43 +321,16 @@ pub fn classify(
     } else {
         None
     };
-    let push = if let Some(push) = get_push_upstream(&git.repo, &git.config, branch)? {
-        let merged = merge_tracker.check_and_track(&git.repo, &base.refname, &push.refname)?;
-        Some(MergeState {
-            branch: push,
-            merged,
-        })
-    } else {
-        None
-    };
 
     let mut c = Classification {
         local: local.clone(),
         fetch: fetch.clone(),
-        push: push.clone(),
         messages: vec![],
         result: HashSet::default(),
     };
 
-    match (fetch, push) {
-        (Some(fetch), Some(push)) => {
-            if local.merged {
-                c.messages.push("local is merged");
-                c.result
-                    .insert(ClassifiedBranch::MergedLocal(branch.clone()));
-                c.merged_or_stray_remote(&git.repo, &fetch)?;
-                c.merged_or_stray_remote(&git.repo, &push)?;
-            } else if fetch.merged || push.merged {
-                c.messages
-                    .push("some upstreams are merged, but the local strays");
-                c.result
-                    .insert(ClassifiedBranch::StrayLocal(branch.clone()));
-                c.merged_or_stray_remote(&git.repo, &push)?;
-                c.merged_or_stray_remote(&git.repo, &fetch)?;
-            }
-        }
-
-        (Some(upstream), None) | (None, Some(upstream)) => {
+    match fetch {
+        Some(upstream) => {
             if local.merged {
                 c.messages.push("local is merged");
                 c.result
@@ -377,7 +347,7 @@ pub fn classify(
         // `hub-cli` sets config `branch.{branch_name}.remote` as URL without `remote.{remote}` entry.
         // so `get_push_upstream` and `get_fetch_upstream` returns None.
         // However we can try manual classification without `remote.{remote}` entry.
-        (None, None) => {
+        None => {
             let remote = config::get_remote_raw(&git.config, branch)?
                 .expect("should have it if it has an upstream");
             let merge = config::get_merge(&git.config, branch)?
