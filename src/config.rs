@@ -293,25 +293,21 @@ fn config_not_exist(err: &git2::Error) -> bool {
     err.code() == ErrorCode::NotFound && err.class() == ErrorClass::Config
 }
 
-pub fn get_push_remote(config: &GitConfig, branch: &LocalBranch) -> Result<ConfigValue<String>> {
+pub fn get_push_remote(config: &GitConfig, branch: &LocalBranch) -> Result<String> {
     let push_remote_key = format!("branch.{}.pushRemote", branch.short_name());
-    if let Some(push_remote) = get(config, &push_remote_key).read()? {
-        return Ok(push_remote);
+    if let Some(push_remote) = get::<String>(config, &push_remote_key).read()? {
+        return Ok(push_remote.unwrap());
     }
 
-    if let Some(push_default) = get(config, "remote.pushDefault").read()? {
-        return Ok(push_default);
+    if let Some(push_default) = get::<String>(config, "remote.pushDefault").read()? {
+        return Ok(push_default.unwrap());
     }
 
     get_remote(config, branch)
 }
 
-pub fn get_remote(config: &GitConfig, branch: &LocalBranch) -> Result<ConfigValue<String>> {
-    let value = get(config, &format!("branch.{}.remote", branch.short_name()))
-        .with_default(String::from("origin"))
-        .read()?
-        .expect("has default");
-    Ok(value)
+pub fn get_remote(config: &GitConfig, branch: &LocalBranch) -> Result<String> {
+    Ok(get_remote_raw(config, branch)?.unwrap_or_else(|| "origin".to_owned()))
 }
 
 pub fn get_remote_raw(config: &GitConfig, branch: &LocalBranch) -> Result<Option<String>> {

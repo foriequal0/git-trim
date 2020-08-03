@@ -6,7 +6,7 @@ use git2::{Config, Reference, Repository};
 use log::*;
 
 use crate::branch::{get_fetch_upstream, LocalBranch, RemoteBranch, RemoteTrackingBranch};
-use crate::config::get_remote;
+use crate::config::get_remote_raw;
 
 fn git(repo: &Repository, args: &[&str], level: log::Level) -> Result<()> {
     let workdir = repo.workdir().context("Bare repository is not supported")?;
@@ -101,7 +101,7 @@ pub fn get_noff_merged_locals(
                 continue;
             }
             let branch = LocalBranch::new(refname);
-            if get_remote(config, &branch)?.is_implicit() {
+            if get_remote_raw(config, &branch)?.is_none() {
                 debug!("skip: it is not a tracking branch");
                 continue;
             }

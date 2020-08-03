@@ -130,7 +130,7 @@ pub fn get_fetch_upstream(
     RemoteTrackingBranch::from_remote_branch(
         repo,
         &RemoteBranch {
-            remote: remote_name.to_string(),
+            remote: remote_name,
             refname: merge,
         },
     )
@@ -207,7 +207,7 @@ fn get_explicit_push_remote_branch(
 
         if repo.find_reference(&refname).is_ok() {
             return Ok(Some(RemoteBranch {
-                remote: remote_name.to_string(),
+                remote: remote_name,
                 refname,
             }));
         } else {
@@ -222,13 +222,13 @@ fn get_explicit_push_remote_branch(
 
     match push_default.as_str() {
         "current" => Ok(Some(RemoteBranch {
-            remote: remote_name.to_string(),
+            remote: remote_name,
             refname: branch.refname.clone(),
         })),
         "upstream" | "tracking" | "simple" | "matching" => {
             if let Some(merge) = config::get_merge(config, &branch)? {
                 Ok(Some(RemoteBranch {
-                    remote: remote_name.clone(),
+                    remote: remote_name,
                     refname: merge,
                 }))
             } else {
