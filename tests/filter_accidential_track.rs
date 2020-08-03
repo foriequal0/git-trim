@@ -45,7 +45,6 @@ fn fixture() -> Fixture {
             touch another-patch
             git add another-patch
             git commit -m "Another patch"
-            git push -u origin feature
         EOF
 
         local <<EOF
