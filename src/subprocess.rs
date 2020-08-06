@@ -165,11 +165,23 @@ pub fn get_noff_merged_remotes(
     Ok(result)
 }
 
-pub fn ls_remote_heads(repo: &Repository, remote_name: &str) -> Result<HashSet<String>> {
-    let mut result = HashSet::new();
+pub struct RemoteHead {
+    pub remote: String,
+    pub refname: String,
+    pub commit: String,
+}
+
+pub fn ls_remote_heads(repo: &Repository, remote_name: &str) -> Result<Vec<RemoteHead>> {
+    let mut result = Vec::new();
     for line in git_output(repo, &["ls-remote", "--heads", remote_name], Level::Trace)?.lines() {
         let records = line.split_whitespace().collect::<Vec<_>>();
-        result.insert(records[1].to_string());
+        let commit = records[0].to_string();
+        let refname = records[1].to_string();
+        result.push(RemoteHead {
+            remote: remote_name.to_owned(),
+            refname,
+            commit,
+        });
     }
     Ok(result)
 }
