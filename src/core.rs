@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
@@ -7,7 +7,7 @@ use log::*;
 
 use crate::args::DeleteFilter;
 use crate::branch::{get_fetch_upstream, LocalBranch, RemoteBranch, RemoteTrackingBranch};
-use crate::subprocess::{get_worktrees, is_merged_by_rev_list};
+use crate::subprocess::{get_worktrees, is_merged_by_rev_list, RemoteHead};
 use crate::util::ForceSendSync;
 use crate::{config, Git};
 
@@ -259,6 +259,7 @@ impl TrimPlan {
 #[derive(Debug, Clone)]
 pub struct MergeState<B> {
     branch: B,
+    commit: String,
     merged: bool,
 }
 
@@ -294,21 +295,35 @@ impl ClassifiedBranch {
 pub fn classify(
     git: ForceSendSync<&Git>,
     merge_tracker: &MergeTracker,
-    remote_heads_per_url: &HashMap<String, HashSet<String>>,
+    remote_heads: &[RemoteHead],
     base: &RemoteTrackingBranch,
     branch: &LocalBranch,
 ) -> Result<Classification> {
     let local = {
         let merged = merge_tracker.check_and_track(&git.repo, &base.refname, &branch.refname)?;
+        let commit = git
+            .repo
+            .find_reference(&branch.refname)?
+            .peel_to_commit()?
+            .id()
+            .to_string();
         MergeState {
             branch: branch.clone(),
+            commit,
             merged,
         }
     };
     let fetch = if let Some(fetch) = get_fetch_upstream(&git.repo, &git.config, branch)? {
         let merged = merge_tracker.check_and_track(&git.repo, &base.refname, &fetch.refname)?;
+        let commit = git
+            .repo
+            .find_reference(&fetch.refname)?
+            .peel_to_commit()?
+            .id()
+            .to_string();
         Some(MergeState {
             branch: fetch,
+            commit,
             merged,
         })
     } else {
@@ -357,31 +372,50 @@ pub fn classify(
                 .expect("should have it if it has an upstream");
             let merge = config::get_merge(&git.config, branch)?
                 .expect("should have it if it has an upstream");
-            let upstream_is_exists = remote_heads_per_url.contains_key(&remote)
-                && remote_heads_per_url[&remote].contains(&merge);
+            let remote_head = remote_heads
+                .iter()
+                .find(|h| h.remote == remote && h.refname == merge)
+                .map(|h| &h.commit);
 
-            if upstream_is_exists && local.merged {
-                c.messages.push(
-                    "merged local, merged remote: the branch is merged, but forgot to delete",
-                );
-                c.result
-                    .insert(ClassifiedBranch::MergedLocal(branch.clone()));
-                c.result
-                    .insert(ClassifiedBranch::MergedRemote(RemoteBranch {
-                        remote,
-                        refname: merge,
-                    }));
-            } else if local.merged {
-                c.messages
-                    .push("merged local: the branch is merged, and deleted");
-                c.result
-                    .insert(ClassifiedBranch::MergedLocal(branch.clone()));
-            } else if !upstream_is_exists {
-                c.messages
-                    .push("the branch is not merged but the remote is gone somehow");
-                c.result.insert(ClassifiedBranch::Stray(branch.clone()));
-            } else {
-                c.messages.push("skip: the branch is alive");
+            match (local.merged, remote_head) {
+                (true, Some(head)) if head == &local.commit => {
+                    c.messages.push(
+                        "merged local, merged remote: the branch is merged, but forgot to delete",
+                    );
+                    c.result
+                        .insert(ClassifiedBranch::MergedLocal(branch.clone()));
+                    c.result
+                        .insert(ClassifiedBranch::MergedRemote(RemoteBranch {
+                            remote,
+                            refname: merge,
+                        }));
+                }
+                (true, Some(_)) => {
+                    c.messages.push(
+                        "merged local, diverged upstream: the branch is merged, but upstream is diverged",
+                    );
+                    c.result.insert(ClassifiedBranch::Diverged {
+                        local: branch.clone(),
+                        remote: RemoteBranch {
+                            remote,
+                            refname: merge,
+                        },
+                    });
+                }
+                (true, None) => {
+                    c.messages
+                        .push("merged local: the branch is merged, and deleted");
+                    c.result
+                        .insert(ClassifiedBranch::MergedLocal(branch.clone()));
+                }
+                (false, None) => {
+                    c.messages
+                        .push("the branch is not merged but the remote is gone somehow");
+                    c.result.insert(ClassifiedBranch::Stray(branch.clone()));
+                }
+                (false, _) => {
+                    c.messages.push("skip: the branch is alive");
+                }
             }
         }
     }

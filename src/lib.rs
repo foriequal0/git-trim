@@ -20,8 +20,8 @@ use crate::branch::{get_fetch_upstream, get_remote_entry};
 pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
 use crate::core::MergeTracker;
 pub use crate::core::{ClassifiedBranch, TrimPlan};
-use crate::subprocess::ls_remote_heads;
 pub use crate::subprocess::remote_update;
+use crate::subprocess::{ls_remote_heads, RemoteHead};
 use crate::util::ForceSendSync;
 
 pub struct Git {
@@ -109,10 +109,12 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
             move |remote_url| {
                 ls_remote_heads(&git.repo, &remote_url)
                     .with_context(|| format!("remote_url={}", remote_url))
-                    .map(|remote_heads| (remote_url.to_string(), remote_heads))
             }
         })
-        .collect::<Result<HashMap<String, HashSet<String>>, _>>()?;
+        .collect::<Result<Vec<Vec<RemoteHead>>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect::<Vec<RemoteHead>>();
 
     info!("Start classify:");
     let classifications = base_and_branch_to_compare

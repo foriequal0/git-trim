@@ -43,7 +43,6 @@ fn fixture() -> Fixture {
             git add awesome-patch
             git commit -m "Awesome patch"
             git push upstream feature:refs/pull/1/head
-            git checkout master
         EOF
         "#,
     )
@@ -56,6 +55,25 @@ fn param() -> PlanParam<'static> {
         filter: DeleteFilter::all(),
         detach: true,
     }
+}
+
+#[test]
+fn test_noop() -> Result<()> {
+    let guard = fixture().prepare(
+        "local",
+        r#"
+        local <<EOF
+            git fetch ../origin feature:feature
+            git config branch.feature.remote "../origin"
+            git config branch.feature.merge "refs/heads/feature"
+        EOF
+        "#,
+    )?;
+
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let plan = get_trim_plan(&git, &param())?;
+    assert_eq!(plan.to_delete, set! {});
+    Ok(())
 }
 
 #[test]
@@ -73,6 +91,7 @@ fn test_accepted() -> Result<()> {
         EOF
         # clicked delete branch button
         origin <<EOF
+            git checkout master
             git branch -D feature
         EOF
         "#,
@@ -117,6 +136,112 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
                     refname: "refs/heads/feature".to_string(),
                 },
             ),
+        },
+    );
+    Ok(())
+}
+
+#[test]
+fn test_modified_and_accepted() -> Result<()> {
+    let guard = fixture().prepare(
+        "local",
+        r#"
+        local <<EOF
+            git fetch ../origin feature:feature
+            git config branch.feature.remote "../origin"
+            git config branch.feature.merge "refs/heads/feature"
+        EOF
+        origin <<EOF
+            touch another-patch
+            git add another-patch
+            git commit -m "another patch"
+            git push upstream feature:refs/pull/1/head
+        EOF
+        upstream <<EOF
+            git merge refs/pull/1/head
+        EOF
+        # click delete button
+        origin <<EOF
+            git checkout master
+            git branch -D feature
+        EOF
+        "#,
+    )?;
+
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let plan = get_trim_plan(&git, &param())?;
+    assert_eq!(
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/feature")),
+        },
+    );
+    Ok(())
+}
+
+#[test]
+fn test_modified_and_accepted_but_forgot_to_delete() -> Result<()> {
+    let guard = fixture().prepare(
+        "local",
+        r#"
+        local <<EOF
+            git fetch ../origin feature:feature
+            git config branch.feature.remote "../origin"
+            git config branch.feature.merge "refs/heads/feature"
+        EOF
+        origin <<EOF
+            touch another-patch
+            git add another-patch
+            git commit -m "another patch"
+            git push upstream feature:refs/pull/1/head
+        EOF
+        upstream <<EOF
+            git merge refs/pull/1/head
+        EOF
+        "#,
+    )?;
+
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let plan = get_trim_plan(&git, &param())?;
+    assert_eq!(
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::Diverged {
+                local: LocalBranch::new("refs/heads/feature"),
+                remote: RemoteBranch {
+                    remote: "../origin".to_string(),
+                    refname: "refs/heads/feature".to_string(),
+                },
+            },
+        },
+    );
+    Ok(())
+}
+
+#[test]
+fn test_rejected() -> Result<()> {
+    let guard = fixture().prepare(
+        "local",
+        r#"
+        local <<EOF
+            git fetch ../origin feature:feature
+            git config branch.feature.remote "../origin"
+            git config branch.feature.merge "refs/heads/feature"
+        EOF
+        # clicked delete branch button
+        origin <<EOF
+            git checkout master
+            git branch -D feature
+        EOF
+        "#,
+    )?;
+
+    let git = Git::try_from(Repository::open(guard.working_directory())?)?;
+    let plan = get_trim_plan(&git, &param())?;
+    assert_eq!(
+        plan.to_delete,
+        set! {
+            ClassifiedBranch::Stray(LocalBranch::new("refs/heads/feature")),
         },
     );
     Ok(())
