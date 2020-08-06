@@ -158,18 +158,6 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     Ok(result)
 }
 
-/// if there are following references:
-/// refs/heads/master
-/// refs/remotes/origin/master
-/// refs/remotes/upstream/master
-/// and master's upstreams:
-/// fetch: upstream/release-v1.x
-/// push: origin/release-v1.x
-///
-/// master
-/// refs/heads/master because it shouldn't be removed from the local
-/// refs/remotes/origin/master because it shouldn't be removed from the push remote
-/// refs/remotes/upstream/master because it shouldn't be remvoed from the fetch remote
 fn resolve_base_refs(
     repo: &Repository,
     config: &GitConfig,
