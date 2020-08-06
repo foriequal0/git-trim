@@ -95,7 +95,7 @@ fn test_accepted_but_edited() -> Result<()> {
     assert_eq!(
         plan.to_delete,
         set! {
-            ClassifiedBranch::StrayLocal(LocalBranch::new("refs/heads/feature")),
+            ClassifiedBranch::Stray(LocalBranch::new("refs/heads/feature")),
         },
     );
     Ok(())
@@ -150,7 +150,7 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
     assert_eq!(
         plan.to_delete,
         set! {
-            ClassifiedBranch::StrayLocal(LocalBranch::new("refs/heads/feature")),
+            ClassifiedBranch::Stray(LocalBranch::new("refs/heads/feature")),
             ClassifiedBranch::MergedRemote(
                 RemoteBranch {
                     remote: "origin".to_string(),
@@ -177,7 +177,7 @@ fn test_rejected() -> Result<()> {
     assert_eq!(
         plan.to_delete,
         set! {
-            ClassifiedBranch::StrayLocal(LocalBranch::new("refs/heads/feature")),
+            ClassifiedBranch::Stray(LocalBranch::new("refs/heads/feature")),
         },
     );
     Ok(())
@@ -203,7 +203,7 @@ fn test_rejected_but_edited() -> Result<()> {
     assert_eq!(
         plan.to_delete,
         set! {
-            ClassifiedBranch::StrayLocal(LocalBranch::new("refs/heads/feature")),
+            ClassifiedBranch::Stray(LocalBranch::new("refs/heads/feature")),
         },
     );
     Ok(())

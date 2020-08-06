@@ -153,7 +153,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
     }
     for preserved in &plan.preserved {
         match &preserved.branch {
-            ClassifiedBranch::MergedRemote(remote) | ClassifiedBranch::StrayRemote(remote) => {
+            ClassifiedBranch::MergedRemote(remote) | ClassifiedBranch::Diverged { remote, .. } => {
                 if !printed_remotes.contains(&remote) {
                     println!(
                         "    {} [{}, but: {}]",
@@ -170,16 +170,19 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
 
     let mut merged_locals = Vec::new();
     let mut merged_remotes = Vec::new();
-    let mut stray_locals = Vec::new();
-    let mut stray_remotes = Vec::new();
+    let mut stray = Vec::new();
+    let mut diverged_remotes = Vec::new();
     for branch in &plan.to_delete {
         match branch {
             ClassifiedBranch::MergedLocal(local) => {
                 merged_locals.push(local.short_name().to_owned())
             }
-            ClassifiedBranch::StrayLocal(local) => stray_locals.push(local.short_name().to_owned()),
+            ClassifiedBranch::Stray(local) => stray.push(local.short_name().to_owned()),
             ClassifiedBranch::MergedRemote(remote) => merged_remotes.push(remote.to_string()),
-            ClassifiedBranch::StrayRemote(remote) => stray_remotes.push(remote.to_string()),
+            ClassifiedBranch::Diverged { local, remote } => {
+                merged_locals.push(local.short_name().to_owned());
+                diverged_remotes.push(remote.to_string())
+            }
         }
     }
 
@@ -197,8 +200,8 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
 
     print("merged local branches", merged_locals)?;
     print("merged remote refs", merged_remotes)?;
-    print("stray local branches", stray_locals)?;
-    print("stray remote refs", stray_remotes)?;
+    print("stray local branches", stray)?;
+    print("diverged remote refs", diverged_remotes)?;
 
     Ok(())
 }

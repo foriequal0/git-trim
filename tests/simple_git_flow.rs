@@ -293,7 +293,7 @@ fn test_rejected_feature_to_develop() -> Result<()> {
     assert_eq!(
         plan.to_delete,
         set! {
-            ClassifiedBranch::StrayLocal(LocalBranch::new("refs/heads/feature")),
+            ClassifiedBranch::Stray(LocalBranch::new("refs/heads/feature")),
         },
     );
     Ok(())
@@ -326,7 +326,7 @@ fn test_rejected_hotfix_to_master() -> Result<()> {
     assert_eq!(
         plan.to_delete,
         set! {
-            ClassifiedBranch::StrayLocal(LocalBranch::new("refs/heads/hotfix")),
+            ClassifiedBranch::Stray(LocalBranch::new("refs/heads/hotfix")),
         },
     );
     Ok(())
