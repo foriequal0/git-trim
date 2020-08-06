@@ -27,9 +27,9 @@ impl TrimPlan {
         let mut result = Vec::new();
         for branch in &self.to_delete {
             match branch {
-                ClassifiedBranch::MergedLocal(local) | ClassifiedBranch::StrayLocal(local) => {
-                    result.push(local)
-                }
+                ClassifiedBranch::MergedLocal(local)
+                | ClassifiedBranch::Stray(local)
+                | ClassifiedBranch::Diverged { local, .. } => result.push(local),
                 _ => {}
             }
         }
@@ -40,9 +40,8 @@ impl TrimPlan {
         let mut result = Vec::new();
         for branch in &self.to_delete {
             match branch {
-                ClassifiedBranch::MergedRemote(remote) | ClassifiedBranch::StrayRemote(remote) => {
-                    result.push(remote)
-                }
+                ClassifiedBranch::MergedRemote(remote)
+                | ClassifiedBranch::Diverged { remote, .. } => result.push(remote),
                 _ => {}
             }
         }
@@ -59,28 +58,43 @@ impl TrimPlan {
     ) -> Result<()> {
         let mut preserve = Vec::new();
         for branch in &self.to_delete {
-            match branch {
-                ClassifiedBranch::MergedLocal(local) | ClassifiedBranch::StrayLocal(local) => {
-                    if preserved_refnames.contains(&local.refname) {
-                        preserve.push(Preserved {
-                            branch: branch.clone(),
-                            reason: reason.to_owned(),
-                        })
-                    }
+            let contained = match &branch {
+                ClassifiedBranch::MergedLocal(local) | ClassifiedBranch::Stray(local) => {
+                    preserved_refnames.contains(&local.refname)
                 }
-                ClassifiedBranch::MergedRemote(remote) | ClassifiedBranch::StrayRemote(remote) => {
-                    if let Some(remote_tracking) =
-                        RemoteTrackingBranch::from_remote_branch(repo, remote)?
-                    {
-                        if preserved_refnames.contains(&remote_tracking.refname) {
-                            preserve.push(Preserved {
-                                branch: branch.clone(),
-                                reason: reason.to_owned(),
-                            })
+                ClassifiedBranch::MergedRemote(remote) => {
+                    match RemoteTrackingBranch::from_remote_branch(repo, remote)? {
+                        Some(remote_tracking)
+                            if preserved_refnames.contains(&remote_tracking.refname) =>
+                        {
+                            true
                         }
+                        _ => false,
                     }
                 }
+                ClassifiedBranch::Diverged { local, remote } => {
+                    let preserve_local = preserved_refnames.contains(&local.refname);
+                    let preserve_remote =
+                        match RemoteTrackingBranch::from_remote_branch(repo, remote)? {
+                            Some(remote_tracking)
+                                if preserved_refnames.contains(&remote_tracking.refname) =>
+                            {
+                                true
+                            }
+                            _ => false,
+                        };
+                    preserve_local || preserve_remote
+                }
+            };
+
+            if !contained {
+                continue;
             }
+
+            preserve.push(Preserved {
+                branch: branch.clone(),
+                reason: reason.to_owned(),
+            });
         }
 
         for preserved in &preserve {
@@ -98,9 +112,8 @@ impl TrimPlan {
 
         for branch in &self.to_delete {
             let remote = match branch {
-                ClassifiedBranch::MergedRemote(remote) | ClassifiedBranch::StrayRemote(remote) => {
-                    remote
-                }
+                ClassifiedBranch::MergedRemote(remote)
+                | ClassifiedBranch::Diverged { remote, .. } => remote,
                 _ => continue,
             };
 
@@ -124,7 +137,9 @@ impl TrimPlan {
         let mut preserve = Vec::new();
         for branch in &self.to_delete {
             let local = match branch {
-                ClassifiedBranch::MergedLocal(local) | ClassifiedBranch::StrayLocal(local) => local,
+                ClassifiedBranch::MergedLocal(local)
+                | ClassifiedBranch::Stray(local)
+                | ClassifiedBranch::Diverged { local, .. } => local,
                 _ => continue,
             };
             if let Some(path) = worktrees.get(local) {
@@ -152,11 +167,11 @@ impl TrimPlan {
         for branch in &self.to_delete {
             let delete = match branch {
                 ClassifiedBranch::MergedLocal(_) => filter.delete_merged_local(),
-                ClassifiedBranch::StrayLocal(_) => filter.delete_stray_local(),
+                ClassifiedBranch::Stray(_) => filter.delete_stray(),
                 ClassifiedBranch::MergedRemote(remote) => {
                     filter.delete_merged_remote(&remote.remote)
                 }
-                ClassifiedBranch::StrayRemote(remote) => filter.delete_stray_remote(&remote.remote),
+                ClassifiedBranch::Diverged { remote, .. } => filter.delete_diverged(&remote.remote),
             };
 
             trace!("Delete filter result: {:?} => {}", branch, delete);
@@ -189,7 +204,9 @@ impl TrimPlan {
 
         for branch in &self.to_delete {
             let local = match branch {
-                ClassifiedBranch::MergedLocal(local) | ClassifiedBranch::StrayLocal(local) => local,
+                ClassifiedBranch::MergedLocal(local)
+                | ClassifiedBranch::Stray(local)
+                | ClassifiedBranch::Diverged { local, .. } => local,
                 _ => continue,
             };
             if local == &head_branch {
@@ -210,7 +227,9 @@ impl TrimPlan {
     pub fn get_preserved_local(&self, target: &LocalBranch) -> Option<&Preserved> {
         for branch in &self.preserved {
             match &branch.branch {
-                ClassifiedBranch::MergedLocal(local) | ClassifiedBranch::StrayLocal(local) => {
+                ClassifiedBranch::MergedLocal(local)
+                | ClassifiedBranch::Stray(local)
+                | ClassifiedBranch::Diverged { local, .. } => {
                     if local == target {
                         return Some(branch);
                     }
@@ -224,7 +243,8 @@ impl TrimPlan {
     pub fn get_preserved_remote(&self, target: &RemoteBranch) -> Option<&Preserved> {
         for branch in &self.preserved {
             match &branch.branch {
-                ClassifiedBranch::MergedRemote(remote) | ClassifiedBranch::StrayRemote(remote) => {
+                ClassifiedBranch::MergedRemote(remote)
+                | ClassifiedBranch::Diverged { remote, .. } => {
                     if remote == target {
                         return Some(branch);
                     }
@@ -249,50 +269,23 @@ pub struct Classification {
     pub result: HashSet<ClassifiedBranch>,
 }
 
-impl Classification {
-    fn merged_or_stray_remote(
-        &mut self,
-        repo: &Repository,
-        merge_state: &MergeState<RemoteTrackingBranch>,
-    ) -> Result<()> {
-        if merge_state.merged {
-            self.messages
-                .push("fetch upstream is merged, but forget to delete");
-            self.merged_remote(repo, &merge_state.branch)
-        } else {
-            self.messages.push("fetch upstream is not merged");
-            self.stray_remote(repo, &merge_state.branch)
-        }
-    }
-
-    fn merged_remote(&mut self, repo: &Repository, upstream: &RemoteTrackingBranch) -> Result<()> {
-        self.result.insert(ClassifiedBranch::MergedRemote(
-            upstream.to_remote_branch(&repo)?,
-        ));
-        Ok(())
-    }
-
-    fn stray_remote(&mut self, repo: &Repository, upstream: &RemoteTrackingBranch) -> Result<()> {
-        self.result.insert(ClassifiedBranch::StrayRemote(
-            upstream.to_remote_branch(&repo)?,
-        ));
-        Ok(())
-    }
-}
-
 #[derive(Hash, Eq, PartialEq, Debug, Clone)]
 pub enum ClassifiedBranch {
     MergedLocal(LocalBranch),
-    StrayLocal(LocalBranch),
+    Stray(LocalBranch),
     MergedRemote(RemoteBranch),
-    StrayRemote(RemoteBranch),
+    Diverged {
+        local: LocalBranch,
+        remote: RemoteBranch,
+    },
 }
 
 impl ClassifiedBranch {
     pub fn class(&self) -> &'static str {
         match self {
             ClassifiedBranch::MergedLocal(_) | ClassifiedBranch::MergedRemote(_) => "merged",
-            ClassifiedBranch::StrayLocal(_) | ClassifiedBranch::StrayRemote(_) => "stray",
+            ClassifiedBranch::Stray(_) => "stray",
+            ClassifiedBranch::Diverged { .. } => "diverged",
         }
     }
 }
@@ -335,12 +328,24 @@ pub fn classify(
                 c.messages.push("local is merged");
                 c.result
                     .insert(ClassifiedBranch::MergedLocal(branch.clone()));
-                c.merged_or_stray_remote(&git.repo, &upstream)?;
+                if upstream.merged {
+                    c.messages.push("fetch upstream is merged");
+                    c.result.insert(ClassifiedBranch::MergedRemote(
+                        upstream.branch.to_remote_branch(&git.repo)?,
+                    ));
+                } else {
+                    c.messages.push("fetch upstream is diverged");
+                    c.result.insert(ClassifiedBranch::Diverged {
+                        local: branch.clone(),
+                        remote: upstream.branch.to_remote_branch(&git.repo)?,
+                    });
+                }
             } else if upstream.merged {
                 c.messages.push("upstream is merged, but the local strays");
-                c.result
-                    .insert(ClassifiedBranch::StrayLocal(branch.clone()));
-                c.merged_remote(&git.repo, &upstream.branch)?;
+                c.result.insert(ClassifiedBranch::Stray(branch.clone()));
+                c.result.insert(ClassifiedBranch::MergedRemote(
+                    upstream.branch.to_remote_branch(&git.repo)?,
+                ));
             }
         }
 
@@ -374,8 +379,7 @@ pub fn classify(
             } else if !upstream_is_exists {
                 c.messages
                     .push("the branch is not merged but the remote is gone somehow");
-                c.result
-                    .insert(ClassifiedBranch::StrayLocal(branch.clone()));
+                c.result.insert(ClassifiedBranch::Stray(branch.clone()));
             } else {
                 c.messages.push("skip: the branch is alive");
             }

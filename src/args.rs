@@ -59,8 +59,8 @@ pub struct Args {
     pub detach: bool,
 
     /// Comma separated values of `<filter unit>[:<remote name>]`.
-    /// Filter unit is one of the `all, merged, gone, local, remote, merged-local, merged-remote, stray-local, stray-remote`.
-    /// You can scope a filter unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies `merged-remote` or `stray-remote`.
+    /// Filter unit is one of the `all, merged, local, remote, merged-local, merged-remote, stray, diverged`.
+    /// You can scope a filter unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies `merged-remote` or `diverged`.
     /// [default : `merged:origin`] [config: trim.filter]
     ///
     /// If there are filter units that are scoped, it trims remote branches only in the specified remote.
@@ -68,7 +68,6 @@ pub struct Args {
     ///
     /// `all` implies `merged-local,merged-remote,stray-local,stray-remote`.
     /// `merged` implies `merged-local,merged-remote`.
-    /// `stray` implies `stray-local,stray-remote`.
     /// `local` implies `merged-local,stray-local`.
     /// `remote` implies `merged-remote,stray-remote`.
     #[clap(short, long)]
@@ -134,8 +133,8 @@ pub enum Scope {
 pub enum FilterUnit {
     MergedLocal,
     MergedRemote(Scope),
-    StrayLocal,
-    StrayRemote(Scope),
+    Stray,
+    Diverged(Scope),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
@@ -155,8 +154,8 @@ impl DeleteFilter {
         DeleteFilter(HashSet::from_iter(vec![
             MergedLocal,
             MergedRemote(Scope::All),
-            StrayLocal,
-            StrayRemote(Scope::All),
+            Stray,
+            Diverged(Scope::All),
         ]))
     }
 
@@ -177,17 +176,15 @@ impl DeleteFilter {
         false
     }
 
-    pub fn delete_stray_local(&self) -> bool {
-        self.0.contains(&FilterUnit::StrayLocal)
+    pub fn delete_stray(&self) -> bool {
+        self.0.contains(&FilterUnit::Stray)
     }
 
-    pub fn delete_stray_remote(&self, remote: &str) -> bool {
+    pub fn delete_diverged(&self, remote: &str) -> bool {
         for filter in self.0.iter() {
             match filter {
-                FilterUnit::StrayRemote(Scope::All) => return true,
-                FilterUnit::StrayRemote(Scope::Scoped(specific)) if specific == remote => {
-                    return true
-                }
+                FilterUnit::Diverged(Scope::All) => return true,
+                FilterUnit::Diverged(Scope::Scoped(specific)) if specific == remote => return true,
                 _ => {}
             }
         }
@@ -205,28 +202,27 @@ impl FromStr for DeleteFilter {
         for arg in args.split(',') {
             let some_pair: Vec<_> = arg.splitn(2, ':').map(str::trim).collect();
             let filters = match *some_pair.as_slice() {
-                ["all"] => vec![MergedLocal, MergedRemote(All), StrayLocal, StrayRemote(All)],
+                ["all"] => vec![MergedLocal, MergedRemote(All), Stray, Diverged(All)],
                 ["all", remote] => vec![
                     MergedLocal,
                     MergedRemote(Scoped(remote.to_string())),
-                    StrayLocal,
-                    StrayRemote(Scoped(remote.to_string())),
+                    Stray,
+                    Diverged(Scoped(remote.to_string())),
                 ],
                 ["merged"] => vec![MergedLocal, MergedRemote(All)],
                 ["merged", remote] => vec![MergedLocal, MergedRemote(Scoped(remote.to_string()))],
-                ["stray"] => vec![StrayLocal, StrayRemote(All)],
-                ["stray", remote] => vec![StrayLocal, StrayRemote(Scoped(remote.to_string()))],
-                ["local"] => vec![MergedLocal, StrayLocal],
-                ["remote"] => vec![MergedRemote(All), StrayRemote(All)],
+                ["stray"] => vec![Stray],
+                ["diverged"] => vec![Diverged(All)],
+                ["diverged", remote] => vec![Diverged(Scoped(remote.to_string()))],
+                ["local"] => vec![MergedLocal, Stray],
+                ["remote"] => vec![MergedRemote(All), Diverged(All)],
                 ["remote", remote] => vec![
                     MergedRemote(Scoped(remote.to_string())),
-                    StrayRemote(Scoped(remote.to_string())),
+                    Diverged(Scoped(remote.to_string())),
                 ],
                 ["merged-local"] => vec![MergedLocal],
                 ["merged-remote"] => vec![MergedRemote(All)],
                 ["merged-remote", remote] => vec![MergedRemote(Scoped(remote.to_string()))],
-                ["stray-local"] => vec![StrayLocal],
-                ["stray-remote", remote] => vec![StrayRemote(Scoped(remote.to_string()))],
                 _ if arg.is_empty() => vec![],
                 _ => {
                     return Err(DeleteFilterParseError {
@@ -252,10 +248,10 @@ impl FromIterator<FilterUnit> for DeleteFilter {
         let mut result = HashSet::new();
         for filter in iter.into_iter() {
             match filter {
-                MergedLocal | StrayLocal => {
+                MergedLocal | Stray => {
                     result.insert(filter.clone());
                 }
-                MergedRemote(All) | StrayRemote(All) => {
+                MergedRemote(All) | Diverged(All) => {
                     result.retain(|x| discriminant(x) != discriminant(&filter));
                     result.insert(filter.clone());
                 }
@@ -264,8 +260,8 @@ impl FromIterator<FilterUnit> for DeleteFilter {
                         result.insert(filter.clone());
                     }
                 }
-                StrayRemote(_) => {
-                    if !result.contains(&StrayRemote(All)) {
+                Diverged(_) => {
+                    if !result.contains(&Diverged(All)) {
                         result.insert(filter.clone());
                     }
                 }

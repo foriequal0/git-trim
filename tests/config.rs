@@ -173,7 +173,7 @@ fn test_delete_filter_multiple_comma_separated_values() -> Result<()> {
         r#"
         local <<EOF
             git config --add trim.delete merged:origin,merged:upstream
-            git config --add trim.delete stray:origin,stray:upstream
+            git config --add trim.delete stray,diverged:upstream
         EOF
         "#,
     )?;
@@ -186,11 +186,10 @@ fn test_delete_filter_multiple_comma_separated_values() -> Result<()> {
         ConfigValue::Explicit {
             value: DeleteFilter::from_iter(vec![
                 FilterUnit::MergedLocal,
-                FilterUnit::StrayLocal,
+                FilterUnit::Stray,
                 FilterUnit::MergedRemote(Scope::Scoped("origin".to_owned())),
-                FilterUnit::StrayRemote(Scope::Scoped("origin".to_owned())),
                 FilterUnit::MergedRemote(Scope::Scoped("upstream".to_owned())),
-                FilterUnit::StrayRemote(Scope::Scoped("upstream".to_owned())),
+                FilterUnit::Diverged(Scope::Scoped("upstream".to_owned())),
             ]),
             source: "trim.delete".to_string(),
         }
