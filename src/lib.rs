@@ -46,7 +46,8 @@ pub struct PlanParam<'a> {
 }
 
 pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
-    let base_upstreams = resolve_base_upstream(&git.repo, &git.config, &param.bases)?;
+    let base_refs = normalize_refs(&git.repo, &param.bases)?;
+    let base_upstreams = resolve_base_upstreams(&git.repo, &git.config, &base_refs)?;
     let protected_refs = resolve_protected_refs(&git.repo, &git.config, &param.protected_branches)?;
     trace!("base_upstreams: {:#?}", base_upstreams);
     trace!("protected_refs: {:#?}", protected_refs);
@@ -131,8 +132,9 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
         to_delete: delete,
         preserved: Vec::new(),
     };
-    let base_refs = resolve_base_refs(&git.repo, &git.config, &param.bases)?;
-    result.preserve(&git.repo, &base_refs, "a base")?;
+    let base_and_upstream_refs =
+        resolve_base_and_upstream_refs(&git.repo, &git.config, &base_refs)?;
+    result.preserve(&git.repo, &base_and_upstream_refs, "a base")?;
     result.preserve(&git.repo, &protected_refs, "a protected")?;
     result.preserve_non_heads_remotes();
     result.preserve_worktree(&git.repo)?;
@@ -145,10 +147,23 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     Ok(result)
 }
 
-fn resolve_base_refs(
+fn normalize_refs(repo: &Repository, names: &[&str]) -> Result<Vec<String>> {
+    let mut result = Vec::new();
+    for name in names {
+        let refname = match repo.resolve_reference_from_short_name(name) {
+            Ok(reference) => reference.name().context("non utf-8 branch ref")?.to_owned(),
+            Err(err) if err.code() == ErrorCode::NotFound => continue,
+            Err(err) => return Err(err.into()),
+        };
+        result.push(refname);
+    }
+    Ok(result)
+}
+
+fn resolve_base_and_upstream_refs(
     repo: &Repository,
     config: &GitConfig,
-    bases: &[&str],
+    bases: &[String],
 ) -> Result<HashSet<String>> {
     let mut result = HashSet::new();
     for base in bases {
@@ -173,10 +188,10 @@ fn resolve_base_refs(
     Ok(result)
 }
 
-fn resolve_base_upstream(
+fn resolve_base_upstreams(
     repo: &Repository,
     config: &GitConfig,
-    bases: &[&str],
+    bases: &[String],
 ) -> Result<Vec<RemoteTrackingBranch>> {
     let mut result = Vec::new();
     for base in bases {
