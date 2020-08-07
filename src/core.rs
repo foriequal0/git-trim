@@ -6,7 +6,7 @@ use git2::{Oid, Repository, Signature};
 use log::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{get_fetch_upstream, LocalBranch, RemoteBranch, RemoteTrackingBranch};
+use crate::branch::{get_fetch_upstream, LocalBranch, Refname, RemoteBranch, RemoteTrackingBranch};
 use crate::subprocess::{get_worktrees, is_merged_by_rev_list, RemoteHead};
 use crate::util::ForceSendSync;
 use crate::{config, Git};
@@ -299,33 +299,9 @@ pub fn classify(
     base: &RemoteTrackingBranch,
     branch: &LocalBranch,
 ) -> Result<Classification> {
-    let local = {
-        let merged = merge_tracker.check_and_track(&git.repo, &base.refname, &branch.refname)?;
-        let commit = git
-            .repo
-            .find_reference(&branch.refname)?
-            .peel_to_commit()?
-            .id()
-            .to_string();
-        MergeState {
-            branch: branch.clone(),
-            commit,
-            merged,
-        }
-    };
+    let local = merge_tracker.check_and_track(&git.repo, &base.refname, branch)?;
     let fetch = if let Some(fetch) = get_fetch_upstream(&git.repo, &git.config, branch)? {
-        let merged = merge_tracker.check_and_track(&git.repo, &base.refname, &fetch.refname)?;
-        let commit = git
-            .repo
-            .find_reference(&fetch.refname)?
-            .peel_to_commit()?
-            .id()
-            .to_string();
-        Some(MergeState {
-            branch: fetch,
-            commit,
-            merged,
-        })
+        Some(merge_tracker.check_and_track(&git.repo, &base.refname, &fetch)?)
     } else {
         None
     };
@@ -435,9 +411,12 @@ impl MergeTracker {
         }
     }
 
-    pub fn track(&self, repo: &Repository, refname: &str) -> Result<()> {
+    pub fn track<T>(&self, repo: &Repository, branch: &T) -> Result<()>
+    where
+        T: Refname,
+    {
         let oid = repo
-            .find_reference(refname)?
+            .find_reference(branch.refname())?
             .peel_to_commit()?
             .id()
             .to_string();
@@ -446,17 +425,32 @@ impl MergeTracker {
         Ok(())
     }
 
-    pub fn check_and_track(&self, repo: &Repository, base: &str, refname: &str) -> Result<bool> {
-        let base_oid = repo.find_reference(base)?.peel_to_commit()?.id();
-        let target_oid = repo.find_reference(refname)?.peel_to_commit()?.id();
-        let target_oid_string = target_oid.to_string();
+    pub fn check_and_track<T>(
+        &self,
+        repo: &Repository,
+        base: &str,
+        branch: &T,
+    ) -> Result<MergeState<T>>
+    where
+        T: Refname + Clone,
+    {
+        let base_commit_id = repo.find_reference(base)?.peel_to_commit()?.id();
+        let target_commit_id = repo
+            .find_reference(branch.refname())?
+            .peel_to_commit()?
+            .id();
+        let target_commit_id_string = target_commit_id.to_string();
 
         // I know the locking is ugly. I'm trying to hold the lock as short as possible.
         // Operations against `repo` take long time up to several seconds when the disk is slow.
         {
             let set = self.merged_set.lock().unwrap().clone();
-            if set.contains(&target_oid_string) {
-                return Ok(true);
+            if set.contains(&target_commit_id_string) {
+                return Ok(MergeState {
+                    merged: true,
+                    commit: target_commit_id_string,
+                    branch: branch.clone(),
+                });
             }
 
             for merged in set.iter() {
@@ -468,28 +462,46 @@ impl MergeTracker {
                 // In this diagram, `$(git merge-base A B) == B`.
                 // When we're sure that A is merged into base, then we can safely conclude that
                 // B is also merged into base.
-                if repo.merge_base(merged, target_oid)? == target_oid {
+                if repo.merge_base(merged, target_commit_id)? == target_commit_id {
                     let mut set = self.merged_set.lock().unwrap();
-                    set.insert(target_oid_string);
-                    return Ok(true);
+                    set.insert(target_commit_id_string.clone());
+                    return Ok(MergeState {
+                        merged: true,
+                        commit: target_commit_id_string,
+                        branch: branch.clone(),
+                    });
                 }
             }
         }
 
-        if is_merged_by_rev_list(repo, base, refname)? {
+        if is_merged_by_rev_list(repo, base, branch.refname())? {
             let mut set = self.merged_set.lock().unwrap();
-            set.insert(target_oid_string);
-            return Ok(true);
+            set.insert(target_commit_id_string.clone());
+            return Ok(MergeState {
+                merged: true,
+                commit: target_commit_id_string,
+                branch: branch.clone(),
+            });
         }
 
-        let merge_base = repo.merge_base(base_oid, target_oid)?.to_string();
-        if is_squash_merged(repo, &merge_base, base, refname)? {
+        let merge_base = repo
+            .merge_base(base_commit_id, target_commit_id)?
+            .to_string();
+        if is_squash_merged(repo, &merge_base, base, branch.refname())? {
             let mut set = self.merged_set.lock().unwrap();
-            set.insert(target_oid_string);
-            return Ok(true);
+            set.insert(target_commit_id_string.clone());
+            return Ok(MergeState {
+                merged: true,
+                commit: target_commit_id_string,
+                branch: branch.clone(),
+            });
         }
 
-        Ok(false)
+        Ok(MergeState {
+            merged: false,
+            commit: target_commit_id_string,
+            branch: branch.clone(),
+        })
     }
 }
 
