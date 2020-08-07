@@ -10,6 +10,10 @@ use thiserror::Error;
 use crate::config;
 use crate::simple_glob::{expand_refspec, ExpansionSide};
 
+pub trait Refname {
+    fn refname(&self) -> &str;
+}
+
 #[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash, Clone)]
 pub struct LocalBranch {
     pub refname: String,
@@ -25,6 +29,12 @@ impl LocalBranch {
 
     pub fn short_name(&self) -> &str {
         &self.refname["refs/heads/".len()..]
+    }
+}
+
+impl Refname for LocalBranch {
+    fn refname(&self) -> &str {
+        &self.refname
     }
 }
 
@@ -109,6 +119,12 @@ impl RemoteTrackingBranch {
             }
         }
         Err(RemoteBranchError::RemoteNotFound)
+    }
+}
+
+impl Refname for RemoteTrackingBranch {
+    fn refname(&self) -> &str {
+        &self.refname
     }
 }
 
