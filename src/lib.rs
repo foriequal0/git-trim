@@ -45,7 +45,6 @@ pub struct PlanParam<'a> {
     pub detach: bool,
 }
 
-#[allow(clippy::cognitive_complexity, clippy::implicit_hasher)]
 pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     let base_upstreams = resolve_base_upstream(&git.repo, &git.config, &param.bases)?;
     let protected_refs = resolve_protected_refs(&git.repo, &git.config, &param.protected_branches)?;
@@ -244,7 +243,6 @@ fn resolve_base_upstream(
 /// -> refs/heads/release-v1.x
 /// refs/remotes/origin/release-*
 /// -> refs/remotes/origin/release-v1.x
-#[allow(clippy::implicit_hasher)]
 fn resolve_protected_refs(
     repo: &Repository,
     config: &GitConfig,
