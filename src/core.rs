@@ -1,12 +1,16 @@
 use std::collections::HashSet;
+use std::convert::TryFrom;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
-use git2::{Config, Oid, Repository, Signature};
+use git2::{BranchType, Config, Oid, Repository, Signature};
 use log::*;
+use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{get_fetch_upstream, LocalBranch, Refname, RemoteBranch, RemoteTrackingBranch};
+use crate::branch::{
+    get_fetch_upstream, get_remote_entry, LocalBranch, Refname, RemoteBranch, RemoteTrackingBranch,
+};
 use crate::subprocess::{self, get_worktrees, is_merged_by_rev_list, RemoteHead};
 use crate::util::ForceSendSync;
 use crate::{config, Git};
@@ -544,4 +548,58 @@ fn is_squash_merged(
     )?;
 
     is_merged_by_rev_list(repo, base, &dangling_commit.to_string())
+}
+
+pub fn get_tracking_branches(
+    git: &Git,
+    base_upstreams: &[RemoteTrackingBranch],
+) -> Result<Vec<LocalBranch>> {
+    let mut result = Vec::new();
+    for branch in git.repo.branches(Some(BranchType::Local))? {
+        let branch = LocalBranch::try_from(&branch?.0)?;
+
+        if config::get_remote_raw(&git.config, &branch)?.is_none() {
+            continue;
+        }
+
+        let fetch_upstream = get_fetch_upstream(&git.repo, &git.config, &branch)?;
+        if let Some(upstream) = &fetch_upstream {
+            if base_upstreams.contains(&upstream) {
+                debug!("Skip: the branch tracks the base: {:?}", branch);
+                continue;
+            }
+        }
+
+        result.push(branch);
+    }
+
+    Ok(result)
+}
+
+pub fn get_remote_heads(git: &Git) -> Result<Vec<RemoteHead>> {
+    let mut remote_urls = Vec::new();
+
+    for branch in git.repo.branches(Some(BranchType::Local))? {
+        let branch = LocalBranch::try_from(&branch?.0)?;
+
+        if let Some(remote) = config::get_remote_raw(&git.config, &branch)? {
+            if get_remote_entry(&git.repo, &remote)?.is_none() {
+                remote_urls.push(remote);
+            }
+        }
+    }
+
+    Ok(remote_urls
+        .into_par_iter()
+        .map({
+            let git = ForceSendSync::new(git);
+            move |remote_url| {
+                subprocess::ls_remote_heads(&git.repo, &remote_url)
+                    .with_context(|| format!("remote_url={}", remote_url))
+            }
+        })
+        .collect::<Result<Vec<Vec<RemoteHead>>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect::<Vec<RemoteHead>>())
 }

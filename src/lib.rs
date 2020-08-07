@@ -16,12 +16,11 @@ use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{get_fetch_upstream, get_remote_entry};
+use crate::branch::get_fetch_upstream;
 pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
-use crate::core::MergeTracker;
+use crate::core::{get_remote_heads, get_tracking_branches, MergeTracker};
 pub use crate::core::{ClassifiedBranch, TrimPlan};
 pub use crate::subprocess::remote_update;
-use crate::subprocess::{ls_remote_heads, RemoteHead};
 use crate::util::ForceSendSync;
 
 pub struct Git {
@@ -53,58 +52,19 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     trace!("protected_refs: {:#?}", protected_refs);
 
     let merge_tracker = MergeTracker::with_base_upstreams(&git.repo, &git.config, &base_upstreams)?;
-    let mut base_and_branch_to_compare = Vec::new();
-    let mut remote_urls = Vec::new();
-    for branch in git.repo.branches(Some(BranchType::Local))? {
-        let branch = LocalBranch::try_from(&branch?.0)?;
-        let fetch_upstream = get_fetch_upstream(&git.repo, &git.config, &branch)?;
-        debug!("Branch ref: {:?}", branch);
-        debug!("Fetch upstream: {:?}", fetch_upstream);
-
-        let config_remote = if let Some(remote) = config::get_remote_raw(&git.config, &branch)? {
-            remote
-        } else {
-            debug!(
-                "Skip: the branch doesn't have a tracking remote: {:?}",
-                branch
-            );
-            continue;
-        };
-
-        if get_remote_entry(&git.repo, &config_remote)?.is_none() {
-            debug!(
-                "The branch's remote is assumed to be an URL: {}",
-                config_remote.as_str()
-            );
-            remote_urls.push(config_remote.to_string());
-        }
-        if let Some(upstream) = &fetch_upstream {
-            if base_upstreams.contains(&upstream) {
-                debug!("Skip: the branch tracks the base: {:?}", branch);
-                continue;
-            }
-        }
-
-        for base in &base_upstreams {
-            base_and_branch_to_compare.push((base, branch.clone()));
-        }
-    }
-
-    let remote_heads_per_url = remote_urls
-        .into_par_iter()
-        .map({
-            let git = ForceSendSync::new(git);
-            move |remote_url| {
-                ls_remote_heads(&git.repo, &remote_url)
-                    .with_context(|| format!("remote_url={}", remote_url))
-            }
-        })
-        .collect::<Result<Vec<Vec<RemoteHead>>, _>>()?
-        .into_iter()
-        .flatten()
-        .collect::<Vec<RemoteHead>>();
+    let tracking_branches = get_tracking_branches(git, &base_upstreams)?;
+    let remote_heads = get_remote_heads(git)?;
 
     info!("Start classify:");
+    let base_and_branch_to_compare = {
+        let mut tmp = Vec::new();
+        for base in &base_upstreams {
+            for branch in &tracking_branches {
+                tmp.push((base, branch.clone()));
+            }
+        }
+        tmp
+    };
     let classifications = base_and_branch_to_compare
         .into_par_iter()
         .map({
@@ -114,7 +74,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
             // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
             let git = ForceSendSync::new(git);
             move |(base, branch)| {
-                core::classify(git, &merge_tracker, &remote_heads_per_url, base, &branch)
+                core::classify(git, &merge_tracker, &remote_heads, base, &branch)
                     .with_context(|| format!("base={:?}, branch={:?}", base, branch))
             }
         })
