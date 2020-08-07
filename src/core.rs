@@ -2,12 +2,12 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
-use git2::{Oid, Repository, Signature};
+use git2::{Config, Oid, Repository, Signature};
 use log::*;
 
 use crate::args::DeleteFilter;
 use crate::branch::{get_fetch_upstream, LocalBranch, Refname, RemoteBranch, RemoteTrackingBranch};
-use crate::subprocess::{get_worktrees, is_merged_by_rev_list, RemoteHead};
+use crate::subprocess::{self, get_worktrees, is_merged_by_rev_list, RemoteHead};
 use crate::util::ForceSendSync;
 use crate::{config, Git};
 
@@ -405,10 +405,28 @@ pub struct MergeTracker {
 }
 
 impl MergeTracker {
-    pub fn new() -> Self {
-        Self {
+    pub fn with_base_upstreams(
+        repo: &Repository,
+        config: &Config,
+        base_upstreams: &[RemoteTrackingBranch],
+    ) -> Result<Self> {
+        let tracker = Self {
             merged_set: Arc::new(Mutex::new(HashSet::new())),
+        };
+
+        for base_upstream in base_upstreams {
+            tracker.track(repo, base_upstream)?;
         }
+
+        for merged_locals in subprocess::get_noff_merged_locals(repo, config, base_upstreams)? {
+            tracker.track(repo, &merged_locals)?;
+        }
+
+        for merged_remotes in subprocess::get_noff_merged_remotes(&repo, base_upstreams)? {
+            tracker.track(repo, &merged_remotes)?;
+        }
+
+        Ok(tracker)
     }
 
     pub fn track<T>(&self, repo: &Repository, branch: &T) -> Result<()>

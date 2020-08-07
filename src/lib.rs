@@ -51,19 +51,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     trace!("base_upstreams: {:#?}", base_upstreams);
     trace!("protected_refs: {:#?}", protected_refs);
 
-    let merge_tracker = MergeTracker::new();
-    for base_upstream in &base_upstreams {
-        merge_tracker.track(&git.repo, base_upstream)?;
-    }
-    for merged_locals in
-        subprocess::get_noff_merged_locals(&git.repo, &git.config, &base_upstreams)?
-    {
-        merge_tracker.track(&git.repo, &merged_locals)?;
-    }
-    for merged_remotes in subprocess::get_noff_merged_remotes(&git.repo, &base_upstreams)? {
-        merge_tracker.track(&git.repo, &merged_remotes)?;
-    }
-
+    let merge_tracker = MergeTracker::with_base_upstreams(&git.repo, &git.config, &base_upstreams)?;
     let mut base_and_branch_to_compare = Vec::new();
     let mut remote_urls = Vec::new();
     for branch in git.repo.branches(Some(BranchType::Local))? {
