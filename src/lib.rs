@@ -8,12 +8,12 @@ mod util;
 
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
+use std::sync::mpsc::channel;
 
 use anyhow::{Context, Result};
 use git2::{BranchType, Config as GitConfig, Error as GitError, ErrorCode, Repository};
 use glob::Pattern;
 use log::*;
-use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
 pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
@@ -55,29 +55,35 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     let remote_heads = get_remote_heads(git)?;
 
     info!("Start classify:");
-    let base_and_branch_to_compare = {
-        let mut tmp = Vec::new();
-        for base in &base_upstreams {
-            for branch in &tracking_branches {
-                tmp.push((base, branch.clone()));
+    let classifications;
+    {
+        // git's fields are semantically Send + Sync in the `classify`.
+        // They are read only in `classify` function.
+        // It is denoted that it is safe in that case
+        // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
+        let git = ForceSendSync::new(git);
+        let merge_tracker = &merge_tracker;
+        let base_upstreams = &base_upstreams;
+        let tracking_branches = &tracking_branches;
+        let remote_heads = &remote_heads;
+        let (classification_tx, classification_rx) = channel();
+        rayon::scope(move |s| {
+            for base in base_upstreams {
+                for branch in tracking_branches {
+                    let tx = classification_tx.clone();
+                    s.spawn(move |_| {
+                        let c = core::classify(git, merge_tracker, remote_heads, base, branch)
+                            .with_context(|| format!("base={:?}, branch={:?}", base, branch));
+                        tx.send(c).unwrap();
+                    });
+                }
             }
-        }
-        tmp
+        });
+
+        classifications = classification_rx
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?
     };
-    let classifications = base_and_branch_to_compare
-        .into_par_iter()
-        .map({
-            // git's fields are semantically Send + Sync in the `classify`.
-            // They are read only in `classify` function.
-            // It is denoted that it is safe in that case
-            // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
-            let git = ForceSendSync::new(git);
-            move |(base, branch)| {
-                core::classify(git, &merge_tracker, &remote_heads, base, &branch)
-                    .with_context(|| format!("base={:?}, branch={:?}", base, branch))
-            }
-        })
-        .collect::<Result<Vec<_>, _>>()?;
 
     let mut delete = HashSet::new();
     for classification in classifications.into_iter() {
