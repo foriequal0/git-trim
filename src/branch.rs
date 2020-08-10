@@ -30,6 +30,27 @@ impl LocalBranch {
     pub fn short_name(&self) -> &str {
         &self.refname["refs/heads/".len()..]
     }
+
+    pub fn fetch_upstream(
+        &self,
+        repo: &Repository,
+        config: &Config,
+    ) -> Result<Option<RemoteTrackingBranch>> {
+        let remote_name = config::get_remote(config, self)?;
+        let merge: String = if let Some(merge) = config::get_merge(config, self)? {
+            merge
+        } else {
+            return Ok(None);
+        };
+
+        RemoteTrackingBranch::from_remote_branch(
+            repo,
+            &RemoteBranch {
+                remote: remote_name,
+                refname: merge,
+            },
+        )
+    }
 }
 
 impl Refname for LocalBranch {
@@ -126,27 +147,6 @@ impl Refname for RemoteTrackingBranch {
     fn refname(&self) -> &str {
         &self.refname
     }
-}
-
-pub fn get_fetch_upstream(
-    repo: &Repository,
-    config: &Config,
-    branch: &LocalBranch,
-) -> Result<Option<RemoteTrackingBranch>> {
-    let remote_name = config::get_remote(config, branch)?;
-    let merge: String = if let Some(merge) = config::get_merge(config, &branch)? {
-        merge
-    } else {
-        return Ok(None);
-    };
-
-    RemoteTrackingBranch::from_remote_branch(
-        repo,
-        &RemoteBranch {
-            remote: remote_name,
-            refname: merge,
-        },
-    )
 }
 
 pub fn get_remote_entry<'a>(repo: &'a Repository, remote_name: &str) -> Result<Option<Remote<'a>>> {

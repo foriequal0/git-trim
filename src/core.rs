@@ -8,9 +8,7 @@ use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{
-    get_fetch_upstream, get_remote_entry, LocalBranch, Refname, RemoteBranch, RemoteTrackingBranch,
-};
+use crate::branch::{get_remote_entry, LocalBranch, Refname, RemoteBranch, RemoteTrackingBranch};
 use crate::subprocess::{self, get_worktrees, is_merged_by_rev_list, RemoteHead};
 use crate::util::ForceSendSync;
 use crate::{config, Git};
@@ -304,7 +302,7 @@ pub fn classify(
     branch: &LocalBranch,
 ) -> Result<Classification> {
     let local = merge_tracker.check_and_track(&git.repo, &base.refname, branch)?;
-    let fetch = if let Some(fetch) = get_fetch_upstream(&git.repo, &git.config, branch)? {
+    let fetch = if let Some(fetch) = branch.fetch_upstream(&git.repo, &git.config)? {
         Some(merge_tracker.check_and_track(&git.repo, &base.refname, &fetch)?)
     } else {
         None
@@ -345,7 +343,7 @@ pub fn classify(
         }
 
         // `hub-cli` sets config `branch.{branch_name}.remote` as URL without `remote.{remote}` entry.
-        // so `get_push_upstream` and `get_fetch_upstream` returns None.
+        // `fetch_upstream` returns None.
         // However we can try manual classification without `remote.{remote}` entry.
         None => {
             let remote = config::get_remote_raw(&git.config, branch)?
@@ -562,7 +560,7 @@ pub fn get_tracking_branches(
             continue;
         }
 
-        let fetch_upstream = get_fetch_upstream(&git.repo, &git.config, &branch)?;
+        let fetch_upstream = branch.fetch_upstream(&git.repo, &git.config)?;
         if let Some(upstream) = &fetch_upstream {
             if base_upstreams.contains(&upstream) {
                 debug!("Skip: the branch tracks the base: {:?}", branch);

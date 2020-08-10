@@ -9,7 +9,7 @@ use git2::{BranchType, Config as GitConfig, ErrorClass, ErrorCode, Repository};
 use log::*;
 
 use crate::args::{Args, DeleteFilter};
-use crate::branch::{get_fetch_upstream, LocalBranch};
+use crate::branch::LocalBranch;
 
 type GitResult<T> = std::result::Result<T, git2::Error>;
 
@@ -99,7 +99,7 @@ fn get_branches_tracks_remote_heads(repo: &Repository, config: &GitConfig) -> Re
             let (branch, _) = branch?;
             let branch = LocalBranch::try_from(&branch)?;
 
-            if let Some(upstream) = get_fetch_upstream(repo, config, &branch)? {
+            if let Some(upstream) = branch.fetch_upstream(repo, config)? {
                 if upstream.refname == refname {
                     result.push(branch.short_name().to_owned());
                 }
