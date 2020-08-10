@@ -129,13 +129,13 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
     assert_eq!(
         plan.to_delete,
         set! {
-            ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/feature")),
-            ClassifiedBranch::MergedRemote(
-                RemoteBranch {
+            ClassifiedBranch::MergedDirectFetch {
+                local: LocalBranch::new("refs/heads/feature"),
+                remote: RemoteBranch {
                     remote: "../origin".to_string(),
                     refname: "refs/heads/feature".to_string(),
                 },
-            ),
+            },
         },
     );
     Ok(())
