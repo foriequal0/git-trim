@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::iter::FromIterator;
 
-use anyhow::Context;
+use anyhow::{Context, Result};
 use dialoguer::Confirmation;
 use git2::{BranchType, Repository};
 use log::*;
@@ -13,9 +13,6 @@ use git_trim::{
     delete_local_branches, delete_remote_branches, get_trim_plan, remote_update, ClassifiedBranch,
     Git, LocalBranch, PlanParam, RemoteTrackingBranch, TrimPlan,
 };
-
-type Result<T> = ::std::result::Result<T, Error>;
-type Error = Box<dyn std::error::Error>;
 
 #[paw::main]
 fn main(args: Args) -> Result<()> {
@@ -28,7 +25,7 @@ fn main(args: Args) -> Result<()> {
     let git = Git::try_from(Repository::open_from_env()?)?;
 
     if git.repo.remotes()?.is_empty() {
-        return Err(anyhow::anyhow!("git-trim requires at least one remote").into());
+        return Err(anyhow::anyhow!("git-trim requires at least one remote"));
     }
 
     let config = Config::read(&git.repo, &git.config, &args)?;
@@ -95,7 +92,7 @@ No base branch is found! Try following any resolution:
  * `git trim --bases develop,master` will temporarily set base branches for `git-trim`"
     );
 
-    Err(anyhow::anyhow!("No base branch is found!").into())
+    Err(anyhow::anyhow!("No base branch is found!"))
 }
 
 pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
