@@ -1,9 +1,7 @@
 use std::convert::TryFrom;
 
 use anyhow::{Context, Result};
-use git2::{
-    Branch, Config, Direction, Error, ErrorClass, ErrorCode, Reference, Remote, Repository,
-};
+use git2::{Branch, Config, Direction, Reference, Repository};
 use log::*;
 use thiserror::Error;
 
@@ -36,7 +34,7 @@ impl LocalBranch {
         repo: &Repository,
         config: &Config,
     ) -> Result<Option<RemoteTrackingBranch>> {
-        let remote_name = config::get_remote(config, self)?;
+        let remote_name = config::get_remote_name(config, self)?;
         let merge: String = if let Some(merge) = config::get_merge(config, self)? {
             merge
         } else {
@@ -98,7 +96,7 @@ impl RemoteTrackingBranch {
         repo: &Repository,
         remote_branch: &RemoteBranch,
     ) -> Result<Option<RemoteTrackingBranch>> {
-        let remote = get_remote_entry(repo, &remote_branch.remote)?;
+        let remote = config::get_remote(repo, &remote_branch.remote)?;
         if let Some(remote) = remote {
             let refname = if let Some(expanded) = expand_refspec(
                 &remote,
@@ -146,18 +144,6 @@ impl RemoteTrackingBranch {
 impl Refname for RemoteTrackingBranch {
     fn refname(&self) -> &str {
         &self.refname
-    }
-}
-
-pub fn get_remote_entry<'a>(repo: &'a Repository, remote_name: &str) -> Result<Option<Remote<'a>>> {
-    fn error_is_missing_remote(err: &Error) -> bool {
-        err.class() == ErrorClass::Config && err.code() == ErrorCode::InvalidSpec
-    }
-
-    match repo.find_remote(remote_name) {
-        Ok(remote) => Ok(Some(remote)),
-        Err(err) if error_is_missing_remote(&err) => Ok(None),
-        Err(err) => Err(err.into()),
     }
 }
 

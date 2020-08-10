@@ -5,7 +5,7 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Config as GitConfig, ErrorClass, ErrorCode, Repository};
+use git2::{BranchType, Config as GitConfig, Error, ErrorClass, ErrorCode, Remote, Repository};
 use log::*;
 
 use crate::args::{Args, DeleteFilter};
@@ -303,18 +303,30 @@ pub fn get_push_remote(config: &GitConfig, branch: &LocalBranch) -> Result<Strin
         return Ok(push_default.unwrap());
     }
 
-    get_remote(config, branch)
+    get_remote_name(config, branch)
 }
 
-pub fn get_remote(config: &GitConfig, branch: &LocalBranch) -> Result<String> {
-    Ok(get_remote_raw(config, branch)?.unwrap_or_else(|| "origin".to_owned()))
+pub fn get_remote_name(config: &GitConfig, branch: &LocalBranch) -> Result<String> {
+    Ok(get_remote_name_raw(config, branch)?.unwrap_or_else(|| "origin".to_owned()))
 }
 
-pub fn get_remote_raw(config: &GitConfig, branch: &LocalBranch) -> Result<Option<String>> {
+pub fn get_remote_name_raw(config: &GitConfig, branch: &LocalBranch) -> Result<Option<String>> {
     let key = format!("branch.{}.remote", branch.short_name());
     match config.get_string(&key) {
         Ok(remote) => Ok(Some(remote)),
         Err(err) if config_not_exist(&err) => Ok(None),
+        Err(err) => Err(err.into()),
+    }
+}
+
+pub fn get_remote<'a>(repo: &'a Repository, remote_name: &str) -> Result<Option<Remote<'a>>> {
+    fn error_is_missing_remote(err: &Error) -> bool {
+        err.class() == ErrorClass::Config && err.code() == ErrorCode::InvalidSpec
+    }
+
+    match repo.find_remote(remote_name) {
+        Ok(remote) => Ok(Some(remote)),
+        Err(err) if error_is_missing_remote(&err) => Ok(None),
         Err(err) => Err(err.into()),
     }
 }

@@ -8,7 +8,7 @@ use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{get_remote_entry, LocalBranch, Refname, RemoteBranch, RemoteTrackingBranch};
+use crate::branch::{LocalBranch, Refname, RemoteBranch, RemoteTrackingBranch};
 use crate::subprocess::{self, get_worktrees, is_merged_by_rev_list, RemoteHead};
 use crate::util::ForceSendSync;
 use crate::{config, Git};
@@ -346,7 +346,7 @@ pub fn classify(
         // `fetch_upstream` returns None.
         // However we can try manual classification without `remote.{remote}` entry.
         None => {
-            let remote = config::get_remote_raw(&git.config, branch)?
+            let remote = config::get_remote_name_raw(&git.config, branch)?
                 .expect("should have it if it has an upstream");
             let merge = config::get_merge(&git.config, branch)?
                 .expect("should have it if it has an upstream");
@@ -556,7 +556,7 @@ pub fn get_tracking_branches(
     for branch in git.repo.branches(Some(BranchType::Local))? {
         let branch = LocalBranch::try_from(&branch?.0)?;
 
-        if config::get_remote_raw(&git.config, &branch)?.is_none() {
+        if config::get_remote_name_raw(&git.config, &branch)?.is_none() {
             continue;
         }
 
@@ -580,8 +580,8 @@ pub fn get_remote_heads(git: &Git) -> Result<Vec<RemoteHead>> {
     for branch in git.repo.branches(Some(BranchType::Local))? {
         let branch = LocalBranch::try_from(&branch?.0)?;
 
-        if let Some(remote) = config::get_remote_raw(&git.config, &branch)? {
-            if get_remote_entry(&git.repo, &remote)?.is_none() {
+        if let Some(remote) = config::get_remote_name_raw(&git.config, &branch)? {
+            if config::get_remote(&git.repo, &remote)?.is_none() {
                 remote_urls.push(remote);
             }
         }
