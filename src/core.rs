@@ -362,15 +362,14 @@ pub fn classify(
     match fetch {
         Some(upstream) => {
             if local.merged {
-                c.messages.push("local is merged");
-                c.result
-                    .insert(ClassifiedBranch::MergedLocal(branch.clone()));
                 if upstream.merged {
-                    c.messages.push("fetch upstream is merged");
+                    c.messages.push("local & fetch upstream are merged");
+                    c.result
+                        .insert(ClassifiedBranch::MergedLocal(branch.clone()));
                     c.result
                         .insert(ClassifiedBranch::MergedRemoteTracking(upstream.branch));
                 } else {
-                    c.messages.push("fetch upstream is diverged");
+                    c.messages.push("local & fetch upstream are diverged");
                     c.result.insert(ClassifiedBranch::DivergedRemoteTracking {
                         local: branch.clone(),
                         upstream: upstream.branch,
