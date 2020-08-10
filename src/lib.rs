@@ -16,7 +16,6 @@ use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::get_fetch_upstream;
 pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
 use crate::core::{get_remote_heads, get_tracking_branches, MergeTracker};
 pub use crate::core::{ClassifiedBranch, TrimPlan};
@@ -140,7 +139,7 @@ fn resolve_base_and_upstream_refs(
         if reference.is_branch() {
             let refname = reference.name().context("non utf-8 base refname")?;
             let branch = LocalBranch::new(refname);
-            if let Some(upstream) = get_fetch_upstream(repo, config, &branch)? {
+            if let Some(upstream) = branch.fetch_upstream(repo, config)? {
                 result.insert(upstream.refname);
             }
         }
@@ -171,7 +170,7 @@ fn resolve_base_upstreams(
             };
 
             if let Ok(branch) = LocalBranch::try_from(&reference) {
-                if let Some(upstream) = get_fetch_upstream(repo, config, &branch)? {
+                if let Some(upstream) = branch.fetch_upstream(repo, config)? {
                     result.push(upstream);
                     continue;
                 }
@@ -229,7 +228,7 @@ fn resolve_protected_refs(
             if Pattern::new(protected_branch)?.matches(branch_name) {
                 let branch = LocalBranch::try_from(&branch)?;
                 result.insert(branch.refname.to_string());
-                if let Some(upstream) = get_fetch_upstream(repo, config, &branch)? {
+                if let Some(upstream) = branch.fetch_upstream(repo, config)? {
                     result.insert(upstream.refname);
                 }
             }

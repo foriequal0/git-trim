@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use git2::{Config, Reference, Repository};
 use log::*;
 
-use crate::branch::{get_fetch_upstream, LocalBranch, RemoteBranch, RemoteTrackingBranch};
+use crate::branch::{LocalBranch, RemoteBranch, RemoteTrackingBranch};
 use crate::config::get_remote_raw;
 
 fn git(repo: &Repository, args: &[&str], level: log::Level) -> Result<()> {
@@ -109,7 +109,7 @@ pub fn get_noff_merged_locals(
                 debug!("skip: it is not a tracking branch");
                 continue;
             }
-            let upstream = get_fetch_upstream(repo, config, &branch)?;
+            let upstream = branch.fetch_upstream(repo, config)?;
             if Some(base) == upstream.as_ref() {
                 debug!("skip: tracks {}", base.refname);
                 continue;
