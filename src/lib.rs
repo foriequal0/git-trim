@@ -17,7 +17,10 @@ use log::*;
 
 use crate::args::DeleteFilter;
 pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
-use crate::core::{get_remote_heads, get_tracking_branches, MergeTracker};
+use crate::core::{
+    get_non_tracking_local_branches, get_non_upstream_remote_tracking_branches, get_remote_heads,
+    get_tracking_branches, MergeTracker,
+};
 pub use crate::core::{ClassifiedBranch, TrimPlan};
 pub use crate::subprocess::{ls_remote_head, remote_update, RemoteHead};
 pub use crate::util::ForceSendSync;
@@ -52,37 +55,77 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
 
     let merge_tracker = MergeTracker::with_base_upstreams(&git.repo, &git.config, &base_upstreams)?;
     let tracking_branches = get_tracking_branches(git, &base_upstreams)?;
+    let non_tracking_branches = get_non_tracking_local_branches(git, &base_refs)?;
+    let non_upstream_branches = get_non_upstream_remote_tracking_branches(git, &base_upstreams)?;
     let remote_heads = get_remote_heads(git)?;
 
     info!("Start classify:");
     let classifications;
+    let non_trackings;
+    let non_upstreams;
     {
         // git's fields are semantically Send + Sync in the `classify`.
         // They are read only in `classify` function.
         // It is denoted that it is safe in that case
         // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
         let git = ForceSendSync::new(git);
+        let repo = ForceSendSync::new(&git.repo);
         let merge_tracker = &merge_tracker;
+
         let base_upstreams = &base_upstreams;
         let tracking_branches = &tracking_branches;
+        let non_tracking_branches = &non_tracking_branches;
+        let non_upstream_branches = &non_upstream_branches;
         let remote_heads = &remote_heads;
+
         let (classification_tx, classification_rx) = channel();
+        let (non_tracking_tx, non_tracking_rx) = channel();
+        let (non_upstream_tx, non_upstream_rx) = channel();
+
         rayon::scope(move |s| {
             for base in base_upstreams {
                 for branch in tracking_branches {
                     let tx = classification_tx.clone();
                     s.spawn(move |_| {
                         let c = core::classify(git, merge_tracker, remote_heads, base, branch)
-                            .with_context(|| format!("base={:?}, branch={:?}", base, branch));
-                        tx.send(c).unwrap();
+                            .with_context(|| {
+                                format!("tracking, base={:?}, branch={:?}", base, branch)
+                            });
+                        tx.send(c).expect("in scope");
                     });
+                }
+
+                for branch in non_tracking_branches {
+                    let tx = non_tracking_tx.clone();
+                    s.spawn(move |_| {
+                        let result = merge_tracker
+                            .check_and_track(&repo, &base.refname, branch)
+                            .with_context(|| {
+                                format!("non-tracking, base={:?}, branch={:?}", base, branch)
+                            });
+                        tx.send(result).expect("in scope");
+                    })
+                }
+
+                for branch in non_upstream_branches {
+                    let tx = non_upstream_tx.clone();
+                    s.spawn(move |_| {
+                        let result = merge_tracker
+                            .check_and_track(&repo, &base.refname, branch)
+                            .with_context(|| {
+                                format!("non-upstream, base={:?}, branch={:?}", base, branch)
+                            });
+                        tx.send(result).expect("in scope");
+                    })
                 }
             }
         });
 
         classifications = classification_rx
             .into_iter()
-            .collect::<Result<Vec<_>, _>>()?
+            .collect::<Result<Vec<_>, _>>()?;
+        non_trackings = non_tracking_rx.into_iter().collect::<Result<Vec<_>, _>>()?;
+        non_upstreams = non_upstream_rx.into_iter().collect::<Result<Vec<_>, _>>()?;
     };
 
     let mut delete = HashSet::new();
@@ -91,6 +134,22 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
         trace!("fetch: {:?}", classification.fetch);
         debug!("message: {:?}", classification.messages);
         delete.extend(classification.result.into_iter());
+    }
+    for non_tracking in non_trackings.into_iter() {
+        debug!("non-tracking: {:?}", non_tracking);
+        if non_tracking.merged {
+            delete.insert(ClassifiedBranch::MergedNonTrackingLocal(
+                non_tracking.branch,
+            ));
+        }
+    }
+    for non_upstream in non_upstreams.into_iter() {
+        debug!("non-upstream: {:?}", non_upstream);
+        if non_upstream.merged {
+            delete.insert(ClassifiedBranch::MergedNonUpstreamRemoteTracking(
+                non_upstream.branch,
+            ));
+        }
     }
 
     let mut result = TrimPlan {

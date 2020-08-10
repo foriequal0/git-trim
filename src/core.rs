@@ -58,10 +58,12 @@ impl TrimPlan {
                 ClassifiedBranch::MergedLocal(local)
                 | ClassifiedBranch::Stray(local)
                 | ClassifiedBranch::MergedDirectFetch { local, .. }
-                | ClassifiedBranch::DivergedDirectFetch { local, .. } => {
+                | ClassifiedBranch::DivergedDirectFetch { local, .. }
+                | ClassifiedBranch::MergedNonTrackingLocal(local) => {
                     preserved_refnames.contains(&local.refname)
                 }
-                ClassifiedBranch::MergedRemoteTracking(upstream) => {
+                ClassifiedBranch::MergedRemoteTracking(upstream)
+                | ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
                     preserved_refnames.contains(&upstream.refname)
                 }
                 ClassifiedBranch::DivergedRemoteTracking { local, upstream } => {
@@ -168,6 +170,14 @@ impl TrimPlan {
                 ClassifiedBranch::DivergedDirectFetch { remote, .. } => {
                     filter.delete_diverged(&remote.remote)
                 }
+
+                ClassifiedBranch::MergedNonTrackingLocal(_) => {
+                    filter.delete_merged_non_tracking_local()
+                }
+                ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
+                    let remote = upstream.to_remote_branch(repo)?;
+                    filter.delete_merged_non_upstream_remote_tracking(&remote.remote)
+                }
             };
 
             trace!("Delete filter result: {:?} => {}", branch, delete);
@@ -241,9 +251,9 @@ impl TrimPlan {
 
 #[derive(Debug, Clone)]
 pub struct MergeState<B> {
-    branch: B,
-    commit: String,
-    merged: bool,
+    pub branch: B,
+    pub commit: String,
+    pub merged: bool,
 }
 
 pub struct Classification {
@@ -271,6 +281,9 @@ pub enum ClassifiedBranch {
         local: LocalBranch,
         remote: RemoteBranch,
     },
+
+    MergedNonTrackingLocal(LocalBranch),
+    MergedNonUpstreamRemoteTracking(RemoteTrackingBranch),
 }
 
 impl ClassifiedBranch {
@@ -280,7 +293,8 @@ impl ClassifiedBranch {
             | ClassifiedBranch::Stray(local)
             | ClassifiedBranch::DivergedRemoteTracking { local, .. }
             | ClassifiedBranch::MergedDirectFetch { local, .. }
-            | ClassifiedBranch::DivergedDirectFetch { local, .. } => Some(local),
+            | ClassifiedBranch::DivergedDirectFetch { local, .. }
+            | ClassifiedBranch::MergedNonTrackingLocal(local) => Some(local),
             _ => None,
         }
     }
@@ -288,7 +302,8 @@ impl ClassifiedBranch {
     pub fn upstream(&self) -> Option<&RemoteTrackingBranch> {
         match self {
             ClassifiedBranch::MergedRemoteTracking(upstream)
-            | ClassifiedBranch::DivergedRemoteTracking { upstream, .. } => Some(upstream),
+            | ClassifiedBranch::DivergedRemoteTracking { upstream, .. }
+            | ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => Some(upstream),
             _ => None,
         }
     }
@@ -296,7 +311,8 @@ impl ClassifiedBranch {
     pub fn remote(&self, repo: &Repository) -> Result<Option<RemoteBranch>> {
         match self {
             ClassifiedBranch::MergedRemoteTracking(upstream)
-            | ClassifiedBranch::DivergedRemoteTracking { upstream, .. } => {
+            | ClassifiedBranch::DivergedRemoteTracking { upstream, .. }
+            | ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
                 let remote = upstream.to_remote_branch(repo)?;
                 Ok(Some(remote))
             }
@@ -310,7 +326,9 @@ impl ClassifiedBranch {
         match self {
             ClassifiedBranch::MergedLocal(_)
             | ClassifiedBranch::MergedRemoteTracking(_)
-            | ClassifiedBranch::MergedDirectFetch { .. } => "merged".to_owned(),
+            | ClassifiedBranch::MergedDirectFetch { .. }
+            | ClassifiedBranch::MergedNonTrackingLocal(_)
+            | ClassifiedBranch::MergedNonUpstreamRemoteTracking(_) => "merged".to_owned(),
             ClassifiedBranch::Stray(_) => "stray".to_owned(),
             ClassifiedBranch::DivergedRemoteTracking {
                 upstream: remote, ..
@@ -325,7 +343,9 @@ impl ClassifiedBranch {
         match self {
             ClassifiedBranch::MergedLocal(_)
             | ClassifiedBranch::MergedRemoteTracking(_)
-            | ClassifiedBranch::MergedDirectFetch { .. } => "merged".to_owned(),
+            | ClassifiedBranch::MergedDirectFetch { .. }
+            | ClassifiedBranch::MergedNonTrackingLocal(_)
+            | ClassifiedBranch::MergedNonUpstreamRemoteTracking(_) => "merged".to_owned(),
             ClassifiedBranch::Stray(_) => "stray".to_owned(),
             ClassifiedBranch::DivergedRemoteTracking { local, .. } => {
                 format!("diverged with {}", local.refname)
@@ -618,6 +638,67 @@ pub fn get_tracking_branches(
                 debug!("Skip: the branch tracks the base: {:?}", branch);
                 continue;
             }
+        }
+
+        result.push(branch);
+    }
+
+    Ok(result)
+}
+
+/// Get local branches that doesn't track any branch.
+pub fn get_non_tracking_local_branches(
+    git: &Git,
+    base_refs: &[String],
+) -> Result<Vec<LocalBranch>> {
+    let mut result = Vec::new();
+    for branch in git.repo.branches(Some(BranchType::Local))? {
+        let branch = LocalBranch::try_from(&branch?.0)?;
+
+        if config::get_remote_name_raw(&git.config, &branch)?.is_some() {
+            continue;
+        }
+
+        if base_refs.contains(&branch.refname) {
+            continue;
+        }
+
+        result.push(branch);
+    }
+
+    Ok(result)
+}
+
+/// Get remote tracking branches that doesn't tracked by any branch.
+pub fn get_non_upstream_remote_tracking_branches(
+    git: &Git,
+    base_upstreams: &[RemoteTrackingBranch],
+) -> Result<Vec<RemoteTrackingBranch>> {
+    let mut upstreams = HashSet::new();
+
+    for base_upstream in base_upstreams {
+        upstreams.insert(base_upstream.clone());
+    }
+
+    let tracking_branches = get_tracking_branches(git, base_upstreams)?;
+    for tracking_branch in tracking_branches {
+        let upstream = tracking_branch.fetch_upstream(&git.repo, &git.config)?;
+        if let Some(upstream) = upstream {
+            upstreams.insert(upstream);
+        }
+    }
+
+    let mut result = Vec::new();
+    for branch in git.repo.branches(Some(BranchType::Remote))? {
+        let (branch, _) = branch?;
+        if branch.get().symbolic_target_bytes().is_some() {
+            continue;
+        }
+
+        let branch = RemoteTrackingBranch::try_from(&branch)?;
+
+        if upstreams.contains(&branch) {
+            continue;
         }
 
         result.push(branch);

@@ -59,17 +59,18 @@ pub struct Args {
     pub detach: bool,
 
     /// Comma separated values of `<delete range>[:<remote name>]`.
-    /// Delete range is one of the `all, merged, local, remote, merged-local, merged-remote, stray, diverged`.
-    /// You can scope a delete range to specific remote `:<remote name>` to a `delete range` when the delete range implies `merged-remote` or `diverged`.
+    /// Delete range is one of the `all, merged, merged-local, merged-remote, stray, diverged, local, remote`.
+    /// You can scope a delete range to specific remote `:<remote name>` to a `delete range` when the delete range implies `merged-remote` or `diverged` or `remote`.
     /// [default : `merged:origin`] [config: trim.delete]
     ///
     /// If there are delete ranges that are scoped, it trims remote branches only in the specified remote.
     /// If there are any delete range that isn`t scoped, it trims all remote branches.
     ///
-    /// `all` implies `merged-local,merged-remote,stray-local,stray-remote`.
+    /// `all` implies `merged,stray,diverged,local,remote`.
     /// `merged` implies `merged-local,merged-remote`.
-    /// `local` implies `merged-local,stray-local`.
-    /// `remote` implies `merged-remote,stray-remote`.
+    ///
+    /// When `local` is specified, deletes non-tracking merged local branches.
+    /// When `remote` is specified, deletes non-upstream remote tracking branches.
     #[clap(short, long, value_delimiter = ",")]
     pub delete: Vec<DeleteRange>,
 
@@ -147,6 +148,8 @@ pub enum DeleteUnit {
     MergedRemote(Scope),
     Stray,
     Diverged(Scope),
+    MergedNonTrackingLocal,
+    MergedNonUpstreamRemoteTracking(Scope),
 }
 
 impl FromStr for DeleteRange {
@@ -193,11 +196,10 @@ impl DeleteRange {
             DeleteRange::MergedRemote(scope) => vec![DeleteUnit::MergedRemote(scope.clone())],
             DeleteRange::Stray => vec![DeleteUnit::Stray],
             DeleteRange::Diverged(scope) => vec![DeleteUnit::Diverged(scope.clone())],
-            DeleteRange::Local => vec![DeleteUnit::MergedLocal, DeleteUnit::Stray],
-            DeleteRange::Remote(scope) => vec![
-                DeleteUnit::MergedRemote(scope.clone()),
-                DeleteUnit::Diverged(scope.clone()),
-            ],
+            DeleteRange::Local => vec![DeleteUnit::MergedNonTrackingLocal],
+            DeleteRange::Remote(scope) => {
+                vec![DeleteUnit::MergedNonUpstreamRemoteTracking(scope.clone())]
+            }
         }
     }
 
@@ -260,6 +262,25 @@ impl DeleteFilter {
         }
         false
     }
+
+    pub fn delete_merged_non_tracking_local(&self) -> bool {
+        self.0.contains(&DeleteUnit::MergedNonTrackingLocal)
+    }
+
+    pub fn delete_merged_non_upstream_remote_tracking(&self, remote: &str) -> bool {
+        for filter in self.0.iter() {
+            match filter {
+                DeleteUnit::MergedNonUpstreamRemoteTracking(Scope::All) => return true,
+                DeleteUnit::MergedNonUpstreamRemoteTracking(Scope::Scoped(specific))
+                    if specific == remote =>
+                {
+                    return true
+                }
+                _ => {}
+            }
+        }
+        false
+    }
 }
 
 impl FromIterator<DeleteUnit> for DeleteFilter {
@@ -273,10 +294,10 @@ impl FromIterator<DeleteUnit> for DeleteFilter {
         let mut result = HashSet::new();
         for unit in iter.into_iter() {
             match unit {
-                MergedLocal | Stray => {
+                MergedLocal | Stray | MergedNonTrackingLocal => {
                     result.insert(unit.clone());
                 }
-                MergedRemote(All) | Diverged(All) => {
+                MergedRemote(All) | Diverged(All) | MergedNonUpstreamRemoteTracking(All) => {
                     result.retain(|x| discriminant(x) != discriminant(&unit));
                     result.insert(unit.clone());
                 }
@@ -287,6 +308,11 @@ impl FromIterator<DeleteUnit> for DeleteFilter {
                 }
                 Diverged(_) => {
                     if !result.contains(&Diverged(All)) {
+                        result.insert(unit.clone());
+                    }
+                }
+                MergedNonUpstreamRemoteTracking(_) => {
+                    if !result.contains(&MergedNonUpstreamRemoteTracking(All)) {
                         result.insert(unit.clone());
                     }
                 }
