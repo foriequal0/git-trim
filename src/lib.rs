@@ -19,8 +19,8 @@ use crate::args::DeleteFilter;
 pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
 use crate::core::{get_remote_heads, get_tracking_branches, MergeTracker};
 pub use crate::core::{ClassifiedBranch, TrimPlan};
-pub use crate::subprocess::remote_update;
-use crate::util::ForceSendSync;
+pub use crate::subprocess::{ls_remote_head, remote_update, RemoteHead};
+pub use crate::util::ForceSendSync;
 
 pub struct Git {
     pub repo: Repository,

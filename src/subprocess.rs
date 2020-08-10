@@ -186,6 +186,33 @@ pub fn ls_remote_heads(repo: &Repository, remote_name: &str) -> Result<Vec<Remot
     Ok(result)
 }
 
+pub fn ls_remote_head(repo: &Repository, remote_name: &str) -> Result<RemoteHead> {
+    let command = &["ls-remote", "--symref", remote_name, "HEAD"];
+    let lines = git_output(repo, command, Level::Trace)?;
+    let mut refname = None;
+    let mut commit = None;
+    for line in lines.lines() {
+        if line.starts_with("ref: ") {
+            refname = Some(
+                line["ref: ".len()..line.len() - "HEAD".len()]
+                    .trim()
+                    .to_owned(),
+            )
+        } else {
+            commit = line.split_whitespace().next().map(|x| x.to_owned());
+        }
+    }
+    if let (Some(refname), Some(commit)) = (refname, commit) {
+        Ok(RemoteHead {
+            remote: remote_name.to_owned(),
+            refname,
+            commit,
+        })
+    } else {
+        Err(anyhow::anyhow!("HEAD not found on {}", remote_name))
+    }
+}
+
 /// Get worktrees and its paths without HEAD
 pub fn get_worktrees(repo: &Repository) -> Result<HashMap<LocalBranch, String>> {
     // TODO: `libgit2` has `git2_worktree_*` APIs. However it is not ported to `git2`. Use subprocess directly.

@@ -1,3 +1,5 @@
+mod remote_head_change_checker;
+
 use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::iter::FromIterator;
@@ -10,8 +12,9 @@ use log::*;
 use git_trim::args::Args;
 use git_trim::config::{self, get, Config, ConfigValue};
 use git_trim::{
-    delete_local_branches, delete_remote_branches, get_trim_plan, remote_update, ClassifiedBranch,
-    Git, LocalBranch, PlanParam, RemoteTrackingBranch, TrimPlan,
+    delete_local_branches, delete_remote_branches, get_trim_plan, ls_remote_head, remote_update,
+    ClassifiedBranch, ForceSendSync, Git, LocalBranch, PlanParam, RemoteHead, RemoteTrackingBranch,
+    TrimPlan,
 };
 
 #[paw::main]
@@ -34,12 +37,14 @@ fn main(args: Args) -> Result<()> {
         return error_no_bases();
     }
 
+    let mut checker = None;
     if *config.update {
         if should_update(
             &git,
             *config.update_interval,
             matches!(config.update, ConfigValue::Explicit { value: true , .. }),
         )? {
+            checker = Some(remote_head_change_checker::RemoteHeadChangeChecker::spawn()?);
             remote_update(&git.repo, args.dry_run)?;
             println!();
         } else {
@@ -79,6 +84,10 @@ fn main(args: Args) -> Result<()> {
     delete_local_branches(&git.repo, &locals, args.dry_run)?;
 
     prompt_survey_on_push_upstream(&git)?;
+
+    if let Some(checker) = checker.take() {
+        checker.check_and_notify(&git.repo)?;
+    }
     Ok(())
 }
 

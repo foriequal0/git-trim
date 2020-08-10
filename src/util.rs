@@ -13,6 +13,9 @@ impl<T> ForceSendSync<T> {
     pub fn new(value: T) -> Self {
         Self(value)
     }
+    pub fn unwrap(self) -> T {
+        self.0
+    }
 }
 
 impl<T> Deref for ForceSendSync<T> {
