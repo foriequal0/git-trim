@@ -93,11 +93,11 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     };
     let base_and_upstream_refs =
         resolve_base_and_upstream_refs(&git.repo, &git.config, &base_refs)?;
-    result.preserve(&git.repo, &base_and_upstream_refs, "a base")?;
-    result.preserve(&git.repo, &protected_refs, "a protected")?;
-    result.preserve_non_heads_remotes();
+    result.preserve(&base_and_upstream_refs, "a base")?;
+    result.preserve(&protected_refs, "a protected")?;
+    result.preserve_non_heads_remotes(&git.repo)?;
     result.preserve_worktree(&git.repo)?;
-    result.apply_filter(&param.filter)?;
+    result.apply_filter(&git.repo, &param.filter)?;
 
     if !param.detach {
         result.adjust_not_to_detach(&git.repo)?;
@@ -268,14 +268,14 @@ pub fn delete_local_branches(
 
 pub fn delete_remote_branches(
     repo: &Repository,
-    remote_branches: &[&RemoteBranch],
+    remote_branches: &[RemoteBranch],
     dry_run: bool,
 ) -> Result<()> {
     if remote_branches.is_empty() {
         return Ok(());
     }
     let mut per_remote = HashMap::new();
-    for remote_branch in remote_branches.iter().copied() {
+    for remote_branch in remote_branches {
         let entry = per_remote
             .entry(&remote_branch.remote)
             .or_insert_with(Vec::new);

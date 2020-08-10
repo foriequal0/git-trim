@@ -6,7 +6,9 @@ use anyhow::Result;
 use git2::Repository;
 
 use git_trim::args::DeleteFilter;
-use git_trim::{get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteBranch};
+use git_trim::{
+    get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteTrackingBranch,
+};
 
 use fixture::{rc, Fixture};
 
@@ -141,12 +143,7 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
         plan.to_delete,
         set! {
             ClassifiedBranch::MergedLocal(LocalBranch::new("refs/heads/feature")),
-            ClassifiedBranch::MergedRemote(
-                RemoteBranch {
-                    remote: "origin".to_string(),
-                    refname: "refs/heads/feature".to_string(),
-                },
-            ),
+            ClassifiedBranch::MergedRemoteTracking(RemoteTrackingBranch::new("refs/remotes/origin/feature")),
         },
     );
     Ok(())
@@ -177,12 +174,7 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
         plan.to_delete,
         set! {
             ClassifiedBranch::Stray(LocalBranch::new("refs/heads/feature")),
-            ClassifiedBranch::MergedRemote(
-                RemoteBranch {
-                    remote: "origin".to_string(),
-                    refname: "refs/heads/feature".to_string()
-                },
-            ),
+            ClassifiedBranch::MergedRemoteTracking(RemoteTrackingBranch::new("refs/remotes/origin/feature")),
         },
     );
     Ok(())

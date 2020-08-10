@@ -11,7 +11,7 @@ use git_trim::args::Args;
 use git_trim::config::{self, get, Config, ConfigValue};
 use git_trim::{
     delete_local_branches, delete_remote_branches, get_trim_plan, remote_update, ClassifiedBranch,
-    Git, LocalBranch, PlanParam, RemoteBranchError, RemoteTrackingBranch, TrimPlan,
+    Git, LocalBranch, PlanParam, RemoteTrackingBranch, TrimPlan,
 };
 
 type Result<T> = ::std::result::Result<T, Error>;
@@ -63,7 +63,7 @@ fn main(args: Args) -> Result<()> {
     print_summary(&plan, &git.repo)?;
 
     let locals = plan.locals_to_delete();
-    let remotes = plan.remotes_to_delete();
+    let remotes = plan.remotes_to_delete(&git.repo)?;
     let any_branches_to_remove = !(locals.is_empty() && remotes.is_empty());
 
     if !args.dry_run
@@ -78,7 +78,7 @@ fn main(args: Args) -> Result<()> {
         return Ok(());
     }
 
-    delete_remote_branches(&git.repo, &remotes, args.dry_run)?;
+    delete_remote_branches(&git.repo, remotes.as_slice(), args.dry_run)?;
     delete_local_branches(&git.repo, &locals, args.dry_run)?;
 
     prompt_survey_on_push_upstream(&git)?;
@@ -122,7 +122,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
         }
     }
     println!("  remote references:");
-    let remote_refs_to_delete = HashSet::<_>::from_iter(plan.remotes_to_delete());
+    let remote_refs_to_delete = HashSet::<_>::from_iter(plan.remotes_to_delete(repo)?);
     let mut printed_remotes = HashSet::new();
     for remote_ref in repo.branches(Some(BranchType::Remote))? {
         let (branch, _) = remote_ref?;
@@ -131,15 +131,12 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             .get()
             .shorthand()
             .context("non utf-8 remote ref name")?;
-        let remote_branch = match RemoteTrackingBranch::new(&refname).to_remote_branch(&repo) {
-            Ok(remote_branch) => remote_branch,
-            Err(RemoteBranchError::RemoteNotFound) => continue,
-            Err(err) => return Err(err.into()),
-        };
+        let upstream = RemoteTrackingBranch::new(&refname);
+        let remote_branch = upstream.to_remote_branch(repo)?;
         if remote_refs_to_delete.contains(&remote_branch) {
             continue;
         }
-        if let Some(preserved) = plan.get_preserved_remote(&remote_branch) {
+        if let Some(preserved) = plan.get_preserved_upstream(&upstream) {
             println!(
                 "    {} [{}, but: {}]",
                 shorthand,
@@ -153,15 +150,14 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
     }
     for preserved in &plan.preserved {
         match &preserved.branch {
-            ClassifiedBranch::MergedRemote(remote) | ClassifiedBranch::Diverged { remote, .. } => {
-                if !printed_remotes.contains(&remote) {
-                    println!(
-                        "    {} [{}, but: {}]",
-                        remote.to_string(),
-                        preserved.branch.class(),
-                        preserved.reason,
-                    );
-                }
+            ClassifiedBranch::MergedRemote(remote)
+            | ClassifiedBranch::DivergedDirectFetch { remote, .. } => {
+                println!(
+                    "    {} [{}, but: {}]",
+                    remote.to_string(),
+                    preserved.branch.class(),
+                    preserved.reason,
+                );
             }
             _ => {}
         }
@@ -178,8 +174,17 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
                 merged_locals.push(local.short_name().to_owned())
             }
             ClassifiedBranch::Stray(local) => stray.push(local.short_name().to_owned()),
+            ClassifiedBranch::MergedRemoteTracking(upstream) => {
+                let remote = upstream.to_remote_branch(repo)?;
+                merged_remotes.push(remote.to_string())
+            }
+            ClassifiedBranch::DivergedRemoteTracking { local, upstream } => {
+                let remote = upstream.to_remote_branch(repo)?;
+                merged_locals.push(local.short_name().to_owned());
+                diverged_remotes.push(remote.to_string())
+            }
             ClassifiedBranch::MergedRemote(remote) => merged_remotes.push(remote.to_string()),
-            ClassifiedBranch::Diverged { local, remote } => {
+            ClassifiedBranch::DivergedDirectFetch { local, remote } => {
                 merged_locals.push(local.short_name().to_owned());
                 diverged_remotes.push(remote.to_string())
             }

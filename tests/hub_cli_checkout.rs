@@ -206,7 +206,7 @@ fn test_modified_and_accepted_but_forgot_to_delete() -> Result<()> {
     assert_eq!(
         plan.to_delete,
         set! {
-            ClassifiedBranch::Diverged {
+            ClassifiedBranch::DivergedDirectFetch {
                 local: LocalBranch::new("refs/heads/feature"),
                 remote: RemoteBranch {
                     remote: "../origin".to_string(),
