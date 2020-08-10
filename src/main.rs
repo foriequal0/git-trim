@@ -114,7 +114,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             println!(
                 "    {} [{}, but: {}]",
                 branch_name,
-                preserved.branch.class(),
+                preserved.branch.message_local(),
                 preserved.reason
             );
         } else {
@@ -140,7 +140,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             println!(
                 "    {} [{}, but: {}]",
                 shorthand,
-                preserved.branch.class(),
+                preserved.branch.message_remote(),
                 preserved.reason
             );
         } else {
@@ -155,7 +155,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
                 println!(
                     "    {} [{}, but: {}]",
                     remote.to_string(),
-                    preserved.branch.class(),
+                    preserved.branch.message_remote(),
                     preserved.reason,
                 );
             }

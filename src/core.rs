@@ -274,17 +274,6 @@ pub enum ClassifiedBranch {
 }
 
 impl ClassifiedBranch {
-    pub fn class(&self) -> &'static str {
-        match self {
-            ClassifiedBranch::MergedLocal(_)
-            | ClassifiedBranch::MergedRemoteTracking(_)
-            | ClassifiedBranch::MergedDirectFetch(_) => "merged",
-            ClassifiedBranch::Stray(_) => "stray",
-            ClassifiedBranch::DivergedRemoteTracking { .. }
-            | ClassifiedBranch::DivergedDirectFetch { .. } => "diverged",
-        }
-    }
-
     pub fn local(&self) -> Option<&LocalBranch> {
         match self {
             ClassifiedBranch::MergedLocal(local)
@@ -314,6 +303,36 @@ impl ClassifiedBranch {
             ClassifiedBranch::MergedDirectFetch { remote, .. }
             | ClassifiedBranch::DivergedDirectFetch { remote, .. } => Ok(Some(remote.clone())),
             _ => Ok(None),
+        }
+    }
+
+    pub fn message_local(&self) -> String {
+        match self {
+            ClassifiedBranch::MergedLocal(_)
+            | ClassifiedBranch::MergedRemoteTracking(_)
+            | ClassifiedBranch::MergedDirectFetch { .. } => "merged".to_owned(),
+            ClassifiedBranch::Stray(_) => "stray".to_owned(),
+            ClassifiedBranch::DivergedRemoteTracking {
+                upstream: remote, ..
+            } => format!("diverged with {}", remote.refname),
+            ClassifiedBranch::DivergedDirectFetch { remote, .. } => {
+                format!("diverged with {}", remote)
+            }
+        }
+    }
+
+    pub fn message_remote(&self) -> String {
+        match self {
+            ClassifiedBranch::MergedLocal(_)
+            | ClassifiedBranch::MergedRemoteTracking(_)
+            | ClassifiedBranch::MergedDirectFetch { .. } => "merged".to_owned(),
+            ClassifiedBranch::Stray(_) => "stray".to_owned(),
+            ClassifiedBranch::DivergedRemoteTracking { local, .. } => {
+                format!("diverged with {}", local.refname)
+            }
+            ClassifiedBranch::DivergedDirectFetch { local, .. } => {
+                format!("diverged with {}", local.short_name())
+            }
         }
     }
 }
