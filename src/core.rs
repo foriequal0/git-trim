@@ -57,6 +57,7 @@ impl TrimPlan {
             let contained = match &branch {
                 ClassifiedBranch::MergedLocal(local)
                 | ClassifiedBranch::Stray(local)
+                | ClassifiedBranch::MergedDirectFetch { local, .. }
                 | ClassifiedBranch::DivergedDirectFetch { local, .. } => {
                     preserved_refnames.contains(&local.refname)
                 }
@@ -68,7 +69,6 @@ impl TrimPlan {
                     let preserve_remote = preserved_refnames.contains(&upstream.refname);
                     preserve_local || preserve_remote
                 }
-                _ => continue,
             };
 
             if !contained {
@@ -162,7 +162,7 @@ impl TrimPlan {
                     filter.delete_diverged(&remote.remote)
                 }
 
-                ClassifiedBranch::MergedRemote(remote) => {
+                ClassifiedBranch::MergedDirectFetch { remote, .. } => {
                     filter.delete_merged_remote(&remote.remote)
                 }
                 ClassifiedBranch::DivergedDirectFetch { remote, .. } => {
@@ -263,7 +263,10 @@ pub enum ClassifiedBranch {
         upstream: RemoteTrackingBranch,
     },
 
-    MergedRemote(RemoteBranch),
+    MergedDirectFetch {
+        local: LocalBranch,
+        remote: RemoteBranch,
+    },
     DivergedDirectFetch {
         local: LocalBranch,
         remote: RemoteBranch,
@@ -275,7 +278,7 @@ impl ClassifiedBranch {
         match self {
             ClassifiedBranch::MergedLocal(_)
             | ClassifiedBranch::MergedRemoteTracking(_)
-            | ClassifiedBranch::MergedRemote(_) => "merged",
+            | ClassifiedBranch::MergedDirectFetch(_) => "merged",
             ClassifiedBranch::Stray(_) => "stray",
             ClassifiedBranch::DivergedRemoteTracking { .. }
             | ClassifiedBranch::DivergedDirectFetch { .. } => "diverged",
@@ -287,6 +290,7 @@ impl ClassifiedBranch {
             ClassifiedBranch::MergedLocal(local)
             | ClassifiedBranch::Stray(local)
             | ClassifiedBranch::DivergedRemoteTracking { local, .. }
+            | ClassifiedBranch::MergedDirectFetch { local, .. }
             | ClassifiedBranch::DivergedDirectFetch { local, .. } => Some(local),
             _ => None,
         }
@@ -307,7 +311,7 @@ impl ClassifiedBranch {
                 let remote = upstream.to_remote_branch(repo)?;
                 Ok(Some(remote))
             }
-            ClassifiedBranch::MergedRemote(remote)
+            ClassifiedBranch::MergedDirectFetch { remote, .. }
             | ClassifiedBranch::DivergedDirectFetch { remote, .. } => Ok(Some(remote.clone())),
             _ => Ok(None),
         }
@@ -379,13 +383,13 @@ pub fn classify(
                     c.messages.push(
                         "merged local, merged remote: the branch is merged, but forgot to delete",
                     );
-                    c.result
-                        .insert(ClassifiedBranch::MergedLocal(branch.clone()));
-                    c.result
-                        .insert(ClassifiedBranch::MergedRemote(RemoteBranch {
+                    c.result.insert(ClassifiedBranch::MergedDirectFetch {
+                        local: branch.clone(),
+                        remote: RemoteBranch {
                             remote,
                             refname: merge,
-                        }));
+                        },
+                    });
                 }
                 (true, Some(_)) => {
                     c.messages.push(

@@ -150,7 +150,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
     }
     for preserved in &plan.preserved {
         match &preserved.branch {
-            ClassifiedBranch::MergedRemote(remote)
+            ClassifiedBranch::MergedDirectFetch { remote, .. }
             | ClassifiedBranch::DivergedDirectFetch { remote, .. } => {
                 println!(
                     "    {} [{}, but: {}]",
@@ -183,8 +183,8 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
                 merged_locals.push(local.short_name().to_owned());
                 diverged_remotes.push(remote.to_string())
             }
-            ClassifiedBranch::MergedRemote(remote) => merged_remotes.push(remote.to_string()),
-            ClassifiedBranch::DivergedDirectFetch { local, remote } => {
+            ClassifiedBranch::MergedDirectFetch { local, remote }
+            | ClassifiedBranch::DivergedDirectFetch { local, remote } => {
                 merged_locals.push(local.short_name().to_owned());
                 diverged_remotes.push(remote.to_string())
             }
