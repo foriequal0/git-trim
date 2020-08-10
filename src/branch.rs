@@ -147,6 +147,28 @@ impl Refname for RemoteTrackingBranch {
     }
 }
 
+impl<'repo> TryFrom<&git2::Branch<'repo>> for RemoteTrackingBranch {
+    type Error = anyhow::Error;
+
+    fn try_from(branch: &Branch<'repo>) -> Result<Self> {
+        let refname = branch.get().name().context("non-utf8 branch ref")?;
+        Ok(Self::new(refname))
+    }
+}
+
+impl<'repo> TryFrom<&git2::Reference<'repo>> for RemoteTrackingBranch {
+    type Error = anyhow::Error;
+
+    fn try_from(reference: &Reference<'repo>) -> Result<Self> {
+        if !reference.is_remote() {
+            anyhow::anyhow!("Reference {:?} is not a branch", reference.name());
+        }
+
+        let refname = reference.name().context("non-utf8 reference name")?;
+        Ok(Self::new(refname))
+    }
+}
+
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug)]
 pub struct RemoteBranch {
     pub remote: String,

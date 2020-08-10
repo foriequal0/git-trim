@@ -194,6 +194,13 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
                 merged_locals.push(local.short_name().to_owned());
                 diverged_remotes.push(remote.to_string())
             }
+            ClassifiedBranch::MergedNonTrackingLocal(local) => {
+                merged_locals.push(format!("{} (non-tracking)", local.short_name()));
+            }
+            ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
+                let remote = upstream.to_remote_branch(repo)?;
+                merged_remotes.push(format!("{} (non-upstream)", remote.to_string()));
+            }
         }
     }
 
