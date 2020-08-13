@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Config, Oid, Repository, Signature};
+use git2::{BranchType, Config, ErrorClass, ErrorCode, Oid, Repository, Signature};
 use log::*;
 use rayon::prelude::*;
 
@@ -523,16 +523,26 @@ impl MergeTracker {
                 // In this diagram, `$(git merge-base A B) == B`.
                 // When we're sure that A is merged into base, then we can safely conclude that
                 // B is also merged into base.
-                if repo.merge_base(merged, target_commit_id)? == target_commit_id {
-                    let mut set = self.merged_set.lock().unwrap();
-                    set.insert(target_commit_id_string.clone());
-                    return Ok(MergeState {
-                        merged: true,
-                        commit: target_commit_id_string,
-                        branch: branch.clone(),
-                    });
-                }
+                let noff_merged = match repo.merge_base(merged, target_commit_id) {
+                    Ok(merge_base) if merge_base == target_commit_id => {
+                        let mut set = self.merged_set.lock().unwrap();
+                        set.insert(target_commit_id_string.clone());
+                        true
+                    }
+                    Ok(_) => continue,
+                    Err(err) if merge_base_not_found(&err) => false,
+                    Err(err) => return Err(err.into()),
+                };
+                return Ok(MergeState {
+                    merged: noff_merged,
+                    commit: target_commit_id_string,
+                    branch: branch.clone(),
+                });
             }
+        }
+
+        fn merge_base_not_found(err: &git2::Error) -> bool {
+            err.class() == ErrorClass::Merge && err.code() == ErrorCode::NotFound
         }
 
         if is_merged_by_rev_list(repo, base, branch.refname())? {
@@ -545,21 +555,22 @@ impl MergeTracker {
             });
         }
 
-        let merge_base = repo
-            .merge_base(base_commit_id, target_commit_id)?
-            .to_string();
-        if is_squash_merged(repo, &merge_base, base, branch.refname())? {
-            let mut set = self.merged_set.lock().unwrap();
-            set.insert(target_commit_id_string.clone());
-            return Ok(MergeState {
-                merged: true,
-                commit: target_commit_id_string,
-                branch: branch.clone(),
-            });
-        }
+        let squash_merged = match repo.merge_base(base_commit_id, target_commit_id) {
+            Ok(merge_base) => {
+                let merge_base = merge_base.to_string();
+                let squash_merged = is_squash_merged(repo, &merge_base, base, branch.refname())?;
+                if squash_merged {
+                    let mut set = self.merged_set.lock().unwrap();
+                    set.insert(target_commit_id_string.clone());
+                }
+                squash_merged
+            }
+            Err(err) if merge_base_not_found(&err) => false,
+            Err(err) => return Err(err.into()),
+        };
 
         Ok(MergeState {
-            merged: false,
+            merged: squash_merged,
             commit: target_commit_id_string,
             branch: branch.clone(),
         })
