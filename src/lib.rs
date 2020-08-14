@@ -173,8 +173,8 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     };
     let base_and_upstream_refs =
         resolve_base_and_upstream_refs(&git.repo, &git.config, &base_refs)?;
-    result.preserve(&base_and_upstream_refs, "a base")?;
-    result.preserve(&protected_refs, "a protected")?;
+    result.preserve(&base_and_upstream_refs, "base")?;
+    result.preserve(&protected_refs, "protected")?;
     result.preserve_non_heads_remotes(&git.repo)?;
     result.preserve_worktree(&git.repo)?;
     result.apply_delete_filter(&git.repo, &param.delete)?;
