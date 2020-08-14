@@ -5,12 +5,11 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::args::DeleteFilter;
 use git_trim::{
     get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteTrackingBranch,
 };
 
-use fixture::{rc, Fixture};
+use fixture::{rc, test_default_param, Fixture};
 
 fn fixture() -> Fixture {
     rc().append_fixture_trace(
@@ -41,9 +40,7 @@ fn fixture() -> Fixture {
 fn param() -> PlanParam<'static> {
     PlanParam {
         bases: vec!["develop", "master"], // Need to set bases manually for git flow
-        protected_branches: set! {},
-        filter: DeleteFilter::all(),
-        detach: true,
+        ..test_default_param()
     }
 }
 

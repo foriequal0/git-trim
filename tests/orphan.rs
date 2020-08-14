@@ -1,15 +1,16 @@
 mod fixture;
 
 use std::convert::TryFrom;
+use std::iter::FromIterator;
 
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::args::DeleteFilter;
+use git_trim::args::{Delete, DeleteFilter, Scope};
 
 use git_trim::{get_trim_plan, Git, PlanParam};
 
-use fixture::{rc, Fixture};
+use fixture::{rc, test_default_param, Fixture};
 
 fn fixture() -> Fixture {
     rc().append_fixture_trace(
@@ -32,15 +33,6 @@ fn fixture() -> Fixture {
     )
 }
 
-fn param() -> PlanParam<'static> {
-    PlanParam {
-        bases: vec!["master"],
-        protected_branches: set! {},
-        filter: DeleteFilter::all(),
-        detach: true,
-    }
-}
-
 #[test]
 fn test_bases_implicit_value() -> Result<()> {
     let guard = fixture().prepare(
@@ -60,8 +52,15 @@ fn test_bases_implicit_value() -> Result<()> {
     let plan = get_trim_plan(
         &git,
         &PlanParam {
-            filter: DeleteFilter::all(),
-            ..param()
+            filter: DeleteFilter::from_iter(vec![
+                Delete::MergedLocal,
+                Delete::MergedRemote(Scope::All),
+                Delete::Stray,
+                Delete::Diverged(Scope::All),
+                Delete::Local,
+                Delete::Remote(Scope::All),
+            ]),
+            ..test_default_param()
         },
     )?;
 

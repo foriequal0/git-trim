@@ -6,7 +6,7 @@ use std::iter::FromIterator;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::args::{DeleteFilter, FilterUnit, Scope};
+use git_trim::args::{Delete, DeleteFilter, Scope};
 use git_trim::{
     get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteTrackingBranch,
 };
@@ -62,8 +62,8 @@ fn param() -> PlanParam<'static> {
         bases: vec!["master"],
         protected_branches: set! {},
         filter: DeleteFilter::from_iter(vec![
-            FilterUnit::MergedLocal,
-            FilterUnit::MergedRemote(Scope::Scoped("origin".to_string())),
+            Delete::MergedLocal,
+            Delete::MergedRemote(Scope::Scoped("origin".to_string())),
         ]),
         detach: true,
     }
@@ -88,7 +88,14 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
     let plan = get_trim_plan(
         &git,
         &PlanParam {
-            filter: DeleteFilter::all(),
+            filter: DeleteFilter::from_iter(vec![
+                Delete::MergedLocal,
+                Delete::MergedRemote(Scope::All),
+                Delete::Stray,
+                Delete::Diverged(Scope::All),
+                Delete::Local,
+                Delete::Remote(Scope::All),
+            ]),
             ..param()
         },
     )?;

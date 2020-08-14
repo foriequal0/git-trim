@@ -70,8 +70,8 @@ pub struct Args {
     /// `merged` implies `merged-local,merged-remote`.
     /// `local` implies `merged-local,stray-local`.
     /// `remote` implies `merged-remote,stray-remote`.
-    #[clap(short, long)]
-    pub delete: Vec<DeleteFilter>,
+    #[clap(short, long, value_delimiter = ",")]
+    pub delete: Vec<Delete>,
 
     /// Do not delete branches, show what branches will be deleted.
     #[clap(long)]
@@ -130,6 +130,18 @@ pub enum Scope {
 }
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub enum Delete {
+    All(Scope),
+    Merged(Scope),
+    MergedLocal,
+    MergedRemote(Scope),
+    Stray,
+    Diverged(Scope),
+    Local,
+    Remote(Scope),
+}
+
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub enum FilterUnit {
     MergedLocal,
     MergedRemote(Scope),
@@ -137,28 +149,86 @@ pub enum FilterUnit {
     Diverged(Scope),
 }
 
+impl FromStr for Delete {
+    type Err = DeleteParseError;
+
+    fn from_str(arg: &str) -> Result<Delete, Self::Err> {
+        use Scope::*;
+        let some_pair: Vec<_> = arg.splitn(2, ':').map(str::trim).collect();
+        match *some_pair.as_slice() {
+            ["all"] => Ok(Delete::All(All)),
+            ["all", remote] => Ok(Delete::All(Scoped(remote.to_owned()))),
+            ["merged"] => Ok(Delete::Merged(All)),
+            ["merged", remote] => Ok(Delete::Merged(Scoped(remote.to_owned()))),
+            ["stray"] => Ok(Delete::Stray),
+            ["diverged"] => Ok(Delete::Diverged(All)),
+            ["diverged", remote] => Ok(Delete::Diverged(Scoped(remote.to_owned()))),
+            ["merged-local"] => Ok(Delete::MergedLocal),
+            ["merged-remote"] => Ok(Delete::MergedRemote(All)),
+            ["merged-remote", remote] => Ok(Delete::MergedRemote(Scoped(remote.to_owned()))),
+            ["local"] => Ok(Delete::Local),
+            ["remote"] => Ok(Delete::Remote(All)),
+            ["remote", remote] => Ok(Delete::Remote(Scoped(remote.to_owned()))),
+            _ => Err(DeleteParseError {
+                message: format!("Unexpected delete filter: {}", arg),
+            }),
+        }
+    }
+}
+
+impl Delete {
+    fn to_filter_units(&self) -> Vec<FilterUnit> {
+        match self {
+            Delete::All(scope) => vec![
+                FilterUnit::MergedLocal,
+                FilterUnit::MergedRemote(scope.clone()),
+                FilterUnit::Stray,
+                FilterUnit::Diverged(scope.clone()),
+            ],
+            Delete::Merged(scope) => vec![
+                FilterUnit::MergedLocal,
+                FilterUnit::MergedRemote(scope.clone()),
+            ],
+            Delete::MergedLocal => vec![FilterUnit::MergedLocal],
+            Delete::MergedRemote(scope) => vec![FilterUnit::MergedRemote(scope.clone())],
+            Delete::Stray => vec![FilterUnit::Stray],
+            Delete::Diverged(scope) => vec![FilterUnit::Diverged(scope.clone())],
+            Delete::Local => vec![FilterUnit::MergedLocal, FilterUnit::Stray],
+            Delete::Remote(scope) => vec![
+                FilterUnit::MergedRemote(scope.clone()),
+                FilterUnit::Diverged(scope.clone()),
+            ],
+        }
+    }
+
+    pub fn merged_origin() -> Vec<Self> {
+        use Delete::*;
+        vec![
+            MergedLocal,
+            MergedRemote(Scope::Scoped("origin".to_string())),
+        ]
+    }
+}
+
+#[derive(Debug)]
+pub struct DeleteParseError {
+    message: String,
+}
+
+unsafe impl Sync for DeleteParseError {}
+
+impl Display for DeleteParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "DeleteParseError: {}", &self.message)
+    }
+}
+
+impl std::error::Error for DeleteParseError {}
+
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct DeleteFilter(HashSet<FilterUnit>);
 
 impl DeleteFilter {
-    pub fn merged_origin() -> Self {
-        use FilterUnit::*;
-        DeleteFilter(HashSet::from_iter(vec![
-            MergedLocal,
-            MergedRemote(Scope::Scoped("origin".to_string())),
-        ]))
-    }
-
-    pub fn all() -> Self {
-        use FilterUnit::*;
-        DeleteFilter(HashSet::from_iter(vec![
-            MergedLocal,
-            MergedRemote(Scope::All),
-            Stray,
-            Diverged(Scope::All),
-        ]))
-    }
-
     pub fn delete_merged_local(&self) -> bool {
         self.0.contains(&FilterUnit::MergedLocal)
     }
@@ -189,51 +259,6 @@ impl DeleteFilter {
             }
         }
         false
-    }
-}
-
-impl FromStr for DeleteFilter {
-    type Err = DeleteFilterParseError;
-
-    fn from_str(args: &str) -> Result<DeleteFilter, Self::Err> {
-        use FilterUnit::*;
-        use Scope::*;
-        let mut result: Vec<FilterUnit> = Vec::new();
-        for arg in args.split(',') {
-            let some_pair: Vec<_> = arg.splitn(2, ':').map(str::trim).collect();
-            let filters = match *some_pair.as_slice() {
-                ["all"] => vec![MergedLocal, MergedRemote(All), Stray, Diverged(All)],
-                ["all", remote] => vec![
-                    MergedLocal,
-                    MergedRemote(Scoped(remote.to_string())),
-                    Stray,
-                    Diverged(Scoped(remote.to_string())),
-                ],
-                ["merged"] => vec![MergedLocal, MergedRemote(All)],
-                ["merged", remote] => vec![MergedLocal, MergedRemote(Scoped(remote.to_string()))],
-                ["stray"] => vec![Stray],
-                ["diverged"] => vec![Diverged(All)],
-                ["diverged", remote] => vec![Diverged(Scoped(remote.to_string()))],
-                ["local"] => vec![MergedLocal, Stray],
-                ["remote"] => vec![MergedRemote(All), Diverged(All)],
-                ["remote", remote] => vec![
-                    MergedRemote(Scoped(remote.to_string())),
-                    Diverged(Scoped(remote.to_string())),
-                ],
-                ["merged-local"] => vec![MergedLocal],
-                ["merged-remote"] => vec![MergedRemote(All)],
-                ["merged-remote", remote] => vec![MergedRemote(Scoped(remote.to_string()))],
-                _ if arg.is_empty() => vec![],
-                _ => {
-                    return Err(DeleteFilterParseError {
-                        message: format!("Unexpected delete filter: {}", arg),
-                    });
-                }
-            };
-            result.extend(filters);
-        }
-
-        Ok(Self(HashSet::from_iter(result)))
     }
 }
 
@@ -272,35 +297,11 @@ impl FromIterator<FilterUnit> for DeleteFilter {
     }
 }
 
-impl FromIterator<Self> for DeleteFilter {
+impl FromIterator<Delete> for DeleteFilter {
     fn from_iter<I>(iter: I) -> Self
     where
-        I: IntoIterator<Item = Self>,
+        I: IntoIterator<Item = Delete>,
     {
-        Self(iter.into_iter().flatten().collect())
+        Self::from_iter(iter.into_iter().map(|x| x.to_filter_units()).flatten())
     }
 }
-
-impl IntoIterator for DeleteFilter {
-    type Item = FilterUnit;
-    type IntoIter = std::collections::hash_set::IntoIter<FilterUnit>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-#[derive(Debug)]
-pub struct DeleteFilterParseError {
-    message: String,
-}
-
-unsafe impl Sync for DeleteFilterParseError {}
-
-impl Display for DeleteFilterParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "DeleteFilterParseError: {}", &self.message)
-    }
-}
-
-impl std::error::Error for DeleteFilterParseError {}

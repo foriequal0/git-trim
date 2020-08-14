@@ -8,15 +8,16 @@ use anyhow::{Context, Result};
 use git2::{BranchType, Config as GitConfig, Error, ErrorClass, ErrorCode, Remote, Repository};
 use log::*;
 
-use crate::args::{Args, DeleteFilter};
+use crate::args::{Args, Delete, DeleteFilter};
 use crate::branch::LocalBranch;
+use std::collections::HashSet;
 
 type GitResult<T> = std::result::Result<T, git2::Error>;
 
 #[derive(Debug)]
 pub struct Config {
-    pub bases: ConfigValue<CommaSeparatedSet<String>>,
-    pub protected: ConfigValue<CommaSeparatedSet<String>>,
+    pub bases: ConfigValue<HashSet<String>>,
+    pub protected: ConfigValue<HashSet<String>>,
     pub update: ConfigValue<bool>,
     pub update_interval: ConfigValue<u64>,
     pub confirm: ConfigValue<bool>,
@@ -34,13 +35,13 @@ impl Config {
             }
         }
 
-        let bases = get(config, "trim.bases")
+        let bases = get_comma_separated_multi(config, "trim.bases")
             .with_explicit("cli", non_empty(args.bases.clone()))
             .with_default(get_branches_tracks_remote_heads(repo, config)?)
-            .parses_and_collect::<CommaSeparatedSet<String>>()?;
-        let protected = get(config, "trim.protected")
+            .parses_and_collect::<HashSet<String>>()?;
+        let protected = get_comma_separated_multi(config, "trim.protected")
             .with_explicit("cli", non_empty(args.protected.clone()))
-            .parses_and_collect::<CommaSeparatedSet<String>>()?;
+            .parses_and_collect::<HashSet<String>>()?;
         let update = get(config, "trim.update")
             .with_explicit("cli", args.update())
             .with_default(true)
@@ -61,9 +62,9 @@ impl Config {
             .with_default(true)
             .read()?
             .expect("has default");
-        let filter = get(config, "trim.delete")
+        let filter = get_comma_separated_multi(config, "trim.delete")
             .with_explicit("cli", non_empty(args.delete.clone()))
-            .with_default(vec![DeleteFilter::merged_origin()])
+            .with_default(Delete::merged_origin())
             .parses_and_collect::<DeleteFilter>()?;
 
         Ok(Config {
@@ -145,6 +146,7 @@ pub struct ConfigBuilder<'a, T> {
     key: &'a str,
     explicit: Option<(&'a str, T)>,
     default: Option<T>,
+    comma_separated: bool,
 }
 
 pub fn get<'a, T>(config: &'a GitConfig, key: &'a str) -> ConfigBuilder<'a, T> {
@@ -153,6 +155,20 @@ pub fn get<'a, T>(config: &'a GitConfig, key: &'a str) -> ConfigBuilder<'a, T> {
         key,
         explicit: None,
         default: None,
+        comma_separated: false,
+    }
+}
+
+pub fn get_comma_separated_multi<'a, T>(
+    config: &'a GitConfig,
+    key: &'a str,
+) -> ConfigBuilder<'a, T> {
+    ConfigBuilder {
+        config,
+        key,
+        explicit: None,
+        default: None,
+        comma_separated: true,
     }
 }
 
@@ -208,8 +224,9 @@ impl<'a, T> ConfigBuilder<'a, T> {
     fn parses_and_collect<U>(self) -> Result<ConfigValue<U>>
     where
         T: IntoIterator,
-        U: FromStr + FromIterator<<T as IntoIterator>::Item> + FromIterator<U> + Default,
-        U::Err: std::error::Error + Send + Sync + 'static,
+        T::Item: FromStr,
+        <T::Item as FromStr>::Err: std::error::Error + Send + Sync + 'static,
+        U: FromIterator<<T as IntoIterator>::Item> + Default,
     {
         if let Some((source, value)) = self.explicit {
             return Ok(ConfigValue::Explicit {
@@ -219,10 +236,20 @@ impl<'a, T> ConfigBuilder<'a, T> {
         }
 
         let result = match Vec::<String>::get_config_value(self.config, self.key) {
-            Ok(values) if !values.is_empty() => {
+            Ok(entries) if !entries.is_empty() => {
                 let mut result = Vec::new();
-                for x in values {
-                    result.push(U::from_str(&x)?)
+                if self.comma_separated {
+                    for entry in entries {
+                        for item in entry.split(',') {
+                            let value = <T::Item>::from_str(item)?;
+                            result.push(value);
+                        }
+                    }
+                } else {
+                    for entry in entries {
+                        let value = <T::Item>::from_str(&entry)?;
+                        result.push(value);
+                    }
                 }
 
                 ConfigValue::Explicit {

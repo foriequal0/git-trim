@@ -1,11 +1,15 @@
 use std::fmt::Write;
 use std::io::{BufRead, BufReader, Error, Write as _};
+use std::iter::FromIterator;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::thread::spawn;
 
 use log::*;
 use tempfile::{tempdir, TempDir};
+
+use git_trim::args::{Delete, DeleteFilter, Scope};
+use git_trim::PlanParam;
 
 #[derive(Default)]
 pub struct Fixture {
@@ -193,6 +197,24 @@ macro_rules! set {
         HashSet::from_iter(vec![$(From::from($x),)*])
     });
     {$($x:expr,)*} => ($crate::set!{$($x),*})
+}
+
+#[allow(unused)]
+pub fn test_default_param() -> PlanParam<'static> {
+    use Delete::*;
+    PlanParam {
+        bases: vec!["master"],
+        protected_branches: set! {},
+        filter: DeleteFilter::from_iter(vec![
+            MergedLocal,
+            MergedRemote(Scope::All),
+            Stray,
+            Diverged(Scope::All),
+            Local,
+            Remote(Scope::All),
+        ]),
+        detach: true,
+    }
 }
 
 #[test]
