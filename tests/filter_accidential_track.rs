@@ -6,12 +6,12 @@ use std::iter::FromIterator;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::args::{Delete, DeleteFilter, Scope};
+use git_trim::args::{DeleteFilter, DeleteRange, Scope};
 use git_trim::{
     get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteTrackingBranch,
 };
 
-use fixture::{rc, Fixture};
+use fixture::{rc, test_default_param, Fixture};
 
 fn fixture() -> Fixture {
     rc().append_fixture_trace(
@@ -59,13 +59,11 @@ fn fixture() -> Fixture {
 
 fn param() -> PlanParam<'static> {
     PlanParam {
-        bases: vec!["master"],
-        protected_branches: set! {},
-        filter: DeleteFilter::from_iter(vec![
-            Delete::MergedLocal,
-            Delete::MergedRemote(Scope::Scoped("origin".to_string())),
+        delete: DeleteFilter::from_iter(vec![
+            DeleteRange::MergedLocal,
+            DeleteRange::MergedRemote(Scope::Scoped("origin".to_string())),
         ]),
-        detach: true,
+        ..test_default_param()
     }
 }
 
@@ -88,13 +86,13 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
     let plan = get_trim_plan(
         &git,
         &PlanParam {
-            filter: DeleteFilter::from_iter(vec![
-                Delete::MergedLocal,
-                Delete::MergedRemote(Scope::All),
-                Delete::Stray,
-                Delete::Diverged(Scope::All),
-                Delete::Local,
-                Delete::Remote(Scope::All),
+            delete: DeleteFilter::from_iter(vec![
+                DeleteRange::MergedLocal,
+                DeleteRange::MergedRemote(Scope::All),
+                DeleteRange::Stray,
+                DeleteRange::Diverged(Scope::All),
+                DeleteRange::Local,
+                DeleteRange::Remote(Scope::All),
             ]),
             ..param()
         },

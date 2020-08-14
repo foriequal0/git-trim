@@ -58,20 +58,20 @@ pub struct Args {
     #[clap(long, hidden(true))]
     pub detach: bool,
 
-    /// Comma separated values of `<filter unit>[:<remote name>]`.
-    /// Filter unit is one of the `all, merged, local, remote, merged-local, merged-remote, stray, diverged`.
-    /// You can scope a filter unit to specific remote `:<remote name>` to a `filter unit` when the filter unit implies `merged-remote` or `diverged`.
-    /// [default : `merged:origin`] [config: trim.filter]
+    /// Comma separated values of `<delete range>[:<remote name>]`.
+    /// Delete range is one of the `all, merged, local, remote, merged-local, merged-remote, stray, diverged`.
+    /// You can scope a delete range to specific remote `:<remote name>` to a `delete range` when the delete range implies `merged-remote` or `diverged`.
+    /// [default : `merged:origin`] [config: trim.delete]
     ///
-    /// If there are filter units that are scoped, it trims remote branches only in the specified remote.
-    /// If there are any filter unit that isn`t scoped, it trims all remote branches.
+    /// If there are delete ranges that are scoped, it trims remote branches only in the specified remote.
+    /// If there are any delete range that isn`t scoped, it trims all remote branches.
     ///
     /// `all` implies `merged-local,merged-remote,stray-local,stray-remote`.
     /// `merged` implies `merged-local,merged-remote`.
     /// `local` implies `merged-local,stray-local`.
     /// `remote` implies `merged-remote,stray-remote`.
     #[clap(short, long, value_delimiter = ",")]
-    pub delete: Vec<Delete>,
+    pub delete: Vec<DeleteRange>,
 
     /// Do not delete branches, show what branches will be deleted.
     #[clap(long)]
@@ -130,7 +130,7 @@ pub enum Scope {
 }
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
-pub enum Delete {
+pub enum DeleteRange {
     All(Scope),
     Merged(Scope),
     MergedLocal,
@@ -142,67 +142,67 @@ pub enum Delete {
 }
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
-pub enum FilterUnit {
+pub enum DeleteUnit {
     MergedLocal,
     MergedRemote(Scope),
     Stray,
     Diverged(Scope),
 }
 
-impl FromStr for Delete {
+impl FromStr for DeleteRange {
     type Err = DeleteParseError;
 
-    fn from_str(arg: &str) -> Result<Delete, Self::Err> {
+    fn from_str(arg: &str) -> Result<DeleteRange, Self::Err> {
         use Scope::*;
         let some_pair: Vec<_> = arg.splitn(2, ':').map(str::trim).collect();
         match *some_pair.as_slice() {
-            ["all"] => Ok(Delete::All(All)),
-            ["all", remote] => Ok(Delete::All(Scoped(remote.to_owned()))),
-            ["merged"] => Ok(Delete::Merged(All)),
-            ["merged", remote] => Ok(Delete::Merged(Scoped(remote.to_owned()))),
-            ["stray"] => Ok(Delete::Stray),
-            ["diverged"] => Ok(Delete::Diverged(All)),
-            ["diverged", remote] => Ok(Delete::Diverged(Scoped(remote.to_owned()))),
-            ["merged-local"] => Ok(Delete::MergedLocal),
-            ["merged-remote"] => Ok(Delete::MergedRemote(All)),
-            ["merged-remote", remote] => Ok(Delete::MergedRemote(Scoped(remote.to_owned()))),
-            ["local"] => Ok(Delete::Local),
-            ["remote"] => Ok(Delete::Remote(All)),
-            ["remote", remote] => Ok(Delete::Remote(Scoped(remote.to_owned()))),
+            ["all"] => Ok(DeleteRange::All(All)),
+            ["all", remote] => Ok(DeleteRange::All(Scoped(remote.to_owned()))),
+            ["merged"] => Ok(DeleteRange::Merged(All)),
+            ["merged", remote] => Ok(DeleteRange::Merged(Scoped(remote.to_owned()))),
+            ["stray"] => Ok(DeleteRange::Stray),
+            ["diverged"] => Ok(DeleteRange::Diverged(All)),
+            ["diverged", remote] => Ok(DeleteRange::Diverged(Scoped(remote.to_owned()))),
+            ["merged-local"] => Ok(DeleteRange::MergedLocal),
+            ["merged-remote"] => Ok(DeleteRange::MergedRemote(All)),
+            ["merged-remote", remote] => Ok(DeleteRange::MergedRemote(Scoped(remote.to_owned()))),
+            ["local"] => Ok(DeleteRange::Local),
+            ["remote"] => Ok(DeleteRange::Remote(All)),
+            ["remote", remote] => Ok(DeleteRange::Remote(Scoped(remote.to_owned()))),
             _ => Err(DeleteParseError {
-                message: format!("Unexpected delete filter: {}", arg),
+                message: format!("Unexpected delete range: {}", arg),
             }),
         }
     }
 }
 
-impl Delete {
-    fn to_filter_units(&self) -> Vec<FilterUnit> {
+impl DeleteRange {
+    fn to_delete_units(&self) -> Vec<DeleteUnit> {
         match self {
-            Delete::All(scope) => vec![
-                FilterUnit::MergedLocal,
-                FilterUnit::MergedRemote(scope.clone()),
-                FilterUnit::Stray,
-                FilterUnit::Diverged(scope.clone()),
+            DeleteRange::All(scope) => vec![
+                DeleteUnit::MergedLocal,
+                DeleteUnit::MergedRemote(scope.clone()),
+                DeleteUnit::Stray,
+                DeleteUnit::Diverged(scope.clone()),
             ],
-            Delete::Merged(scope) => vec![
-                FilterUnit::MergedLocal,
-                FilterUnit::MergedRemote(scope.clone()),
+            DeleteRange::Merged(scope) => vec![
+                DeleteUnit::MergedLocal,
+                DeleteUnit::MergedRemote(scope.clone()),
             ],
-            Delete::MergedLocal => vec![FilterUnit::MergedLocal],
-            Delete::MergedRemote(scope) => vec![FilterUnit::MergedRemote(scope.clone())],
-            Delete::Stray => vec![FilterUnit::Stray],
-            Delete::Diverged(scope) => vec![FilterUnit::Diverged(scope.clone())],
-            Delete::Local => vec![FilterUnit::MergedLocal, FilterUnit::Stray],
-            Delete::Remote(scope) => vec![
-                FilterUnit::MergedRemote(scope.clone()),
-                FilterUnit::Diverged(scope.clone()),
+            DeleteRange::MergedLocal => vec![DeleteUnit::MergedLocal],
+            DeleteRange::MergedRemote(scope) => vec![DeleteUnit::MergedRemote(scope.clone())],
+            DeleteRange::Stray => vec![DeleteUnit::Stray],
+            DeleteRange::Diverged(scope) => vec![DeleteUnit::Diverged(scope.clone())],
+            DeleteRange::Local => vec![DeleteUnit::MergedLocal, DeleteUnit::Stray],
+            DeleteRange::Remote(scope) => vec![
+                DeleteUnit::MergedRemote(scope.clone()),
+                DeleteUnit::Diverged(scope.clone()),
             ],
         }
     }
 
     pub fn merged_origin() -> Vec<Self> {
-        use Delete::*;
+        use DeleteRange::*;
         vec![
             MergedLocal,
             MergedRemote(Scope::Scoped("origin".to_string())),
@@ -226,18 +226,18 @@ impl Display for DeleteParseError {
 impl std::error::Error for DeleteParseError {}
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
-pub struct DeleteFilter(HashSet<FilterUnit>);
+pub struct DeleteFilter(HashSet<DeleteUnit>);
 
 impl DeleteFilter {
     pub fn delete_merged_local(&self) -> bool {
-        self.0.contains(&FilterUnit::MergedLocal)
+        self.0.contains(&DeleteUnit::MergedLocal)
     }
 
     pub fn delete_merged_remote(&self, remote: &str) -> bool {
-        for filter in self.0.iter() {
-            match filter {
-                FilterUnit::MergedRemote(Scope::All) => return true,
-                FilterUnit::MergedRemote(Scope::Scoped(specific)) if specific == remote => {
+        for unit in self.0.iter() {
+            match unit {
+                DeleteUnit::MergedRemote(Scope::All) => return true,
+                DeleteUnit::MergedRemote(Scope::Scoped(specific)) if specific == remote => {
                     return true
                 }
                 _ => {}
@@ -247,14 +247,14 @@ impl DeleteFilter {
     }
 
     pub fn delete_stray(&self) -> bool {
-        self.0.contains(&FilterUnit::Stray)
+        self.0.contains(&DeleteUnit::Stray)
     }
 
     pub fn delete_diverged(&self, remote: &str) -> bool {
-        for filter in self.0.iter() {
-            match filter {
-                FilterUnit::Diverged(Scope::All) => return true,
-                FilterUnit::Diverged(Scope::Scoped(specific)) if specific == remote => return true,
+        for unit in self.0.iter() {
+            match unit {
+                DeleteUnit::Diverged(Scope::All) => return true,
+                DeleteUnit::Diverged(Scope::Scoped(specific)) if specific == remote => return true,
                 _ => {}
             }
         }
@@ -262,32 +262,32 @@ impl DeleteFilter {
     }
 }
 
-impl FromIterator<FilterUnit> for DeleteFilter {
+impl FromIterator<DeleteUnit> for DeleteFilter {
     fn from_iter<I>(iter: I) -> Self
     where
-        I: IntoIterator<Item = FilterUnit>,
+        I: IntoIterator<Item = DeleteUnit>,
     {
-        use FilterUnit::*;
+        use DeleteUnit::*;
         use Scope::*;
 
         let mut result = HashSet::new();
-        for filter in iter.into_iter() {
-            match filter {
+        for unit in iter.into_iter() {
+            match unit {
                 MergedLocal | Stray => {
-                    result.insert(filter.clone());
+                    result.insert(unit.clone());
                 }
                 MergedRemote(All) | Diverged(All) => {
-                    result.retain(|x| discriminant(x) != discriminant(&filter));
-                    result.insert(filter.clone());
+                    result.retain(|x| discriminant(x) != discriminant(&unit));
+                    result.insert(unit.clone());
                 }
                 MergedRemote(_) => {
                     if !result.contains(&MergedRemote(All)) {
-                        result.insert(filter.clone());
+                        result.insert(unit.clone());
                     }
                 }
                 Diverged(_) => {
                     if !result.contains(&Diverged(All)) {
-                        result.insert(filter.clone());
+                        result.insert(unit.clone());
                     }
                 }
             }
@@ -297,11 +297,11 @@ impl FromIterator<FilterUnit> for DeleteFilter {
     }
 }
 
-impl FromIterator<Delete> for DeleteFilter {
+impl FromIterator<DeleteRange> for DeleteFilter {
     fn from_iter<I>(iter: I) -> Self
     where
-        I: IntoIterator<Item = Delete>,
+        I: IntoIterator<Item = DeleteRange>,
     {
-        Self::from_iter(iter.into_iter().map(|x| x.to_filter_units()).flatten())
+        Self::from_iter(iter.into_iter().map(|x| x.to_delete_units()).flatten())
     }
 }

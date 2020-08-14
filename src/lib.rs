@@ -39,7 +39,7 @@ impl TryFrom<Repository> for Git {
 pub struct PlanParam<'a> {
     pub bases: Vec<&'a str>,
     pub protected_branches: HashSet<&'a str>,
-    pub filter: DeleteFilter,
+    pub delete: DeleteFilter,
     pub detach: bool,
 }
 
@@ -97,7 +97,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     result.preserve(&protected_refs, "a protected")?;
     result.preserve_non_heads_remotes(&git.repo)?;
     result.preserve_worktree(&git.repo)?;
-    result.apply_filter(&git.repo, &param.filter)?;
+    result.apply_delete_filter(&git.repo, &param.delete)?;
 
     if !param.detach {
         result.adjust_not_to_detach(&git.repo)?;

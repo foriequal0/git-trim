@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use git2::{BranchType, Config as GitConfig, Error, ErrorClass, ErrorCode, Remote, Repository};
 use log::*;
 
-use crate::args::{Args, Delete, DeleteFilter};
+use crate::args::{Args, DeleteFilter, DeleteRange};
 use crate::branch::LocalBranch;
 use std::collections::HashSet;
 
@@ -22,7 +22,7 @@ pub struct Config {
     pub update_interval: ConfigValue<u64>,
     pub confirm: ConfigValue<bool>,
     pub detach: ConfigValue<bool>,
-    pub filter: ConfigValue<DeleteFilter>,
+    pub delete: ConfigValue<DeleteFilter>,
 }
 
 impl Config {
@@ -62,9 +62,9 @@ impl Config {
             .with_default(true)
             .read()?
             .expect("has default");
-        let filter = get_comma_separated_multi(config, "trim.delete")
+        let delete = get_comma_separated_multi(config, "trim.delete")
             .with_explicit("cli", non_empty(args.delete.clone()))
-            .with_default(Delete::merged_origin())
+            .with_default(DeleteRange::merged_origin())
             .parses_and_collect::<DeleteFilter>()?;
 
         Ok(Config {
@@ -74,7 +74,7 @@ impl Config {
             update_interval,
             confirm,
             detach,
-            filter,
+            delete,
         })
     }
 }

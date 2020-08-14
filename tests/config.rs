@@ -7,7 +7,7 @@ use std::iter::FromIterator;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::args::{Args, DeleteFilter, FilterUnit, Scope};
+use git_trim::args::{Args, DeleteFilter, DeleteUnit, Scope};
 use git_trim::config::{Config, ConfigValue};
 use git_trim::Git;
 
@@ -183,14 +183,14 @@ fn test_delete_filter_multiple_comma_separated_values() -> Result<()> {
     let config = Config::read(&git.repo, &git.config, &Args::default())?;
 
     assert_eq!(
-        config.filter,
+        config.delete,
         ConfigValue::Explicit {
             value: DeleteFilter::from_iter(vec![
-                FilterUnit::MergedLocal,
-                FilterUnit::Stray,
-                FilterUnit::MergedRemote(Scope::Scoped("origin".to_owned())),
-                FilterUnit::MergedRemote(Scope::Scoped("upstream".to_owned())),
-                FilterUnit::Diverged(Scope::Scoped("upstream".to_owned())),
+                DeleteUnit::MergedLocal,
+                DeleteUnit::Stray,
+                DeleteUnit::MergedRemote(Scope::Scoped("origin".to_owned())),
+                DeleteUnit::MergedRemote(Scope::Scoped("upstream".to_owned())),
+                DeleteUnit::Diverged(Scope::Scoped("upstream".to_owned())),
             ]),
             source: "trim.delete".to_string(),
         }

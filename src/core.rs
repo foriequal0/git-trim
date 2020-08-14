@@ -143,7 +143,7 @@ impl TrimPlan {
         Ok(())
     }
 
-    pub fn apply_filter(&mut self, repo: &Repository, filter: &DeleteFilter) -> Result<()> {
+    pub fn apply_delete_filter(&mut self, repo: &Repository, filter: &DeleteFilter) -> Result<()> {
         trace!("Before filter: {:#?}", self.to_delete);
         trace!("Applying filter: {:?}", filter);
 
