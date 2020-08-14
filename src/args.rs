@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 use std::hash::Hash;
 use std::iter::FromIterator;
 use std::mem::discriminant;
@@ -7,6 +7,7 @@ use std::process::exit;
 use std::str::FromStr;
 
 use clap::Clap;
+use thiserror::Error;
 
 #[derive(Clap, Default)]
 #[clap(
@@ -60,11 +61,12 @@ pub struct Args {
 
     /// Comma separated values of `<scan range>[:<remote name>]`.
     /// Scan range is one of the `all, local, remote`.
-    /// You can scope a scan range to specific remote `:<remote name>` to a `scan range` when the scan range implies `remote`.
+    /// `:<remote name>` is necessary to a `<scan range>` when the scan range implies `remote`.
+    /// You can use `*` as `<remote name>` to scan branches from all remotes.
     /// [default : `local`] [config: trim.scan]
     ///
-    /// When `local` is specified, scans tracking local branches, tracking its upstreams, and all non-tracking merged local branches.
-    /// When `remote` is specified, scans non-upstream remote tracking branches.
+    /// When `local` is specified, scans tracking local branches, tracking its upstreams, and all non-tracking local branches.
+    /// When `remote:<remote name>` is specified, scans non-upstream remote tracking branches from `<remote name>`.
     /// `all` implies `local,remote`.
     ///
     /// You might usually want to use one of these: `--scan local` alone or `--scan all:origin` with `--delete merged:origin,remote:origin` option.
@@ -73,17 +75,15 @@ pub struct Args {
 
     /// Comma separated values of `<delete range>[:<remote name>]`.
     /// Delete range is one of the `all, merged, merged-local, merged-remote, stray, diverged, local, remote`.
-    /// You can scope a delete range to specific remote `:<remote name>` to a `delete range` when the delete range implies `merged-remote` or `diverged` or `remote`.
+    /// `:<remote name>` is necessary to a `<delete range>` when the delete range implies `merged-remote`, `diverged` or `remote`.
+    /// You can use `*` as `<remote name>` to delete a range of branches from all remotes.
     /// [default : `merged:origin`] [config: trim.delete]
-    ///
-    /// If there are delete ranges that are scoped, it trims remote branches only in the specified remote.
-    /// If there are any delete range that isn`t scoped, it trims all remote branches.
     ///
     /// `all` implies `merged,stray,diverged,local,remote`.
     /// `merged` implies `merged-local,merged-remote`.
     ///
     /// When `local` is specified, deletes non-tracking merged local branches.
-    /// When `remote` is specified, deletes non-upstream remote tracking branches.
+    /// When `remote` is specified, deletes non-upstream merged remote tracking branches.
     #[clap(short, long, value_delimiter = ",")]
     pub delete: Vec<DeleteRange>,
 
@@ -143,6 +143,26 @@ pub enum Scope {
     Scoped(String),
 }
 
+impl FromStr for Scope {
+    type Err = ScopeParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim() {
+            "" => Err(ScopeParseError {
+                message: "Scope is empty".to_owned(),
+            }),
+            "*" => Ok(Scope::All),
+            scope => Ok(Scope::Scoped(scope.to_owned())),
+        }
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("{message}")]
+pub struct ScopeParseError {
+    message: String,
+}
+
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub enum DeleteRange {
     All(Scope),
@@ -169,25 +189,17 @@ impl FromStr for DeleteRange {
     type Err = DeleteParseError;
 
     fn from_str(arg: &str) -> Result<DeleteRange, Self::Err> {
-        use Scope::*;
         let some_pair: Vec<_> = arg.splitn(2, ':').map(str::trim).collect();
         match *some_pair.as_slice() {
-            ["all"] => Ok(DeleteRange::All(All)),
-            ["all", remote] => Ok(DeleteRange::All(Scoped(remote.to_owned()))),
-            ["merged"] => Ok(DeleteRange::Merged(All)),
-            ["merged", remote] => Ok(DeleteRange::Merged(Scoped(remote.to_owned()))),
+            ["all", remote] => Ok(DeleteRange::All(remote.parse()?)),
+            ["merged", remote] => Ok(DeleteRange::Merged(remote.parse()?)),
             ["stray"] => Ok(DeleteRange::Stray),
-            ["diverged"] => Ok(DeleteRange::Diverged(All)),
-            ["diverged", remote] => Ok(DeleteRange::Diverged(Scoped(remote.to_owned()))),
+            ["diverged", remote] => Ok(DeleteRange::Diverged(remote.parse()?)),
             ["merged-local"] => Ok(DeleteRange::MergedLocal),
-            ["merged-remote"] => Ok(DeleteRange::MergedRemote(All)),
-            ["merged-remote", remote] => Ok(DeleteRange::MergedRemote(Scoped(remote.to_owned()))),
+            ["merged-remote", remote] => Ok(DeleteRange::MergedRemote(remote.parse()?)),
             ["local"] => Ok(DeleteRange::Local),
-            ["remote"] => Ok(DeleteRange::Remote(All)),
-            ["remote", remote] => Ok(DeleteRange::Remote(Scoped(remote.to_owned()))),
-            _ => Err(DeleteParseError {
-                message: format!("Unexpected delete range: {}", arg),
-            }),
+            ["remote", remote] => Ok(DeleteRange::Remote(remote.parse()?)),
+            _ => Err(DeleteParseError::InvalidDeleteRangeFormat(arg.to_owned())),
         }
     }
 }
@@ -225,20 +237,13 @@ impl DeleteRange {
     }
 }
 
-#[derive(Debug)]
-pub struct DeleteParseError {
-    message: String,
+#[derive(Error, Debug)]
+pub enum DeleteParseError {
+    #[error("Invalid delete range format `{0}`")]
+    InvalidDeleteRangeFormat(String),
+    #[error("Scope parse error for delete range while parsing scope: {0}")]
+    ScopeParseError(#[from] ScopeParseError),
 }
-
-unsafe impl Sync for DeleteParseError {}
-
-impl Display for DeleteParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "DeleteParseError: {}", &self.message)
-    }
-}
-
-impl std::error::Error for DeleteParseError {}
 
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct DeleteFilter(HashSet<DeleteUnit>);
@@ -363,35 +368,23 @@ impl FromStr for ScanRange {
     type Err = ScanParseError;
 
     fn from_str(arg: &str) -> Result<ScanRange, Self::Err> {
-        use Scope::*;
         let some_pair: Vec<_> = arg.splitn(2, ':').map(str::trim).collect();
         match *some_pair.as_slice() {
-            ["all"] => Ok(ScanRange::All(All)),
-            ["all", remote] => Ok(ScanRange::All(Scoped(remote.to_owned()))),
+            ["all", remote] => Ok(ScanRange::All(remote.parse()?)),
             ["local"] => Ok(ScanRange::Local),
-            ["remote"] => Ok(ScanRange::Remote(All)),
-            ["remote", remote] => Ok(ScanRange::Remote(Scoped(remote.to_owned()))),
-            _ => Err(ScanParseError {
-                message: format!("Unexpected scan range: {}", arg),
-            }),
+            ["remote", remote] => Ok(ScanRange::Remote(remote.parse()?)),
+            _ => Err(ScanParseError::InvalidScanRangeFormat(arg.to_owned())),
         }
     }
 }
 
-#[derive(Debug)]
-pub struct ScanParseError {
-    message: String,
+#[derive(Error, Debug)]
+pub enum ScanParseError {
+    #[error("Invalid scan range format `{0}`")]
+    InvalidScanRangeFormat(String),
+    #[error("Error while parsing scope for some scan range: {0}")]
+    ScopeParseError(#[from] ScopeParseError),
 }
-
-unsafe impl Sync for ScanParseError {}
-
-impl Display for ScanParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ScanParseError: {}", &self.message)
-    }
-}
-
-impl std::error::Error for ScanParseError {}
 
 impl ScanRange {
     fn to_scan_units(&self) -> Vec<ScanUnit> {
