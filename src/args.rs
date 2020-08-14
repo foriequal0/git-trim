@@ -58,6 +58,19 @@ pub struct Args {
     #[clap(long, hidden(true))]
     pub detach: bool,
 
+    /// Comma separated values of `<scan range>[:<remote name>]`.
+    /// Scan range is one of the `all, local, remote`.
+    /// You can scope a scan range to specific remote `:<remote name>` to a `scan range` when the scan range implies `remote`.
+    /// [default : `local`] [config: trim.scan]
+    ///
+    /// When `local` is specified, scans tracking local branches, tracking its upstreams, and all non-tracking merged local branches.
+    /// When `remote` is specified, scans non-upstream remote tracking branches.
+    /// `all` implies `local,remote`.
+    ///
+    /// You might usually want to use one of these: `--scan local` alone or `--scan all:origin` with `--delete merged:origin,remote:origin` option.
+    #[clap(short, long, value_delimiter = ",")]
+    pub scan: Vec<ScanRange>,
+
     /// Comma separated values of `<delete range>[:<remote name>]`.
     /// Delete range is one of the `all, merged, merged-local, merged-remote, stray, diverged, local, remote`.
     /// You can scope a delete range to specific remote `:<remote name>` to a `delete range` when the delete range implies `merged-remote` or `diverged` or `remote`.
@@ -329,5 +342,137 @@ impl FromIterator<DeleteRange> for DeleteFilter {
         I: IntoIterator<Item = DeleteRange>,
     {
         Self::from_iter(iter.into_iter().map(|x| x.to_delete_units()).flatten())
+    }
+}
+
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub enum ScanRange {
+    All(Scope),
+    Local,
+    Remote(Scope),
+}
+
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub enum ScanUnit {
+    Tracking,
+    NonTrackingLocal,
+    NonUpstreamRemoteTracking(Scope),
+}
+
+impl FromStr for ScanRange {
+    type Err = ScanParseError;
+
+    fn from_str(arg: &str) -> Result<ScanRange, Self::Err> {
+        use Scope::*;
+        let some_pair: Vec<_> = arg.splitn(2, ':').map(str::trim).collect();
+        match *some_pair.as_slice() {
+            ["all"] => Ok(ScanRange::All(All)),
+            ["all", remote] => Ok(ScanRange::All(Scoped(remote.to_owned()))),
+            ["local"] => Ok(ScanRange::Local),
+            ["remote"] => Ok(ScanRange::Remote(All)),
+            ["remote", remote] => Ok(ScanRange::Remote(Scoped(remote.to_owned()))),
+            _ => Err(ScanParseError {
+                message: format!("Unexpected scan range: {}", arg),
+            }),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ScanParseError {
+    message: String,
+}
+
+unsafe impl Sync for ScanParseError {}
+
+impl Display for ScanParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ScanParseError: {}", &self.message)
+    }
+}
+
+impl std::error::Error for ScanParseError {}
+
+impl ScanRange {
+    fn to_scan_units(&self) -> Vec<ScanUnit> {
+        match self {
+            ScanRange::All(scope) => vec![
+                ScanUnit::Tracking,
+                ScanUnit::NonTrackingLocal,
+                ScanUnit::NonUpstreamRemoteTracking(scope.clone()),
+            ],
+            ScanRange::Local => vec![ScanUnit::Tracking, ScanUnit::NonTrackingLocal],
+            ScanRange::Remote(scope) => vec![ScanUnit::NonUpstreamRemoteTracking(scope.clone())],
+        }
+    }
+
+    pub fn local() -> Vec<Self> {
+        vec![ScanRange::Local]
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ScanFilter(HashSet<ScanUnit>);
+
+impl ScanFilter {
+    pub fn scan_tracking(&self) -> bool {
+        self.0.contains(&ScanUnit::Tracking)
+    }
+
+    pub fn scan_non_tracking_local(&self) -> bool {
+        self.0.contains(&ScanUnit::NonTrackingLocal)
+    }
+
+    pub fn scan_non_upstream_remote(&self, remote: &str) -> bool {
+        for filter in self.0.iter() {
+            match filter {
+                ScanUnit::NonUpstreamRemoteTracking(Scope::All) => return true,
+                ScanUnit::NonUpstreamRemoteTracking(Scope::Scoped(specific))
+                    if specific == remote =>
+                {
+                    return true
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+}
+
+impl FromIterator<ScanUnit> for ScanFilter {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = ScanUnit>,
+    {
+        use Scope::*;
+
+        let mut result = HashSet::new();
+        for unit in iter.into_iter() {
+            match unit {
+                ScanUnit::Tracking | ScanUnit::NonTrackingLocal => {
+                    result.insert(unit.clone());
+                }
+                ScanUnit::NonUpstreamRemoteTracking(All) => {
+                    result.retain(|x| discriminant(x) != discriminant(&unit));
+                    result.insert(unit.clone());
+                }
+                ScanUnit::NonUpstreamRemoteTracking(_) => {
+                    if !result.contains(&ScanUnit::NonUpstreamRemoteTracking(All)) {
+                        result.insert(unit.clone());
+                    }
+                }
+            }
+        }
+
+        Self(result)
+    }
+}
+
+impl FromIterator<ScanRange> for ScanFilter {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = ScanRange>,
+    {
+        Self::from_iter(iter.into_iter().map(|x| x.to_scan_units()).flatten())
     }
 }
