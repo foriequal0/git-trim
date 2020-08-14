@@ -1,5 +1,6 @@
 mod fixture;
 
+use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::iter::FromIterator;
 
@@ -7,7 +8,7 @@ use anyhow::Result;
 use git2::Repository;
 
 use git_trim::args::{Args, DeleteFilter, FilterUnit, Scope};
-use git_trim::config::{CommaSeparatedSet, Config, ConfigValue};
+use git_trim::config::{Config, ConfigValue};
 use git_trim::Git;
 
 use fixture::{rc, Fixture};
@@ -44,7 +45,7 @@ fn test_bases_implicit_value() -> Result<()> {
 
     assert_eq!(
         config.bases,
-        ConfigValue::Implicit(CommaSeparatedSet::new(vec!["master".to_owned()]))
+        ConfigValue::Implicit(HashSet::from_iter(vec!["master".to_owned()]))
     );
     Ok(())
 }
@@ -66,7 +67,7 @@ fn test_bases_config_value() -> Result<()> {
     assert_eq!(
         config.bases,
         ConfigValue::Explicit {
-            value: CommaSeparatedSet::new(vec!["some-branch".to_owned(),]),
+            value: HashSet::from_iter(vec!["some-branch".to_owned(),]),
             source: "trim.bases".to_string(),
         }
     );
@@ -97,7 +98,7 @@ fn test_bases_args_value() -> Result<()> {
     assert_eq!(
         config.bases,
         ConfigValue::Explicit {
-            value: CommaSeparatedSet::new(vec!["another-branch".to_owned(),]),
+            value: HashSet::from_iter(vec!["another-branch".to_owned(),]),
             source: "cli".to_string(),
         }
     );
@@ -124,7 +125,7 @@ fn test_bases_multiple_comma_separated_values() -> Result<()> {
     assert_eq!(
         config.bases,
         ConfigValue::Explicit {
-            value: CommaSeparatedSet::new(vec![
+            value: HashSet::from_iter(vec![
                 "a".to_owned(),
                 "b".to_owned(),
                 "c".to_owned(),
@@ -154,7 +155,7 @@ fn test_protected_multiple_comma_separated_values() -> Result<()> {
     assert_eq!(
         config.protected,
         ConfigValue::Explicit {
-            value: CommaSeparatedSet::new(vec![
+            value: HashSet::from_iter(vec![
                 "a".to_owned(),
                 "b".to_owned(),
                 "c".to_owned(),

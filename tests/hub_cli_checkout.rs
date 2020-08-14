@@ -5,10 +5,9 @@ use std::convert::TryFrom;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::args::DeleteFilter;
-use git_trim::{get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteBranch};
+use git_trim::{get_trim_plan, ClassifiedBranch, Git, LocalBranch, RemoteBranch};
 
-use fixture::{rc, Fixture};
+use fixture::{rc, test_default_param, Fixture};
 
 fn fixture() -> Fixture {
     rc().append_fixture_trace(
@@ -48,15 +47,6 @@ fn fixture() -> Fixture {
     )
 }
 
-fn param() -> PlanParam<'static> {
-    PlanParam {
-        bases: vec!["master"],
-        protected_branches: set! {},
-        filter: DeleteFilter::all(),
-        detach: true,
-    }
-}
-
 #[test]
 fn test_noop() -> Result<()> {
     let guard = fixture().prepare(
@@ -71,7 +61,7 @@ fn test_noop() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, &test_default_param())?;
     assert_eq!(plan.to_delete, set! {});
     Ok(())
 }
@@ -98,7 +88,7 @@ fn test_accepted() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, &test_default_param())?;
     assert_eq!(
         plan.to_delete,
         set! {
@@ -125,7 +115,7 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, &test_default_param())?;
     assert_eq!(
         plan.to_delete,
         set! {
@@ -169,7 +159,7 @@ fn test_modified_and_accepted() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, &test_default_param())?;
     assert_eq!(
         plan.to_delete,
         set! {
@@ -202,7 +192,7 @@ fn test_modified_and_accepted_but_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, &test_default_param())?;
     assert_eq!(
         plan.to_delete,
         set! {
@@ -237,7 +227,7 @@ fn test_rejected() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, &test_default_param())?;
     assert_eq!(
         plan.to_delete,
         set! {
@@ -264,7 +254,7 @@ fn test_should_not_push_delete_non_heads() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, &test_default_param())?;
     assert_eq!(
         plan.to_delete,
         set! {
