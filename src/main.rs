@@ -133,6 +133,9 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
     let mut printed_remotes = HashSet::new();
     for remote_ref in repo.branches(Some(BranchType::Remote))? {
         let (branch, _) = remote_ref?;
+        if branch.get().symbolic_target_bytes().is_some() {
+            continue;
+        }
         let refname = branch.get().name().context("non utf-8 remote ref name")?;
         let shorthand = branch
             .get()
