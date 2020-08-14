@@ -701,12 +701,10 @@ pub fn get_non_upstream_remote_tracking_branches(
     Ok(result)
 }
 
-pub fn get_remote_heads(git: &Git) -> Result<Vec<RemoteHead>> {
+pub fn get_remote_heads(git: &Git, branches: &[LocalBranch]) -> Result<Vec<RemoteHead>> {
     let mut remote_urls = Vec::new();
 
-    for branch in git.repo.branches(Some(BranchType::Local))? {
-        let branch = LocalBranch::try_from(&branch?.0)?;
-
+    for branch in branches {
         if let Some(remote) = config::get_remote_name_raw(&git.config, &branch)? {
             if config::get_remote(&git.repo, &remote)?.is_none() {
                 remote_urls.push(remote);
