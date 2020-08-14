@@ -411,7 +411,7 @@ impl ScanRange {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct ScanFilter(HashSet<ScanUnit>);
 
 impl ScanFilter {

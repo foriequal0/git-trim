@@ -1,11 +1,15 @@
 mod fixture;
 
 use std::convert::TryFrom;
+use std::iter::FromIterator;
 
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::{get_trim_plan, ClassifiedBranch, Git, LocalBranch, RemoteTrackingBranch};
+use git_trim::args::{ScanFilter, ScanRange, Scope};
+use git_trim::{
+    get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteTrackingBranch,
+};
 
 use fixture::{rc, test_default_param, Fixture};
 
@@ -39,6 +43,13 @@ fn fixture() -> Fixture {
     )
 }
 
+fn param() -> PlanParam<'static> {
+    PlanParam {
+        scan: ScanFilter::from_iter(vec![ScanRange::All(Scope::All)]),
+        ..test_default_param()
+    }
+}
+
 #[test]
 fn test_merged_non_tracking() -> Result<()> {
     let guard = fixture().prepare(
@@ -53,7 +64,7 @@ fn test_merged_non_tracking() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &test_default_param())?;
+    let plan = get_trim_plan(&git, &param())?;
     assert_eq!(
         plan.to_delete,
         set! {
@@ -81,7 +92,7 @@ fn test_merged_non_upstream() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &test_default_param())?;
+    let plan = get_trim_plan(&git, &param())?;
     assert_eq!(
         plan.to_delete,
         set! {
