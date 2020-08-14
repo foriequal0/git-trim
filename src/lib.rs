@@ -58,7 +58,11 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     let tracking_branches = get_tracking_branches(git, &base_upstreams)?;
     let non_tracking_branches = get_non_tracking_local_branches(git, &base_refs)?;
     let non_upstream_branches = get_non_upstream_remote_tracking_branches(git, &base_upstreams)?;
-    let remote_heads = get_remote_heads(git)?;
+    let remote_heads = if param.scan.scan_tracking() {
+        get_remote_heads(git, &tracking_branches)?
+    } else {
+        Vec::new()
+    };
 
     info!("Start classify:");
     let classifications;
