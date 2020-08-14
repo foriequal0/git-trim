@@ -15,7 +15,7 @@ use git2::{BranchType, Config as GitConfig, Error as GitError, ErrorCode, Reposi
 use glob::Pattern;
 use log::*;
 
-use crate::args::DeleteFilter;
+use crate::args::{DeleteFilter, ScanFilter};
 pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
 use crate::core::{
     get_non_tracking_local_branches, get_non_upstream_remote_tracking_branches, get_remote_heads,
@@ -42,6 +42,7 @@ impl TryFrom<Repository> for Git {
 pub struct PlanParam<'a> {
     pub bases: Vec<&'a str>,
     pub protected_branches: HashSet<&'a str>,
+    pub scan: ScanFilter,
     pub delete: DeleteFilter,
     pub detach: bool,
 }
@@ -70,6 +71,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
         // https://github.com/libgit2/libgit2/blob/master/docs/threading.md#sharing-objects
         let git = ForceSendSync::new(git);
         let repo = ForceSendSync::new(&git.repo);
+        let scan_filter = &param.scan;
         let merge_tracker = &merge_tracker;
 
         let base_upstreams = &base_upstreams;
@@ -84,30 +86,43 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
 
         rayon::scope(move |s| {
             for base in base_upstreams {
-                for branch in tracking_branches {
-                    let tx = classification_tx.clone();
-                    s.spawn(move |_| {
-                        let c = core::classify(git, merge_tracker, remote_heads, base, branch)
-                            .with_context(|| {
-                                format!("tracking, base={:?}, branch={:?}", base, branch)
-                            });
-                        tx.send(c).expect("in scope");
-                    });
+                if scan_filter.scan_tracking() {
+                    for branch in tracking_branches {
+                        let tx = classification_tx.clone();
+                        s.spawn(move |_| {
+                            let c = core::classify(git, merge_tracker, remote_heads, base, branch)
+                                .with_context(|| {
+                                    format!("tracking, base={:?}, branch={:?}", base, branch)
+                                });
+                            tx.send(c).expect("in scope");
+                        });
+                    }
                 }
 
-                for branch in non_tracking_branches {
-                    let tx = non_tracking_tx.clone();
-                    s.spawn(move |_| {
-                        let result = merge_tracker
-                            .check_and_track(&repo, &base.refname, branch)
-                            .with_context(|| {
-                                format!("non-tracking, base={:?}, branch={:?}", base, branch)
-                            });
-                        tx.send(result).expect("in scope");
-                    })
+                if scan_filter.scan_non_tracking_local() {
+                    for branch in non_tracking_branches {
+                        let tx = non_tracking_tx.clone();
+                        s.spawn(move |_| {
+                            let result = merge_tracker
+                                .check_and_track(&repo, &base.refname, branch)
+                                .with_context(|| {
+                                    format!("non-tracking, base={:?}, branch={:?}", base, branch)
+                                });
+                            tx.send(result).expect("in scope");
+                        })
+                    }
                 }
 
                 for branch in non_upstream_branches {
+                    match branch.to_remote_branch(&repo) {
+                        Ok(remote_branch)
+                            if !scan_filter.scan_non_upstream_remote(&remote_branch.remote) =>
+                        {
+                            continue;
+                        }
+                        _ => {}
+                    }
+
                     let tx = non_upstream_tx.clone();
                     s.spawn(move |_| {
                         let result = merge_tracker
