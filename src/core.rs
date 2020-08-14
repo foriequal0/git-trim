@@ -235,14 +235,8 @@ impl TrimPlan {
 
     pub fn get_preserved_upstream(&self, target: &RemoteTrackingBranch) -> Option<&Preserved> {
         for preserved in &self.preserved {
-            match &preserved.branch {
-                ClassifiedBranch::MergedRemoteTracking(upstream)
-                | ClassifiedBranch::DivergedRemoteTracking { upstream, .. } => {
-                    if upstream == target {
-                        return Some(preserved);
-                    }
-                }
-                _ => {}
+            if preserved.branch.upstream() == Some(target) {
+                return Some(preserved);
             }
         }
         None
