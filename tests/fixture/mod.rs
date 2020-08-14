@@ -8,7 +8,7 @@ use std::thread::spawn;
 use log::*;
 use tempfile::{tempdir, TempDir};
 
-use git_trim::args::{Delete, DeleteFilter, Scope};
+use git_trim::args::{DeleteFilter, DeleteRange, Scope};
 use git_trim::PlanParam;
 
 #[derive(Default)]
@@ -201,11 +201,11 @@ macro_rules! set {
 
 #[allow(unused)]
 pub fn test_default_param() -> PlanParam<'static> {
-    use Delete::*;
+    use DeleteRange::*;
     PlanParam {
         bases: vec!["master"],
         protected_branches: set! {},
-        filter: DeleteFilter::from_iter(vec![
+        delete: DeleteFilter::from_iter(vec![
             MergedLocal,
             MergedRemote(Scope::All),
             Stray,

@@ -6,7 +6,7 @@ use std::iter::FromIterator;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::args::{Delete, DeleteFilter, Scope};
+use git_trim::args::{DeleteFilter, DeleteRange, Scope};
 
 use git_trim::{get_trim_plan, Git, PlanParam};
 
@@ -52,13 +52,13 @@ fn test_bases_implicit_value() -> Result<()> {
     let plan = get_trim_plan(
         &git,
         &PlanParam {
-            filter: DeleteFilter::from_iter(vec![
-                Delete::MergedLocal,
-                Delete::MergedRemote(Scope::All),
-                Delete::Stray,
-                Delete::Diverged(Scope::All),
-                Delete::Local,
-                Delete::Remote(Scope::All),
+            delete: DeleteFilter::from_iter(vec![
+                DeleteRange::MergedLocal,
+                DeleteRange::MergedRemote(Scope::All),
+                DeleteRange::Stray,
+                DeleteRange::Diverged(Scope::All),
+                DeleteRange::Local,
+                DeleteRange::Remote(Scope::All),
             ]),
             ..test_default_param()
         },

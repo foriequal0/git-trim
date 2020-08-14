@@ -57,7 +57,7 @@ fn main(args: Args) -> Result<()> {
         &PlanParam {
             bases: config.bases.iter().map(String::as_str).collect(),
             protected_branches: config.protected.iter().map(String::as_str).collect(),
-            filter: config.filter.clone(),
+            delete: config.delete.clone(),
             detach: *config.detach,
         },
     )?;
