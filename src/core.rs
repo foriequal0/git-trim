@@ -324,11 +324,10 @@ impl ClassifiedBranch {
 
     pub fn message_local(&self) -> String {
         match self {
-            ClassifiedBranch::MergedLocal(_)
-            | ClassifiedBranch::MergedRemoteTracking(_)
-            | ClassifiedBranch::MergedDirectFetch { .. }
-            | ClassifiedBranch::MergedNonTrackingLocal(_)
-            | ClassifiedBranch::MergedNonUpstreamRemoteTracking(_) => "merged".to_owned(),
+            ClassifiedBranch::MergedLocal(_) | ClassifiedBranch::MergedDirectFetch { .. } => {
+                "merged".to_owned()
+            }
+            ClassifiedBranch::MergedNonTrackingLocal(_) => "merged non-tracking".to_owned(),
             ClassifiedBranch::Stray(_) => "stray".to_owned(),
             ClassifiedBranch::DivergedRemoteTracking {
                 upstream: remote, ..
@@ -336,23 +335,24 @@ impl ClassifiedBranch {
             ClassifiedBranch::DivergedDirectFetch { remote, .. } => {
                 format!("diverged with {}", remote)
             }
+            _ => "If you see this message, report this as a bug".to_owned(),
         }
     }
 
     pub fn message_remote(&self) -> String {
         match self {
-            ClassifiedBranch::MergedLocal(_)
-            | ClassifiedBranch::MergedRemoteTracking(_)
-            | ClassifiedBranch::MergedDirectFetch { .. }
-            | ClassifiedBranch::MergedNonTrackingLocal(_)
-            | ClassifiedBranch::MergedNonUpstreamRemoteTracking(_) => "merged".to_owned(),
-            ClassifiedBranch::Stray(_) => "stray".to_owned(),
+            ClassifiedBranch::MergedRemoteTracking(_)
+            | ClassifiedBranch::MergedDirectFetch { .. } => "merged".to_owned(),
+            ClassifiedBranch::MergedNonUpstreamRemoteTracking(_) => {
+                "merged non-upstream".to_owned()
+            }
             ClassifiedBranch::DivergedRemoteTracking { local, .. } => {
                 format!("diverged with {}", local.refname)
             }
             ClassifiedBranch::DivergedDirectFetch { local, .. } => {
                 format!("diverged with {}", local.short_name())
             }
+            _ => "If you see this message, report this as a bug".to_owned(),
         }
     }
 }
