@@ -1,14 +1,16 @@
 use std::collections::HashSet;
 use std::convert::TryFrom;
+use std::fmt::Debug;
 
 use anyhow::{Context, Result};
+use crossbeam_channel::unbounded;
 use git2::{BranchType, Repository};
 use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
 use crate::branch::{LocalBranch, RemoteBranch, RemoteTrackingBranch, RemoteTrackingBranchStatus};
-use crate::merge_tracker::{MergeState, MergeTracker};
+use crate::merge_tracker::MergeTracker;
 use crate::subprocess::{self, get_worktrees, RemoteHead};
 use crate::util::ForceSendSync;
 use crate::{config, Git};
@@ -240,13 +242,6 @@ impl TrimPlan {
     }
 }
 
-pub struct Classification {
-    pub local: MergeState<LocalBranch>,
-    pub fetch: Option<MergeState<RemoteTrackingBranch>>,
-    pub messages: Vec<&'static str>,
-    pub result: HashSet<ClassifiedBranch>,
-}
-
 #[derive(Hash, Eq, PartialEq, Debug, Clone)]
 pub enum ClassifiedBranch {
     MergedLocal(LocalBranch),
@@ -341,134 +336,345 @@ impl ClassifiedBranch {
     }
 }
 
-/// Make sure repo and config are semantically Send + Sync.
-pub fn classify(
-    git: ForceSendSync<&Git>,
-    merge_tracker: &MergeTracker,
-    remote_heads: &[RemoteHead],
-    base: &RemoteTrackingBranch,
-    branch: &LocalBranch,
-) -> Result<Classification> {
-    let local = merge_tracker.check_and_track(&git.repo, &base.refname, branch)?;
-    let fetch = if let RemoteTrackingBranchStatus::Exists(fetch) =
-        branch.fetch_upstream(&git.repo, &git.config)?
-    {
-        Some(merge_tracker.check_and_track(&git.repo, &base.refname, &fetch)?)
-    } else {
-        None
-    };
+pub struct Classifier<'a> {
+    git: &'a Git,
+    merge_tracker: &'a MergeTracker,
+    tasks: Vec<Box<dyn FnOnce() -> Result<ClassificationResponseWithId> + Send + Sync + 'a>>,
+}
 
-    let mut c = Classification {
-        local: local.clone(),
-        fetch: fetch.clone(),
-        messages: vec![],
-        result: HashSet::default(),
-    };
-
-    match fetch {
-        Some(upstream) => {
-            if local.merged {
-                if upstream.merged {
-                    c.messages.push("local & fetch upstream are merged");
-                    c.result
-                        .insert(ClassifiedBranch::MergedLocal(branch.clone()));
-                    c.result
-                        .insert(ClassifiedBranch::MergedRemoteTracking(upstream.branch));
-                } else {
-                    c.messages.push("local & fetch upstream are diverged");
-                    c.result.insert(ClassifiedBranch::DivergedRemoteTracking {
-                        local: branch.clone(),
-                        upstream: upstream.branch,
-                    });
-                }
-            } else if upstream.merged {
-                c.messages.push("upstream is merged, but the local strays");
-                c.result.insert(ClassifiedBranch::Stray(branch.clone()));
-                c.result
-                    .insert(ClassifiedBranch::MergedRemoteTracking(upstream.branch));
-            }
-        }
-
-        // `hub-cli` sets config `branch.{branch_name}.remote` as URL without `remote.{remote}` entry.
-        // `fetch_upstream` returns None.
-        // However we can try manual classification without `remote.{remote}` entry.
-        None => {
-            let remote = config::get_remote_name(&git.config, branch)?
-                .expect("should have it if it has an upstream");
-            let merge = config::get_merge(&git.config, branch)?
-                .expect("should have it if it has an upstream");
-            let remote_head = remote_heads
-                .iter()
-                .find(|h| h.remote == remote && h.refname == merge)
-                .map(|h| &h.commit);
-
-            match (local.merged, remote_head) {
-                (true, Some(head)) if head == &local.commit => {
-                    c.messages.push(
-                        "merged local, merged remote: the branch is merged, but forgot to delete",
-                    );
-                    c.result.insert(ClassifiedBranch::MergedDirectFetch {
-                        local: branch.clone(),
-                        remote: RemoteBranch {
-                            remote,
-                            refname: merge,
-                        },
-                    });
-                }
-                (true, Some(_)) => {
-                    c.messages.push(
-                        "merged local, diverged upstream: the branch is merged, but upstream is diverged",
-                    );
-                    c.result.insert(ClassifiedBranch::DivergedDirectFetch {
-                        local: branch.clone(),
-                        remote: RemoteBranch {
-                            remote,
-                            refname: merge,
-                        },
-                    });
-                }
-                (true, None) => {
-                    c.messages
-                        .push("merged local: the branch is merged, and deleted");
-                    c.result
-                        .insert(ClassifiedBranch::MergedLocal(branch.clone()));
-                }
-                (false, None) => {
-                    c.messages
-                        .push("the branch is not merged but the remote is gone somehow");
-                    c.result.insert(ClassifiedBranch::Stray(branch.clone()));
-                }
-                (false, _) => {
-                    c.messages.push("skip: the branch is alive");
-                }
-            }
+impl<'a> Classifier<'a> {
+    pub fn new(git: &'a Git, merge_tracker: &'a MergeTracker) -> Self {
+        Self {
+            git,
+            merge_tracker,
+            tasks: Vec::new(),
         }
     }
 
-    Ok(c)
+    pub fn queue_request<R: ClassificationRequest + Send + Sync + Debug + 'a>(&mut self, req: R) {
+        let id = self.tasks.len();
+        trace!("Enqueue #{}: {:#?}", id, req);
+        let git = ForceSendSync::new(self.git);
+        let merge_tracker = self.merge_tracker;
+        self.tasks.push(Box::new(move || {
+            req.classify(git, merge_tracker)
+                .with_context(|| format!("Failed to classify #{}: {:#?}", id, req))
+                .map(|response| ClassificationResponseWithId { id, response })
+        }));
+    }
+
+    pub fn queue_request_with_context<
+        R: ClassificationRequestWithContext<C> + Send + Sync + Debug + 'a,
+        C: Send + Sync + 'a,
+    >(
+        &mut self,
+        req: R,
+        context: C,
+    ) {
+        let id = self.tasks.len();
+        trace!("Enqueue #{}: {:#?}", id, req);
+        let git = ForceSendSync::new(self.git);
+        let merge_tracker = self.merge_tracker;
+        self.tasks.push(Box::new(move || {
+            req.classify_with_context(git, merge_tracker, context)
+                .with_context(|| format!("Failed to classify #{}: {:#?}", id, req))
+                .map(|response| ClassificationResponseWithId { id, response })
+        }));
+    }
+
+    pub fn classify(self) -> Result<Vec<ClassificationResponse>> {
+        info!("Classify {} requests", self.tasks.len());
+        let tasks = self.tasks;
+        let receiver = rayon::scope(move |scope| {
+            let (sender, receiver) = unbounded();
+            for tasks in tasks {
+                let sender = sender.clone();
+                scope.spawn(move |_| {
+                    let result = tasks();
+                    sender.send(result).unwrap();
+                })
+            }
+            receiver
+        });
+
+        let mut results = Vec::new();
+        for result in receiver {
+            let ClassificationResponseWithId { id, response } = result?;
+            debug!("Result #{}: {:#?}", id, response);
+
+            results.push(response);
+        }
+
+        Ok(results)
+    }
+}
+
+struct ClassificationResponseWithId {
+    id: usize,
+    response: ClassificationResponse,
+}
+
+#[derive(Debug)]
+pub struct ClassificationResponse {
+    message: &'static str,
+    pub result: Vec<ClassifiedBranch>,
+}
+
+pub trait ClassificationRequest {
+    fn classify(
+        &self,
+        git: ForceSendSync<&Git>,
+        merge_tracker: &MergeTracker,
+    ) -> Result<ClassificationResponse>;
+}
+
+pub trait ClassificationRequestWithContext<C> {
+    fn classify_with_context(
+        &self,
+        git: ForceSendSync<&Git>,
+        merge_tracker: &MergeTracker,
+        context: C,
+    ) -> Result<ClassificationResponse>;
+}
+
+#[derive(Debug)]
+pub struct TrackingBranchClassificationRequest<'a> {
+    pub base: &'a RemoteTrackingBranch,
+    pub local: &'a LocalBranch,
+    pub upstream: Option<&'a RemoteTrackingBranch>,
+}
+
+impl<'a> ClassificationRequest for TrackingBranchClassificationRequest<'a> {
+    fn classify(
+        &self,
+        git: ForceSendSync<&Git>,
+        merge_tracker: &MergeTracker,
+    ) -> Result<ClassificationResponse> {
+        let local = merge_tracker.check_and_track(&git.repo, &self.base.refname, self.local)?;
+        let upstream = if let Some(upstream) = self.upstream {
+            merge_tracker.check_and_track(&git.repo, &self.base.refname, upstream)?
+        } else {
+            let result = if local.merged {
+                ClassificationResponse {
+                    message: "local is merged but remote is gone",
+                    result: vec![ClassifiedBranch::MergedLocal(local.branch)],
+                }
+            } else {
+                ClassificationResponse {
+                    message: "local is stray but remote is gone",
+                    result: vec![ClassifiedBranch::Stray(local.branch)],
+                }
+            };
+            return Ok(result);
+        };
+
+        let result = match (local.merged, upstream.merged) {
+            (true, true) => ClassificationResponse {
+                message: "local & upstream are merged",
+                result: vec![
+                    ClassifiedBranch::MergedLocal(local.branch),
+                    ClassifiedBranch::MergedRemoteTracking(upstream.branch),
+                ],
+            },
+            (true, false) => ClassificationResponse {
+                message: "local is merged but diverged with upstream",
+                result: vec![ClassifiedBranch::DivergedRemoteTracking {
+                    local: local.branch,
+                    upstream: upstream.branch,
+                }],
+            },
+            (false, true) => ClassificationResponse {
+                message: "upstream is merged, but the local strays",
+                result: vec![
+                    ClassifiedBranch::Stray(local.branch),
+                    ClassifiedBranch::MergedRemoteTracking(upstream.branch),
+                ],
+            },
+            (false, false) => ClassificationResponse {
+                message: "local & upstream are not merged yet",
+                result: vec![],
+            },
+        };
+
+        Ok(result)
+    }
+}
+
+/// `hub-cli` style branch classification request.
+/// `hub-cli` sets config `branch.{branch_name}.remote` as URL without `remote.{remote}` entry.
+/// However we can try manual classification without `remote.{remote}` entry.
+#[derive(Debug)]
+pub struct DirectFetchClassificationRequest<'a> {
+    pub base: &'a RemoteTrackingBranch,
+    pub local: &'a LocalBranch,
+    pub remote: &'a RemoteBranch,
+}
+
+impl<'a> ClassificationRequestWithContext<&'a [RemoteHead]>
+    for DirectFetchClassificationRequest<'a>
+{
+    fn classify_with_context(
+        &self,
+        git: ForceSendSync<&Git>,
+        merge_tracker: &MergeTracker,
+        remote_heads: &[RemoteHead],
+    ) -> Result<ClassificationResponse> {
+        let local = merge_tracker.check_and_track(&git.repo, &self.base.refname, self.local)?;
+        let remote_head = remote_heads
+            .iter()
+            .find(|h| h.remote == self.remote.remote && h.refname == self.remote.refname)
+            .map(|h| &h.commit);
+
+        let result = match (local.merged, remote_head) {
+            (true, Some(head)) if head == &local.commit => ClassificationResponse {
+                message: "local & remote are merged",
+                result: vec![ClassifiedBranch::MergedDirectFetch {
+                    local: local.branch,
+                    remote: self.remote.clone(),
+                }],
+            },
+            (true, Some(_)) => ClassificationResponse {
+                message: "local is merged, but diverged with upstream",
+                result: vec![ClassifiedBranch::DivergedDirectFetch {
+                    local: local.branch,
+                    remote: self.remote.clone(),
+                }],
+            },
+            (true, None) => ClassificationResponse {
+                message: "local is merged and its upstream is gone",
+                result: vec![ClassifiedBranch::MergedLocal(local.branch)],
+            },
+            (false, None) => ClassificationResponse {
+                message: "local is not merged but the remote is gone somehow",
+                result: vec![ClassifiedBranch::Stray(local.branch)],
+            },
+            (false, _) => ClassificationResponse {
+                message: "local is not merged yet",
+                result: vec![],
+            },
+        };
+
+        Ok(result)
+    }
+}
+
+#[derive(Debug)]
+pub struct NonTrackingBranchClassificationRequest<'a> {
+    pub base: &'a RemoteTrackingBranch,
+    pub local: &'a LocalBranch,
+}
+
+impl<'a> ClassificationRequest for NonTrackingBranchClassificationRequest<'a> {
+    fn classify(
+        &self,
+        git: ForceSendSync<&Git>,
+        merge_tracker: &MergeTracker,
+    ) -> Result<ClassificationResponse> {
+        let local = merge_tracker.check_and_track(&git.repo, &self.base.refname, self.local)?;
+        let result = if local.merged {
+            ClassificationResponse {
+                message: "non-tracking local is merged",
+                result: vec![ClassifiedBranch::MergedNonTrackingLocal(local.branch)],
+            }
+        } else {
+            ClassificationResponse {
+                message: "non-tracking local is not merged",
+                result: vec![],
+            }
+        };
+        Ok(result)
+    }
+}
+
+#[derive(Debug)]
+pub struct NonUpstreamBranchClassificationRequest<'a> {
+    pub base: &'a RemoteTrackingBranch,
+    pub remote: &'a RemoteTrackingBranch,
+}
+
+impl<'a> ClassificationRequest for NonUpstreamBranchClassificationRequest<'a> {
+    fn classify(
+        &self,
+        git: ForceSendSync<&Git>,
+        merge_tracker: &MergeTracker,
+    ) -> Result<ClassificationResponse> {
+        let remote = merge_tracker.check_and_track(&git.repo, &self.base.refname, self.remote)?;
+        let result = if remote.merged {
+            ClassificationResponse {
+                message: "non-upstream local is merged",
+                result: vec![ClassifiedBranch::MergedNonUpstreamRemoteTracking(
+                    remote.branch,
+                )],
+            }
+        } else {
+            ClassificationResponse {
+                message: "non-upstream local is not merged",
+                result: vec![],
+            }
+        };
+        Ok(result)
+    }
 }
 
 pub fn get_tracking_branches(
     git: &Git,
     base_upstreams: &[RemoteTrackingBranch],
-) -> Result<Vec<LocalBranch>> {
+) -> Result<Vec<(LocalBranch, Option<RemoteTrackingBranch>)>> {
     let mut result = Vec::new();
     for branch in git.repo.branches(Some(BranchType::Local))? {
-        let branch = LocalBranch::try_from(&branch?.0)?;
+        let local = LocalBranch::try_from(&branch?.0)?;
 
-        if config::get_remote_name(&git.config, &branch)?.is_none() {
+        match local.fetch_upstream(&git.repo, &git.config)? {
+            RemoteTrackingBranchStatus::Exists(upstream) => {
+                if base_upstreams.contains(&upstream) {
+                    continue;
+                }
+                result.push((local, Some(upstream)));
+            }
+            RemoteTrackingBranchStatus::Gone(_) => result.push((local, None)),
+            _ => {
+                continue;
+            }
+        };
+    }
+
+    Ok(result)
+}
+
+/// Get `hub-cli` style direct fetched branches
+pub fn get_direct_fetch_branches(
+    git: &Git,
+    base_refs: &[String],
+) -> Result<Vec<(LocalBranch, RemoteBranch)>> {
+    let mut result = Vec::new();
+    for branch in git.repo.branches(Some(BranchType::Local))? {
+        let local = LocalBranch::try_from(&branch?.0)?;
+
+        if base_refs.contains(&local.refname) {
             continue;
         }
 
-        let fetch_upstream = branch.fetch_upstream(&git.repo, &git.config)?;
-        if let RemoteTrackingBranchStatus::Exists(upstream) = &fetch_upstream {
-            if base_upstreams.contains(&upstream) {
-                debug!("Skip: the branch tracks the base: {:?}", branch);
-                continue;
-            }
+        let remote = if let Some(remote) = config::get_remote_name(&git.config, &local)? {
+            remote
+        } else {
+            continue;
+        };
+
+        if config::get_remote(&git.repo, &remote)?.is_some() {
+            continue;
         }
 
-        result.push(branch);
+        let merge = config::get_merge(&git.config, &local)?.context(format!(
+            "Should have `branch.{}.merge` entry on git config",
+            local.short_name()
+        ))?;
+
+        let remote = RemoteBranch {
+            remote,
+            refname: merge,
+        };
+
+        result.push((local, remote));
     }
 
     Ok(result)
@@ -509,9 +715,8 @@ pub fn get_non_upstream_remote_tracking_branches(
     }
 
     let tracking_branches = get_tracking_branches(git, base_upstreams)?;
-    for tracking_branch in tracking_branches {
-        let upstream = tracking_branch.fetch_upstream(&git.repo, &git.config)?;
-        if let RemoteTrackingBranchStatus::Exists(upstream) = upstream {
+    for (_local, upstream) in tracking_branches {
+        if let Some(upstream) = upstream {
             upstreams.insert(upstream);
         }
     }
@@ -535,15 +740,11 @@ pub fn get_non_upstream_remote_tracking_branches(
     Ok(result)
 }
 
-pub fn get_remote_heads(git: &Git, branches: &[LocalBranch]) -> Result<Vec<RemoteHead>> {
+pub fn get_remote_heads(git: &Git, branches: &[RemoteBranch]) -> Result<Vec<RemoteHead>> {
     let mut remote_urls = Vec::new();
 
     for branch in branches {
-        if let Some(remote) = config::get_remote_name(&git.config, &branch)? {
-            if config::get_remote(&git.repo, &remote)?.is_none() {
-                remote_urls.push(remote);
-            }
-        }
+        remote_urls.push(&branch.remote);
     }
 
     Ok(remote_urls
