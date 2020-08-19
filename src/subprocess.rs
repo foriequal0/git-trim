@@ -153,6 +153,7 @@ pub fn get_noff_merged_remotes(
     Ok(result)
 }
 
+#[derive(Debug)]
 pub struct RemoteHead {
     pub remote: String,
     pub refname: String,

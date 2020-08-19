@@ -134,6 +134,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-channel"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09ee0cc8804d5393478d743b035099520087a5186f3b93fa58cec08fa62407b6"
+dependencies = [
+ "cfg-if",
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -234,6 +244,7 @@ version = "0.4.0-alpha.1"
 dependencies = [
  "anyhow",
  "clap-v3",
+ "crossbeam-channel",
  "dialoguer",
  "env_logger",
  "git2",
