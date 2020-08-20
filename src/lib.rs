@@ -2,6 +2,7 @@ pub mod args;
 mod branch;
 pub mod config;
 mod core;
+mod merge_tracker;
 mod simple_glob;
 mod subprocess;
 mod util;
@@ -19,9 +20,10 @@ use crate::args::{DeleteFilter, ScanFilter};
 pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
 use crate::core::{
     get_non_tracking_local_branches, get_non_upstream_remote_tracking_branches, get_remote_heads,
-    get_tracking_branches, MergeTracker,
+    get_tracking_branches,
 };
 pub use crate::core::{ClassifiedBranch, TrimPlan};
+use crate::merge_tracker::MergeTracker;
 pub use crate::subprocess::{ls_remote_head, remote_update, RemoteHead};
 pub use crate::util::ForceSendSync;
 

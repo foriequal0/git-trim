@@ -1,15 +1,15 @@
 use std::collections::HashSet;
 use std::convert::TryFrom;
-use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Config, ErrorClass, ErrorCode, Oid, Repository, Signature};
+use git2::{BranchType, Repository};
 use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{LocalBranch, Refname, RemoteBranch, RemoteTrackingBranch};
-use crate::subprocess::{self, get_worktrees, is_merged_by_rev_list, RemoteHead};
+use crate::branch::{LocalBranch, RemoteBranch, RemoteTrackingBranch};
+use crate::merge_tracker::{MergeState, MergeTracker};
+use crate::subprocess::{self, get_worktrees, RemoteHead};
 use crate::util::ForceSendSync;
 use crate::{config, Git};
 
@@ -240,13 +240,6 @@ impl TrimPlan {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct MergeState<B> {
-    pub branch: B,
-    pub commit: String,
-    pub merged: bool,
-}
-
 pub struct Classification {
     pub local: MergeState<LocalBranch>,
     pub fetch: Option<MergeState<RemoteTrackingBranch>>,
@@ -451,164 +444,6 @@ pub fn classify(
     }
 
     Ok(c)
-}
-
-#[derive(Clone)]
-pub struct MergeTracker {
-    merged_set: Arc<Mutex<HashSet<String>>>,
-}
-
-impl MergeTracker {
-    pub fn with_base_upstreams(
-        repo: &Repository,
-        config: &Config,
-        base_upstreams: &[RemoteTrackingBranch],
-    ) -> Result<Self> {
-        let tracker = Self {
-            merged_set: Arc::new(Mutex::new(HashSet::new())),
-        };
-
-        for base_upstream in base_upstreams {
-            tracker.track(repo, base_upstream)?;
-        }
-
-        for merged_locals in subprocess::get_noff_merged_locals(repo, config, base_upstreams)? {
-            tracker.track(repo, &merged_locals)?;
-        }
-
-        for merged_remotes in subprocess::get_noff_merged_remotes(&repo, base_upstreams)? {
-            tracker.track(repo, &merged_remotes)?;
-        }
-
-        Ok(tracker)
-    }
-
-    pub fn track<T>(&self, repo: &Repository, branch: &T) -> Result<()>
-    where
-        T: Refname,
-    {
-        let oid = repo
-            .find_reference(branch.refname())?
-            .peel_to_commit()?
-            .id()
-            .to_string();
-        let mut set = self.merged_set.lock().unwrap();
-        set.insert(oid);
-        Ok(())
-    }
-
-    pub fn check_and_track<T>(
-        &self,
-        repo: &Repository,
-        base: &str,
-        branch: &T,
-    ) -> Result<MergeState<T>>
-    where
-        T: Refname + Clone,
-    {
-        let base_commit_id = repo.find_reference(base)?.peel_to_commit()?.id();
-        let target_commit_id = repo
-            .find_reference(branch.refname())?
-            .peel_to_commit()?
-            .id();
-        let target_commit_id_string = target_commit_id.to_string();
-
-        // I know the locking is ugly. I'm trying to hold the lock as short as possible.
-        // Operations against `repo` take long time up to several seconds when the disk is slow.
-        {
-            let set = self.merged_set.lock().unwrap().clone();
-            if set.contains(&target_commit_id_string) {
-                return Ok(MergeState {
-                    merged: true,
-                    commit: target_commit_id_string,
-                    branch: branch.clone(),
-                });
-            }
-
-            for merged in set.iter() {
-                let merged = Oid::from_str(merged)?;
-                //         B  A
-                //     *--*--*
-                //   /        \
-                // *--*--*--*--* base
-                // In this diagram, `$(git merge-base A B) == B`.
-                // When we're sure that A is merged into base, then we can safely conclude that
-                // B is also merged into base.
-                let noff_merged = match repo.merge_base(merged, target_commit_id) {
-                    Ok(merge_base) if merge_base == target_commit_id => {
-                        let mut set = self.merged_set.lock().unwrap();
-                        set.insert(target_commit_id_string.clone());
-                        true
-                    }
-                    Ok(_) => continue,
-                    Err(err) if merge_base_not_found(&err) => false,
-                    Err(err) => return Err(err.into()),
-                };
-                return Ok(MergeState {
-                    merged: noff_merged,
-                    commit: target_commit_id_string,
-                    branch: branch.clone(),
-                });
-            }
-        }
-
-        fn merge_base_not_found(err: &git2::Error) -> bool {
-            err.class() == ErrorClass::Merge && err.code() == ErrorCode::NotFound
-        }
-
-        if is_merged_by_rev_list(repo, base, branch.refname())? {
-            let mut set = self.merged_set.lock().unwrap();
-            set.insert(target_commit_id_string.clone());
-            return Ok(MergeState {
-                merged: true,
-                commit: target_commit_id_string,
-                branch: branch.clone(),
-            });
-        }
-
-        let squash_merged = match repo.merge_base(base_commit_id, target_commit_id) {
-            Ok(merge_base) => {
-                let merge_base = merge_base.to_string();
-                let squash_merged = is_squash_merged(repo, &merge_base, base, branch.refname())?;
-                if squash_merged {
-                    let mut set = self.merged_set.lock().unwrap();
-                    set.insert(target_commit_id_string.clone());
-                }
-                squash_merged
-            }
-            Err(err) if merge_base_not_found(&err) => false,
-            Err(err) => return Err(err.into()),
-        };
-
-        Ok(MergeState {
-            merged: squash_merged,
-            commit: target_commit_id_string,
-            branch: branch.clone(),
-        })
-    }
-}
-
-/// Source: https://stackoverflow.com/a/56026209
-fn is_squash_merged(
-    repo: &Repository,
-    merge_base: &str,
-    base: &str,
-    refname: &str,
-) -> Result<bool> {
-    let tree = repo
-        .revparse_single(&format!("{}^{{tree}}", refname))?
-        .peel_to_tree()?;
-    let tmp_sig = Signature::now("git-trim", "git-trim@squash.merge.test.local")?;
-    let dangling_commit = repo.commit(
-        None,
-        &tmp_sig,
-        &tmp_sig,
-        "git-trim: squash merge test",
-        &tree,
-        &[&repo.find_commit(Oid::from_str(merge_base)?)?],
-    )?;
-
-    is_merged_by_rev_list(repo, base, &dangling_commit.to_string())
 }
 
 pub fn get_tracking_branches(
