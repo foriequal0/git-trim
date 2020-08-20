@@ -34,7 +34,11 @@ impl LocalBranch {
         repo: &Repository,
         config: &Config,
     ) -> Result<Option<RemoteTrackingBranch>> {
-        let remote_name = config::get_remote_name(config, self)?;
+        let remote_name = if let Some(remote_name) = config::get_remote_name(config, self)? {
+            remote_name
+        } else {
+            return Ok(None);
+        };
         let merge: String = if let Some(merge) = config::get_merge(config, self)? {
             merge
         } else {

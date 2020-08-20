@@ -336,14 +336,10 @@ pub fn get_push_remote(config: &GitConfig, branch: &LocalBranch) -> Result<Strin
         return Ok(push_default.unwrap());
     }
 
-    get_remote_name(config, branch)
+    Ok(get_remote_name(config, branch)?.unwrap_or_else(|| "origin".to_owned()))
 }
 
-pub fn get_remote_name(config: &GitConfig, branch: &LocalBranch) -> Result<String> {
-    Ok(get_remote_name_raw(config, branch)?.unwrap_or_else(|| "origin".to_owned()))
-}
-
-pub fn get_remote_name_raw(config: &GitConfig, branch: &LocalBranch) -> Result<Option<String>> {
+pub fn get_remote_name(config: &GitConfig, branch: &LocalBranch) -> Result<Option<String>> {
     let key = format!("branch.{}.remote", branch.short_name());
     match config.get_string(&key) {
         Ok(remote) => Ok(Some(remote)),
