@@ -9,7 +9,7 @@ use git2::{BranchType, Config as GitConfig, Error, ErrorClass, ErrorCode, Remote
 use log::*;
 
 use crate::args::{Args, DeleteFilter, DeleteRange, ScanFilter, ScanRange};
-use crate::branch::LocalBranch;
+use crate::branch::{LocalBranch, RemoteTrackingBranchStatus};
 use std::collections::HashSet;
 
 type GitResult<T> = std::result::Result<T, git2::Error>;
@@ -106,7 +106,9 @@ fn get_branches_tracks_remote_heads(repo: &Repository, config: &GitConfig) -> Re
             let (branch, _) = branch?;
             let branch = LocalBranch::try_from(&branch)?;
 
-            if let Some(upstream) = branch.fetch_upstream(repo, config)? {
+            if let RemoteTrackingBranchStatus::Exists(upstream) =
+                branch.fetch_upstream(repo, config)?
+            {
                 if upstream.refname == refname {
                     result.push(branch.short_name().to_owned());
                 }

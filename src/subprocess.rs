@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use git2::{Config, Reference, Repository};
 use log::*;
 
-use crate::branch::{LocalBranch, RemoteBranch, RemoteTrackingBranch};
+use crate::branch::{LocalBranch, RemoteBranch, RemoteTrackingBranch, RemoteTrackingBranchStatus};
 
 fn git(repo: &Repository, args: &[&str], level: log::Level) -> Result<()> {
     let workdir = repo.workdir().context("Bare repository is not supported")?;
@@ -103,8 +103,10 @@ pub fn get_noff_merged_locals(
             }
             let branch = LocalBranch::new(refname);
             let upstream = branch.fetch_upstream(repo, config)?;
-            if Some(base) == upstream.as_ref() {
-                continue;
+            if let RemoteTrackingBranchStatus::Exists(upstream) = upstream {
+                if base == &upstream {
+                    continue;
+                }
             }
             let reference = repo.find_reference(&refname)?;
             if reference.symbolic_target().is_some() {
