@@ -7,7 +7,7 @@ use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{LocalBranch, RemoteBranch, RemoteTrackingBranch};
+use crate::branch::{LocalBranch, RemoteBranch, RemoteTrackingBranch, RemoteTrackingBranchStatus};
 use crate::merge_tracker::{MergeState, MergeTracker};
 use crate::subprocess::{self, get_worktrees, RemoteHead};
 use crate::util::ForceSendSync;
@@ -350,7 +350,9 @@ pub fn classify(
     branch: &LocalBranch,
 ) -> Result<Classification> {
     let local = merge_tracker.check_and_track(&git.repo, &base.refname, branch)?;
-    let fetch = if let Some(fetch) = branch.fetch_upstream(&git.repo, &git.config)? {
+    let fetch = if let RemoteTrackingBranchStatus::Exists(fetch) =
+        branch.fetch_upstream(&git.repo, &git.config)?
+    {
         Some(merge_tracker.check_and_track(&git.repo, &base.refname, &fetch)?)
     } else {
         None
@@ -459,7 +461,7 @@ pub fn get_tracking_branches(
         }
 
         let fetch_upstream = branch.fetch_upstream(&git.repo, &git.config)?;
-        if let Some(upstream) = &fetch_upstream {
+        if let RemoteTrackingBranchStatus::Exists(upstream) = &fetch_upstream {
             if base_upstreams.contains(&upstream) {
                 debug!("Skip: the branch tracks the base: {:?}", branch);
                 continue;
@@ -509,7 +511,7 @@ pub fn get_non_upstream_remote_tracking_branches(
     let tracking_branches = get_tracking_branches(git, base_upstreams)?;
     for tracking_branch in tracking_branches {
         let upstream = tracking_branch.fetch_upstream(&git.repo, &git.config)?;
-        if let Some(upstream) = upstream {
+        if let RemoteTrackingBranchStatus::Exists(upstream) = upstream {
             upstreams.insert(upstream);
         }
     }

@@ -17,6 +17,7 @@ use glob::Pattern;
 use log::*;
 
 use crate::args::{DeleteFilter, ScanFilter};
+use crate::branch::RemoteTrackingBranchStatus;
 pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
 use crate::core::{
     get_non_tracking_local_branches, get_non_upstream_remote_tracking_branches, get_remote_heads,
@@ -225,7 +226,9 @@ fn resolve_base_and_upstream_refs(
         if reference.is_branch() {
             let refname = reference.name().context("non utf-8 base refname")?;
             let branch = LocalBranch::new(refname);
-            if let Some(upstream) = branch.fetch_upstream(repo, config)? {
+            if let RemoteTrackingBranchStatus::Exists(upstream) =
+                branch.fetch_upstream(repo, config)?
+            {
                 result.insert(upstream.refname);
             }
         }
@@ -256,7 +259,9 @@ fn resolve_base_upstreams(
             };
 
             if let Ok(branch) = LocalBranch::try_from(&reference) {
-                if let Some(upstream) = branch.fetch_upstream(repo, config)? {
+                if let RemoteTrackingBranchStatus::Exists(upstream) =
+                    branch.fetch_upstream(repo, config)?
+                {
                     result.push(upstream);
                     continue;
                 }
@@ -314,7 +319,9 @@ fn resolve_protected_refs(
             if Pattern::new(protected_branch)?.matches(branch_name) {
                 let branch = LocalBranch::try_from(&branch)?;
                 result.insert(branch.refname.to_string());
-                if let Some(upstream) = branch.fetch_upstream(repo, config)? {
+                if let RemoteTrackingBranchStatus::Exists(upstream) =
+                    branch.fetch_upstream(repo, config)?
+                {
                     result.insert(upstream.refname);
                 }
             }

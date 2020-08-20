@@ -33,16 +33,16 @@ impl LocalBranch {
         &self,
         repo: &Repository,
         config: &Config,
-    ) -> Result<Option<RemoteTrackingBranch>> {
+    ) -> Result<RemoteTrackingBranchStatus> {
         let remote_name = if let Some(remote_name) = config::get_remote_name(config, self)? {
             remote_name
         } else {
-            return Ok(None);
+            return Ok(RemoteTrackingBranchStatus::None);
         };
         let merge: String = if let Some(merge) = config::get_merge(config, self)? {
             merge
         } else {
-            return Ok(None);
+            return Ok(RemoteTrackingBranchStatus::None);
         };
 
         RemoteTrackingBranch::from_remote_branch(
@@ -99,7 +99,7 @@ impl RemoteTrackingBranch {
     pub fn from_remote_branch(
         repo: &Repository,
         remote_branch: &RemoteBranch,
-    ) -> Result<Option<RemoteTrackingBranch>> {
+    ) -> Result<RemoteTrackingBranchStatus> {
         let remote = config::get_remote(repo, &remote_branch.remote)?;
         if let Some(remote) = remote {
             let refname = if let Some(expanded) = expand_refspec(
@@ -110,16 +110,18 @@ impl RemoteTrackingBranch {
             )? {
                 expanded
             } else {
-                return Ok(None);
+                return Ok(RemoteTrackingBranchStatus::None);
             };
 
             if repo.find_reference(&refname).is_ok() {
-                return Ok(Some(RemoteTrackingBranch::new(&refname)));
+                return Ok(RemoteTrackingBranchStatus::Exists(
+                    RemoteTrackingBranch::new(&refname),
+                ));
             } else {
-                return Ok(None);
+                return Ok(RemoteTrackingBranchStatus::Gone(refname));
             }
         }
-        Ok(None)
+        Ok(RemoteTrackingBranchStatus::None)
     }
 
     pub fn to_remote_branch(
@@ -171,6 +173,12 @@ impl<'repo> TryFrom<&git2::Reference<'repo>> for RemoteTrackingBranch {
         let refname = reference.name().context("non-utf8 reference name")?;
         Ok(Self::new(refname))
     }
+}
+
+pub enum RemoteTrackingBranchStatus {
+    Exists(RemoteTrackingBranch),
+    Gone(String),
+    None,
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug)]
