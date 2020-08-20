@@ -41,7 +41,7 @@ fn git_output(repo: &Repository, args: &[&str], level: log::Level) -> Result<Str
 
     let str = std::str::from_utf8(&output.stdout)?.trim();
     for line in str.lines() {
-        trace!("{}", line);
+        trace!("| {}", line);
     }
     Ok(str.to_string())
 }
