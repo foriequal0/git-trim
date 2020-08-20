@@ -401,7 +401,7 @@ pub fn classify(
         // `fetch_upstream` returns None.
         // However we can try manual classification without `remote.{remote}` entry.
         None => {
-            let remote = config::get_remote_name_raw(&git.config, branch)?
+            let remote = config::get_remote_name(&git.config, branch)?
                 .expect("should have it if it has an upstream");
             let merge = config::get_merge(&git.config, branch)?
                 .expect("should have it if it has an upstream");
@@ -622,7 +622,7 @@ pub fn get_tracking_branches(
     for branch in git.repo.branches(Some(BranchType::Local))? {
         let branch = LocalBranch::try_from(&branch?.0)?;
 
-        if config::get_remote_name_raw(&git.config, &branch)?.is_none() {
+        if config::get_remote_name(&git.config, &branch)?.is_none() {
             continue;
         }
 
@@ -649,7 +649,7 @@ pub fn get_non_tracking_local_branches(
     for branch in git.repo.branches(Some(BranchType::Local))? {
         let branch = LocalBranch::try_from(&branch?.0)?;
 
-        if config::get_remote_name_raw(&git.config, &branch)?.is_some() {
+        if config::get_remote_name(&git.config, &branch)?.is_some() {
             continue;
         }
 
@@ -705,7 +705,7 @@ pub fn get_remote_heads(git: &Git, branches: &[LocalBranch]) -> Result<Vec<Remot
     let mut remote_urls = Vec::new();
 
     for branch in branches {
-        if let Some(remote) = config::get_remote_name_raw(&git.config, &branch)? {
+        if let Some(remote) = config::get_remote_name(&git.config, &branch)? {
             if config::get_remote(&git.repo, &remote)?.is_none() {
                 remote_urls.push(remote);
             }
