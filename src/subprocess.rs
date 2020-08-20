@@ -11,7 +11,7 @@ use crate::config::get_remote_name;
 fn git(repo: &Repository, args: &[&str], level: log::Level) -> Result<()> {
     let workdir = repo.workdir().context("Bare repository is not supported")?;
     let workdir = workdir.to_str().context("non utf-8 workdir")?;
-    log!(level, "> git -C {} {}", workdir, args.join(" "));
+    log!(level, "> git {}", args.join(" "));
 
     let mut cd_args = vec!["-C", workdir];
     cd_args.extend_from_slice(args);
@@ -26,7 +26,7 @@ fn git(repo: &Repository, args: &[&str], level: log::Level) -> Result<()> {
 fn git_output(repo: &Repository, args: &[&str], level: log::Level) -> Result<String> {
     let workdir = repo.workdir().context("Bare repository is not supported")?;
     let workdir = workdir.to_str().context("non utf-8 workdir")?;
-    log!(level, "> git -C {} {}", workdir, args.join(" "));
+    log!(level, "> git {}", args.join(" "));
 
     let mut cd_args = vec!["-C", workdir];
     cd_args.extend_from_slice(args);
@@ -98,10 +98,8 @@ pub fn get_noff_merged_locals(
             Level::Trace,
         )?;
         for refname in refnames.lines() {
-            debug!("refname: {}", refname);
             if !refnames.starts_with("refs/") {
                 // Detached HEAD is printed as '(HEAD detached at 1234abc)'
-                debug!("skip: it is not a valid branch name");
                 continue;
             }
             let branch = LocalBranch::new(refname);
@@ -111,15 +109,12 @@ pub fn get_noff_merged_locals(
             }
             let upstream = branch.fetch_upstream(repo, config)?;
             if Some(base) == upstream.as_ref() {
-                debug!("skip: tracks {}", base.refname);
                 continue;
             }
             let reference = repo.find_reference(&refname)?;
             if reference.symbolic_target().is_some() {
-                debug!("skip: it is symbolic");
                 continue;
             }
-            debug!("noff merged local: it is merged to {:?}", base);
             result.insert(branch);
         }
     }
@@ -147,18 +142,14 @@ pub fn get_noff_merged_remotes(
             Level::Trace,
         )?;
         for refname in refnames.lines() {
-            debug!("refname: {}", refname);
             let branch = RemoteTrackingBranch::new(refname);
             if base == &branch {
-                debug!("skip: {} is a base", branch.refname);
                 continue;
             }
             let reference = repo.find_reference(&refname)?;
             if reference.symbolic_target().is_some() {
-                debug!("skip: it is symbolic");
                 continue;
             }
-            debug!("noff merged remote: it is merged to {:?}", base);
             result.insert(branch);
         }
     }
