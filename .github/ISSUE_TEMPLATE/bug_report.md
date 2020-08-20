@@ -16,9 +16,9 @@ especially you've installed `git-trim` other than `cargo install` such as Homebr
 A clear and concise description of what the bug is.
 
 **To Reproduce**
-Steps to reproduce the behavior:
-1. Minimal reproducible git repo if applicable
+1. Minimal reproducible git repo if available
 2. CLI command and configs
+3. Steps to reproduce the behavior
 
 **Expected behavior**
 A clear and concise description of what you expected to happen.
@@ -26,17 +26,25 @@ A clear and concise description of what you expected to happen.
 **Actual behaviour**
 If applicable, add logs and stacktraces to help explain your problem.
 
-**Additional context and logs & dumps**
+**Additional context and logs & dumps if necessary**
 You should remove sensitive informations before put them here.
  - OS
  - Version
  - `git rev-parse --abbrev-ref HEAD`
  - `git show-ref`
  - `git config --get-regexp '(push|fetch|remote|branch|trim).*' | sort`
+ - `git log --oneline --graph --all`
 
-**Logs and stacktraces**
+**Logs and stacktraces if necessary**
 You should remove sensitive informations before put them here.
-You can get more detailed logs by setting an environment variable `RUST_LOG=trace git trim`
+You can get more detailed and clean logs by setting some environment variable with follwing command
+```shell
+export RUST_LOG=trace
+export RAYON_NUM_THREADS=1
+export RUST_BACKTRACE=full
+git trim
+```
+
 ```
 Put them here
 ```
