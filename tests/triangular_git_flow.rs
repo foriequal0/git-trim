@@ -6,7 +6,8 @@ use anyhow::Result;
 use git2::Repository;
 
 use git_trim::{
-    get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteTrackingBranch,
+    get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteHeadsPrefetcher,
+    RemoteTrackingBranch,
 };
 
 use fixture::{rc, test_default_param, Fixture};
@@ -86,7 +87,7 @@ fn test_feature_to_develop() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, RemoteHeadsPrefetcher::spawn(&git)?, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -123,7 +124,7 @@ fn test_feature_to_develop_but_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, RemoteHeadsPrefetcher::spawn(&git)?, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -169,7 +170,7 @@ fn test_develop_to_master() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, RemoteHeadsPrefetcher::spawn(&git)?, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -209,7 +210,7 @@ fn test_develop_to_master_but_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, RemoteHeadsPrefetcher::spawn(&git)?, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -254,7 +255,7 @@ fn test_hotfix_to_master() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, RemoteHeadsPrefetcher::spawn(&git)?, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -293,7 +294,7 @@ fn test_hotfix_to_master_forgot_to_delete() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, RemoteHeadsPrefetcher::spawn(&git)?, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -331,7 +332,7 @@ fn test_rejected_feature_to_develop() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, RemoteHeadsPrefetcher::spawn(&git)?, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -370,7 +371,7 @@ fn test_rejected_hotfix_to_master() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, RemoteHeadsPrefetcher::spawn(&git)?, &param())?;
 
     assert_eq!(
         plan.to_delete,
@@ -414,6 +415,7 @@ fn test_protected_feature_to_develop() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let plan = get_trim_plan(
         &git,
+        RemoteHeadsPrefetcher::spawn(&git)?,
         &PlanParam {
             protected_branches: set! {"refs/heads/feature"},
             ..param()
@@ -460,6 +462,7 @@ fn test_protected_feature_to_master() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let plan = get_trim_plan(
         &git,
+        RemoteHeadsPrefetcher::spawn(&git)?,
         &PlanParam {
             protected_branches: set! {"refs/heads/feature"},
             ..param()
@@ -498,6 +501,7 @@ fn test_rejected_protected_feature_to_develop() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let plan = get_trim_plan(
         &git,
+        RemoteHeadsPrefetcher::spawn(&git)?,
         &PlanParam {
             protected_branches: set! {"refs/heads/feature"},
             ..param()

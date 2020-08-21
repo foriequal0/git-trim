@@ -7,8 +7,7 @@ use anyhow::Result;
 use git2::Repository;
 
 use git_trim::args::{DeleteFilter, DeleteRange, Scope};
-
-use git_trim::{get_trim_plan, Git, PlanParam};
+use git_trim::{get_trim_plan, Git, PlanParam, RemoteHeadsPrefetcher};
 
 use fixture::{rc, test_default_param, Fixture};
 
@@ -51,6 +50,7 @@ fn test_bases_implicit_value() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let plan = get_trim_plan(
         &git,
+        RemoteHeadsPrefetcher::spawn(&git)?,
         &PlanParam {
             delete: DeleteFilter::from_iter(vec![
                 DeleteRange::MergedLocal,

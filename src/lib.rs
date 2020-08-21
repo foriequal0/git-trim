@@ -3,6 +3,7 @@ mod branch;
 pub mod config;
 mod core;
 mod merge_tracker;
+mod remote_heads_prefetcher;
 mod simple_glob;
 mod subprocess;
 mod util;
@@ -20,12 +21,13 @@ use crate::branch::RemoteTrackingBranchStatus;
 pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
 use crate::core::{
     get_direct_fetch_branches, get_non_tracking_local_branches,
-    get_non_upstream_remote_tracking_branches, get_remote_heads, get_tracking_branches, Classifier,
+    get_non_upstream_remote_tracking_branches, get_tracking_branches, Classifier,
     DirectFetchClassificationRequest, NonTrackingBranchClassificationRequest,
     NonUpstreamBranchClassificationRequest, TrackingBranchClassificationRequest,
 };
 pub use crate::core::{ClassifiedBranch, TrimPlan};
 use crate::merge_tracker::MergeTracker;
+pub use crate::remote_heads_prefetcher::RemoteHeadsPrefetcher;
 pub use crate::subprocess::{ls_remote_head, remote_update, RemoteHead};
 pub use crate::util::ForceSendSync;
 
@@ -51,12 +53,18 @@ pub struct PlanParam<'a> {
     pub detach: bool,
 }
 
-pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
+pub fn get_trim_plan(
+    git: &Git,
+    remote_heads_prefetcher: RemoteHeadsPrefetcher,
+    param: &PlanParam,
+) -> Result<TrimPlan> {
     let base_refs = normalize_refs(&git.repo, &param.bases)?;
     let base_upstreams = resolve_base_upstreams(&git.repo, &git.config, &base_refs)?;
     let protected_refs = resolve_protected_refs(&git.repo, &git.config, &param.protected_branches)?;
     trace!("base_upstreams: {:#?}", base_upstreams);
     trace!("protected_refs: {:#?}", protected_refs);
+
+    let merge_tracker = MergeTracker::with_base_upstreams(&git.repo, &git.config, &base_upstreams)?;
 
     let tracking_branches = get_tracking_branches(git, &base_upstreams)?;
     debug!("tracking_branches: {:#?}", tracking_branches);
@@ -70,20 +78,10 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     let non_upstream_branches = get_non_upstream_remote_tracking_branches(git, &base_upstreams)?;
     debug!("non_upstream_branches: {:#?}", non_upstream_branches);
 
-    let remote_heads = if param.scan.scan_tracking() {
-        let remotes: Vec<_> = direct_fetch_branches
-            .iter()
-            .map(|(_, r)| r.clone())
-            .collect();
-        get_remote_heads(git, &remotes)?
-    } else {
-        Vec::new()
-    };
+    let remote_heads = remote_heads_prefetcher.get()?;
     debug!("remote_heads: {:#?}", remote_heads);
 
-    let merge_tracker = MergeTracker::with_base_upstreams(&git.repo, &git.config, &base_upstreams)?;
     let mut classifier = Classifier::new(git, &merge_tracker);
-
     info!("Enqueue classification requests");
     if param.scan.scan_tracking() {
         for (local, upstream) in &tracking_branches {

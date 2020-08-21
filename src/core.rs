@@ -6,12 +6,11 @@ use anyhow::{Context, Result};
 use crossbeam_channel::unbounded;
 use git2::{BranchType, Repository};
 use log::*;
-use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
 use crate::branch::{LocalBranch, RemoteBranch, RemoteTrackingBranch, RemoteTrackingBranchStatus};
 use crate::merge_tracker::MergeTracker;
-use crate::subprocess::{self, get_worktrees, RemoteHead};
+use crate::subprocess::{get_worktrees, RemoteHead};
 use crate::util::ForceSendSync;
 use crate::{config, Git};
 
@@ -738,26 +737,4 @@ pub fn get_non_upstream_remote_tracking_branches(
     }
 
     Ok(result)
-}
-
-pub fn get_remote_heads(git: &Git, branches: &[RemoteBranch]) -> Result<Vec<RemoteHead>> {
-    let mut remote_urls = Vec::new();
-
-    for branch in branches {
-        remote_urls.push(&branch.remote);
-    }
-
-    Ok(remote_urls
-        .into_par_iter()
-        .map({
-            let git = ForceSendSync::new(git);
-            move |remote_url| {
-                subprocess::ls_remote_heads(&git.repo, &remote_url)
-                    .with_context(|| format!("remote_url={}", remote_url))
-            }
-        })
-        .collect::<Result<Vec<Vec<RemoteHead>>, _>>()?
-        .into_iter()
-        .flatten()
-        .collect::<Vec<RemoteHead>>())
 }

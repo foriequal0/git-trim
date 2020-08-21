@@ -8,7 +8,8 @@ use git2::Repository;
 
 use git_trim::args::{DeleteFilter, DeleteRange, Scope};
 use git_trim::{
-    get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteTrackingBranch,
+    get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteHeadsPrefetcher,
+    RemoteTrackingBranch,
 };
 
 use fixture::{rc, test_default_param, Fixture};
@@ -85,6 +86,7 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let plan = get_trim_plan(
         &git,
+        RemoteHeadsPrefetcher::spawn(&git)?,
         &PlanParam {
             delete: DeleteFilter::from_iter(vec![
                 DeleteRange::MergedLocal,
@@ -124,7 +126,7 @@ fn test_accidential_track() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, RemoteHeadsPrefetcher::spawn(&git)?, &param())?;
     assert_eq!(
         plan.to_delete,
         set! {

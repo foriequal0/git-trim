@@ -8,7 +8,8 @@ use git2::Repository;
 
 use git_trim::args::{ScanFilter, ScanRange, Scope};
 use git_trim::{
-    get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteTrackingBranch,
+    get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteHeadsPrefetcher,
+    RemoteTrackingBranch,
 };
 
 use fixture::{rc, test_default_param, Fixture};
@@ -64,7 +65,7 @@ fn test_merged_non_tracking() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, RemoteHeadsPrefetcher::spawn(&git)?, &param())?;
     assert_eq!(
         plan.to_delete,
         set! {
@@ -92,7 +93,7 @@ fn test_merged_non_upstream() -> Result<()> {
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
-    let plan = get_trim_plan(&git, &param())?;
+    let plan = get_trim_plan(&git, RemoteHeadsPrefetcher::spawn(&git)?, &param())?;
     assert_eq!(
         plan.to_delete,
         set! {

@@ -18,6 +18,12 @@ impl<T> ForceSendSync<T> {
     }
 }
 
+impl<'a, T> ForceSendSync<&'a T> {
+    pub fn as_static(self) -> ForceSendSync<&'static T> {
+        unsafe { ForceSendSync(std::mem::transmute::<&'a T, &'static T>(self.0)) }
+    }
+}
+
 impl<T> Deref for ForceSendSync<T> {
     type Target = T;
 

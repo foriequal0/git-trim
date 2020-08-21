@@ -13,8 +13,8 @@ use git_trim::args::Args;
 use git_trim::config::{self, get, Config, ConfigValue};
 use git_trim::{
     delete_local_branches, delete_remote_branches, get_trim_plan, ls_remote_head, remote_update,
-    ClassifiedBranch, ForceSendSync, Git, LocalBranch, PlanParam, RemoteHead, RemoteTrackingBranch,
-    TrimPlan,
+    ClassifiedBranch, ForceSendSync, Git, LocalBranch, PlanParam, RemoteHead,
+    RemoteHeadsPrefetcher, RemoteTrackingBranch, TrimPlan,
 };
 
 #[paw::main]
@@ -37,6 +37,12 @@ fn main(args: Args) -> Result<()> {
         return error_no_bases();
     }
 
+    let remote_heads_prefetcher = if config.scan.scan_tracking() {
+        RemoteHeadsPrefetcher::spawn(&git)?
+    } else {
+        RemoteHeadsPrefetcher::noop()
+    };
+
     let mut checker = None;
     if *config.update {
         if should_update(
@@ -54,6 +60,7 @@ fn main(args: Args) -> Result<()> {
 
     let plan = get_trim_plan(
         &git,
+        remote_heads_prefetcher,
         &PlanParam {
             bases: config.bases.iter().map(String::as_str).collect(),
             protected_branches: config.protected.iter().map(String::as_str).collect(),
