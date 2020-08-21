@@ -39,11 +39,7 @@ fn main(args: Args) -> Result<()> {
 
     let mut checker = None;
     if *config.update {
-        if should_update(
-            &git,
-            *config.update_interval,
-            matches!(config.update, ConfigValue::Explicit { value: true , .. }),
-        )? {
+        if should_update(&git, *config.update_interval, config.update)? {
             checker = Some(remote_head_change_checker::RemoteHeadChangeChecker::spawn()?);
             remote_update(&git.repo, args.dry_run)?;
             println!();
@@ -237,12 +233,12 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
     Ok(())
 }
 
-fn should_update(git: &Git, interval: u64, explicit: bool) -> Result<bool> {
+fn should_update(git: &Git, interval: u64, config_update: ConfigValue<bool>) -> Result<bool> {
     if interval == 0 {
         return Ok(true);
     }
 
-    if explicit {
+    if matches!(config_update, ConfigValue::Explicit { value: true , .. }) {
         trace!("explicitly set --update. force update");
         return Ok(true);
     }
