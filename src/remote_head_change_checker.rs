@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use crate::{ls_remote_head, ForceSendSync, RemoteHead, RemoteTrackingBranch};
 
 pub struct RemoteHeadChangeChecker {
-    join_handle: JoinHandle<Result<Vec<ForceSendSync<RemoteHead>>>>,
+    join_handle: JoinHandle<Result<Vec<RemoteHead>>>,
 }
 
 impl RemoteHeadChangeChecker {
@@ -26,7 +26,7 @@ impl RemoteHeadChangeChecker {
             std::thread::spawn(move || {
                 remotes
                     .par_iter()
-                    .map(|remote_name| ls_remote_head(&repo, remote_name).map(ForceSendSync::new))
+                    .map(|remote_name| ls_remote_head(&repo, remote_name))
                     .collect()
             })
         };
@@ -37,7 +37,7 @@ impl RemoteHeadChangeChecker {
         let fetched_remote_heads_raw = self.join_handle.join().unwrap()?;
         let mut fetched_remote_heads: Vec<RemoteHead> = Vec::new();
         for remote_head in fetched_remote_heads_raw.into_iter() {
-            fetched_remote_heads.push(remote_head.unwrap());
+            fetched_remote_heads.push(remote_head);
         }
 
         let mut out_of_sync = Vec::new();
