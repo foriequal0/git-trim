@@ -61,10 +61,8 @@ jobs:
         profile: minimal
     - run: cargo fetch --verbose
     - run: cargo build --tests
-    - name: Add msys2 to PATH
-      run: echo "::add-path::C:\Program Files\Git\bin"
-      if: runner.os == 'Windows'
     - run: cargo test --all
+      shell: bash
       env:
         RUST_LOG: trace
         RUST_BACKTRACE: 1
@@ -88,8 +86,8 @@ jobs:
         profile: minimal
     - run: cargo fetch --verbose
     - run: cargo build
-    - name: Archive-posix
-      if: matrix.os.short != 'win'
+    - name: Archive
+      shell: bash
       working-directory: target/debug
       run: |
         VERSION=$(./git-trim --version | cut -d ' ' -f 2)
@@ -101,23 +99,12 @@ jobs:
         mkdir -p artifacts
         cp 'git-trim' artifacts/
         echo '${{github.sha}} ${{github.ref}}' | tee artifacts/git-ref
-        shasum -a 256 'git-trim' | tee artifacts/sha256sums
-    - name: Archive-win
-      if: matrix.os.short == 'win'
-      working-directory: target/debug
-      run: |
-        $VERSION=$($(./git-trim.exe --version).split( )[1])
-        $ARCHIVE="git-trim-${{matrix.os.short}}-$VERSION.zip"
-        echo "::set-env name=VERSION::$VERSION"
-        echo "::set-env name=ARCHIVE::$ARCHIVE"
+        if command -v sha256sum; then
+            sha256sum 'git-trim' | tee artifacts/sha256sums
+        else
+            shasum -a 256 'git-trim' | tee artifacts/sha256sums
+        fi
 
-        if (Test-Path "artifacts") {
-          rm -Recurse -Force artifacts
-        }
-        mkdir artifacts
-        cp 'git-trim.exe' artifacts/
-        echo '${{github.sha}} ${{github.ref}}' | tee artifacts/git-ref
-        $(Get-FileHash 'git-trim.exe').Hash | tee artifacts/sha256sums
     - uses: actions/upload-artifact@v1
       with:
         name: git-trim-${{matrix.os.short}}-${{env.VERSION}}

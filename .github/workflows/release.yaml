@@ -24,9 +24,8 @@ jobs:
         profile: minimal
     - run: cargo fetch --verbose
     - run: cargo build --release
-
-    - name: Archive-posix
-      if: matrix.os.short != 'win'
+    - name: Archive
+      shell: bash
       working-directory: target/release
       run: |
         VERSION="${{github.ref}}"
@@ -39,30 +38,15 @@ jobs:
         mkdir -p artifacts/git-trim
         cp 'git-trim' artifacts/git-trim/
         echo '${{github.sha}} ${{github.ref}}' | tee artifacts/git-trim/git-ref
-        shasum -a 256 'git-trim' | tee artifacts/git-trim/sha256sums
+
+        if command -v sha256sum; then
+            sha256sum 'git-trim' | tee artifacts/git-trim/sha256sums
+        else
+            shasum -a 256 'git-trim' | tee artifacts/git-trim/sha256sums
+        fi
 
         cd artifacts
         tar cvzf "$ARCHIVE" git-trim
-    - name: Archive-win
-      if: matrix.os.short == 'win'
-      working-directory: target/release
-      run: |
-        $VERSION="${{github.ref}}".Substring("refs/tags/".Length)
-        $ARCHIVE="git-trim-${{matrix.os.short}}-$VERSION.zip"
-        echo "::set-env name=VERSION::$VERSION"
-        echo "::set-env name=ARCHIVE::$ARCHIVE"
-
-        if (Test-Path "artifacts") {
-          rm -Recurse -Force artifacts
-        }
-        mkdir artifacts/git-trim
-        cp 'git-trim.exe' artifacts/git-trim/
-        echo '${{github.sha}} ${{github.ref}}' | tee artifacts/git-trim/git-ref
-        $(Get-FileHash 'git-trim.exe').Hash | tee artifacts/git-trim/sha256sums
-
-        cd artifacts
-        Compress-Archive -Path git-trim -DestinationPath "$ARCHIVE"
-
     - uses: actions/upload-artifact@v1
       with:
         name: git-trim-${{matrix.os.short}}-${{env.VERSION}}
@@ -117,15 +101,15 @@ jobs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./git-trim-mac-${{env.VERSION}}.tgz
         asset_name: git-trim-mac-${{env.VERSION}}.tgz
-        asset_content_type: application/zip
+        asset_content_type: application/gzip
 
     - name: Upload Release Asset - win
       uses: actions/upload-release-asset@v1
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./git-trim-win-${{env.VERSION}}.zip
-        asset_name: git-trim-win-${{env.VERSION}}.zip
-        asset_content_type: application/zip
+        asset_path: ./git-trim-win-${{env.VERSION}}.tgz
+        asset_name: git-trim-win-${{env.VERSION}}.tgz
+        asset_content_type: application/gzip
 
   cargo-publish:
     runs-on: ubuntu-latest
