@@ -1,0 +1,34 @@
+{
+  "name": "@foriequal0/git-trim",
+  "version": "0.4.0-alpha.2",
+  "bin": {
+    "git-trim": "./npm/index.js"
+  },
+  "scripts": {
+    "prepublishOnly": "node ./npm/prepublish.js",
+    "postinstall": "node ./npm/install.js",
+    "preinstall": "node ./npm/uninstall.js"
+  },
+  "files": [
+    "npm/**/*",
+    "!npm/prepublish.js",
+    "docs/git-trim.1"
+  ],
+  "man": [
+    "docs/git-trim.1"
+  ],
+  "dependencies": {
+    "binary-install": "0.0.1"
+  },
+  "devDependencies": {
+    "toml": "^3.0.0"
+  },
+  "os": [
+    "linux",
+    "win32",
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ]
+}
