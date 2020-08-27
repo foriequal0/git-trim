@@ -10,3 +10,6 @@ charset = utf-8
 
 [*.{yaml,yml,toml}]
 indent_size = 2
+
+[*.{js,json}]
+indent_size = 2

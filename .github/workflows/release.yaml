@@ -111,6 +111,22 @@ jobs:
         asset_name: git-trim-win-${{env.VERSION}}.tgz
         asset_content_type: application/gzip
 
+  npm-publish:
+    runs-on: ubuntu-last
+    steps:
+    - uses: actions/checkout@v2
+    - name: Use Node.js
+      uses: actions/setup-node@v1
+      with:
+        always-auth: true
+        node-version: '12.x'
+        registry-url: https://registry.npmjs.org
+        scope: '@foriequal0'
+      env:
+        NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+    - run: npm install
+    - run: npm publish --access public
+
   cargo-publish:
     runs-on: ubuntu-latest
     steps:
