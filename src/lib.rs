@@ -16,7 +16,9 @@ use log::*;
 
 use crate::args::{DeleteFilter, ScanFilter};
 use crate::branch::RemoteTrackingBranchStatus;
-pub use crate::branch::{LocalBranch, RemoteBranch, RemoteBranchError, RemoteTrackingBranch};
+pub use crate::branch::{
+    LocalBranch, Refname, RemoteBranch, RemoteBranchError, RemoteTrackingBranch,
+};
 use crate::core::{
     get_direct_fetch_branches, get_non_tracking_local_branches,
     get_non_upstream_remote_tracking_branches, get_remote_heads, get_tracking_branches, Classifier,
@@ -51,20 +53,26 @@ pub struct PlanParam<'a> {
 }
 
 pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
-    let base_refs = normalize_refs(&git.repo, &param.bases)?;
-    let base_upstreams = resolve_base_upstreams(&git.repo, &git.config, &base_refs)?;
-    trace!("base_upstreams: {:#?}", base_upstreams);
+    let bases = resolve_bases(&git.repo, &git.config, &param.bases)?;
+    let base_upstreams: Vec<_> = bases
+        .iter()
+        .map(|b| match b {
+            BaseSpec::Local { upstream, .. } => upstream.clone(),
+            BaseSpec::Remote { remote, .. } => remote.clone(),
+        })
+        .collect();
+    trace!("bases: {:#?}", bases);
 
-    let tracking_branches = get_tracking_branches(git, &base_upstreams)?;
+    let tracking_branches = get_tracking_branches(git)?;
     debug!("tracking_branches: {:#?}", tracking_branches);
 
-    let direct_fetch_branches = get_direct_fetch_branches(git, &base_refs)?;
+    let direct_fetch_branches = get_direct_fetch_branches(git)?;
     debug!("direct_fetch_branches: {:#?}", direct_fetch_branches);
 
-    let non_tracking_branches = get_non_tracking_local_branches(git, &base_refs)?;
+    let non_tracking_branches = get_non_tracking_local_branches(git)?;
     debug!("non_tracking_branches: {:#?}", non_tracking_branches);
 
-    let non_upstream_branches = get_non_upstream_remote_tracking_branches(git, &base_upstreams)?;
+    let non_upstream_branches = get_non_upstream_remote_tracking_branches(git)?;
     debug!("non_upstream_branches: {:#?}", non_upstream_branches);
 
     let remote_heads = if param.scan.scan_tracking() {
@@ -137,9 +145,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
         result.to_delete.extend(classification.result);
     }
 
-    let base_and_upstream_refs =
-        resolve_base_and_upstream_refs(&git.repo, &git.config, &base_refs)?;
-    result.preserve(&base_and_upstream_refs, "base")?;
+    result.preserve_bases(&git.repo, &git.config, &bases)?;
     result.preserve_protected(&git.repo, &param.protected_patterns)?;
     result.preserve_non_heads_remotes(&git.repo)?;
     result.preserve_worktree(&git.repo)?;
@@ -152,90 +158,82 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     Ok(result)
 }
 
-fn normalize_refs(repo: &Repository, names: &[&str]) -> Result<Vec<String>> {
-    let mut result = Vec::new();
-    for name in names {
-        let refname = match repo.resolve_reference_from_short_name(name) {
-            Ok(reference) => reference.name().context("non utf-8 branch ref")?.to_owned(),
-            Err(err) if err.code() == ErrorCode::NotFound => continue,
-            Err(err) => return Err(err.into()),
-        };
-        result.push(refname);
-    }
-    Ok(result)
+#[derive(Debug)]
+pub(crate) enum BaseSpec<'a> {
+    Local {
+        pattern: &'a str,
+        local: LocalBranch,
+        upstream: RemoteTrackingBranch,
+    },
+    Remote {
+        pattern: &'a str,
+        remote: RemoteTrackingBranch,
+    },
 }
 
-fn resolve_base_and_upstream_refs(
+impl<'a> BaseSpec<'a> {
+    fn is_local(&self, branch: &LocalBranch) -> bool {
+        matches!(self, BaseSpec::Local { local, .. } if local == branch)
+    }
+
+    fn covers_remote(&self, refname: &str) -> bool {
+        match self {
+            BaseSpec::Local { upstream, .. } if upstream.refname() == refname => true,
+            BaseSpec::Remote { remote, .. } if remote.refname() == refname => true,
+            _ => false,
+        }
+    }
+
+    fn local_pattern(&self, refname: &str) -> Option<&str> {
+        match self {
+            BaseSpec::Local {
+                pattern, upstream, ..
+            } if upstream.refname() == refname => Some(pattern),
+            _ => None,
+        }
+    }
+
+    fn remote_pattern(&self, refname: &str) -> Option<&str> {
+        match self {
+            BaseSpec::Remote { pattern, remote } if remote.refname() == refname => Some(pattern),
+            _ => None,
+        }
+    }
+}
+
+pub(crate) fn resolve_bases<'a>(
     repo: &Repository,
     config: &GitConfig,
-    bases: &[String],
-) -> Result<HashSet<String>> {
-    let mut result = HashSet::new();
+    bases: &[&'a str],
+) -> Result<Vec<BaseSpec<'a>>> {
+    let mut result = Vec::new();
     for base in bases {
         let reference = match repo.resolve_reference_from_short_name(base) {
-            Ok(reference) => {
-                let refname = reference.name().context("non utf-8 base branch ref")?;
-                result.insert((*refname).to_string());
-                reference
-            }
+            Ok(reference) => reference,
             Err(err) if err.code() == ErrorCode::NotFound => continue,
             Err(err) => return Err(err.into()),
         };
 
         if reference.is_branch() {
-            let refname = reference.name().context("non utf-8 base refname")?;
-            let branch = LocalBranch::new(refname);
+            let local = LocalBranch::try_from(&reference)?;
             if let RemoteTrackingBranchStatus::Exists(upstream) =
-                branch.fetch_upstream(repo, config)?
+                local.fetch_upstream(repo, config)?
             {
-                result.insert(upstream.refname);
-            }
-        }
-    }
-    Ok(result)
-}
-
-fn resolve_base_upstreams(
-    repo: &Repository,
-    config: &GitConfig,
-    bases: &[String],
-) -> Result<Vec<RemoteTrackingBranch>> {
-    let mut result = Vec::new();
-    for base in bases {
-        if base.starts_with("refs/remotes/") {
-            if repo.find_reference(base).is_ok() {
-                result.push(RemoteTrackingBranch::new(base));
-                continue;
-            } else {
-                // The tracking remote branch is not fetched.
-                // Just skip.
+                result.push(BaseSpec::Local {
+                    pattern: base,
+                    local,
+                    upstream,
+                })
             }
         } else {
-            let reference = match repo.resolve_reference_from_short_name(base) {
-                Ok(reference) => reference,
-                Err(err) if err.code() == ErrorCode::NotFound => continue,
-                Err(err) => return Err(err.into()),
-            };
-
-            if let Ok(branch) = LocalBranch::try_from(&reference) {
-                if let RemoteTrackingBranchStatus::Exists(upstream) =
-                    branch.fetch_upstream(repo, config)?
-                {
-                    result.push(upstream);
-                    continue;
-                }
-            // We compares this functions's results with other branches.
-            // Our concern is whether the branches are safe to delete.
-            // Safe means we can be fetch the entire content of the branches from the base.
-            // So we skips get_push_upstream since we don't fetch from them.
-            } else if reference.is_remote() {
-                // match "origin/master -> refs/remotes/origin/master"
-                let refname = reference.name().context("non-utf8 reference name")?;
-                result.push(RemoteTrackingBranch::new(refname));
-                continue;
-            }
+            let remote = RemoteTrackingBranch::try_from(&reference)?;
+            result.push(BaseSpec::Remote {
+                pattern: base,
+                remote,
+            })
         }
     }
+
     Ok(result)
 }
 

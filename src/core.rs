@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use anyhow::{Context, Result};
 use crossbeam_channel::unbounded;
-use git2::{BranchType, Repository};
+use git2::{BranchType, Config, Repository};
 use log::*;
 use rayon::prelude::*;
 
@@ -15,7 +15,7 @@ use crate::branch::{
 use crate::merge_tracker::MergeTracker;
 use crate::subprocess::{self, get_worktrees, RemoteHead};
 use crate::util::ForceSendSync;
-use crate::{config, Git};
+use crate::{config, BaseSpec, Git};
 
 #[derive(Default)]
 pub struct TrimPlan {
@@ -26,6 +26,7 @@ pub struct TrimPlan {
 pub struct Preserved {
     pub branch: ClassifiedBranch,
     pub reason: String,
+    pub base: bool,
 }
 
 impl TrimPlan {
@@ -51,40 +52,110 @@ impl TrimPlan {
 }
 
 impl TrimPlan {
-    pub fn preserve(
+    pub(crate) fn preserve_bases(
         &mut self,
-        preserved_refnames: &HashSet<String>,
-        reason: &'static str,
+        repo: &Repository,
+        config: &Config,
+        base_specs: &[BaseSpec],
     ) -> Result<()> {
+        fn local_is_or_tracks_base(
+            repo: &Repository,
+            config: &Config,
+            base_specs: &[BaseSpec],
+            local: &LocalBranch,
+        ) -> Result<Option<String>> {
+            if base_specs.iter().any(|spec| spec.is_local(local)) {
+                return Ok(Some("base".to_owned()));
+            }
+
+            match local.fetch_upstream(repo, config)? {
+                RemoteTrackingBranchStatus::Exists(upstream) => {
+                    if let Some(pattern) = base_specs
+                        .iter()
+                        .find_map(|spec| spec.local_pattern(upstream.refname()))
+                    {
+                        return Ok(Some(format!("tracks base `{}`'s upstream", pattern)));
+                    }
+                    if let Some(pattern) = base_specs
+                        .iter()
+                        .find_map(|spec| spec.remote_pattern(upstream.refname()))
+                    {
+                        return Ok(Some(format!("tracks base `{}`", pattern)));
+                    }
+                }
+                RemoteTrackingBranchStatus::Gone(upstream) => {
+                    if let Some(pattern) = base_specs
+                        .iter()
+                        .find_map(|spec| spec.local_pattern(&upstream))
+                    {
+                        return Ok(Some(format!("tracks base `{}`'s upstream", pattern)));
+                    }
+                    if let Some(pattern) = base_specs
+                        .iter()
+                        .find_map(|spec| spec.remote_pattern(&upstream))
+                    {
+                        return Ok(Some(format!("tracked base `{}`", pattern)));
+                    }
+                }
+                _ => {}
+            }
+            Ok(None)
+        }
+
         let mut preserve = Vec::new();
         for branch in &self.to_delete {
-            let contained = match &branch {
+            match &branch {
                 ClassifiedBranch::MergedLocal(local)
                 | ClassifiedBranch::Stray(local)
                 | ClassifiedBranch::MergedDirectFetch { local, .. }
                 | ClassifiedBranch::DivergedDirectFetch { local, .. }
                 | ClassifiedBranch::MergedNonTrackingLocal(local) => {
-                    preserved_refnames.contains(&local.refname)
+                    if let Some(reason) = local_is_or_tracks_base(repo, config, base_specs, local)?
+                    {
+                        preserve.push(Preserved {
+                            branch: branch.clone(),
+                            reason,
+                            base: true,
+                        });
+                        continue;
+                    }
                 }
                 ClassifiedBranch::MergedRemoteTracking(upstream)
                 | ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
-                    preserved_refnames.contains(&upstream.refname)
+                    if base_specs
+                        .iter()
+                        .any(|spec| spec.covers_remote(upstream.refname()))
+                    {
+                        preserve.push(Preserved {
+                            branch: branch.clone(),
+                            reason: "base".to_owned(),
+                            base: true,
+                        });
+                        continue;
+                    }
                 }
                 ClassifiedBranch::DivergedRemoteTracking { local, upstream } => {
-                    let preserve_local = preserved_refnames.contains(&local.refname);
-                    let preserve_remote = preserved_refnames.contains(&upstream.refname);
-                    preserve_local || preserve_remote
+                    if let Some(reason) = local_is_or_tracks_base(repo, config, base_specs, local)?
+                    {
+                        preserve.push(Preserved {
+                            branch: branch.clone(),
+                            reason,
+                            base: true,
+                        });
+                        continue;
+                    } else if base_specs
+                        .iter()
+                        .any(|spec| spec.covers_remote(upstream.refname()))
+                    {
+                        preserve.push(Preserved {
+                            branch: branch.clone(),
+                            reason: "base".to_owned(),
+                            base: true,
+                        });
+                        continue;
+                    }
                 }
             };
-
-            if !contained {
-                continue;
-            }
-
-            preserve.push(Preserved {
-                branch: branch.clone(),
-                reason: reason.to_owned(),
-            });
         }
 
         for preserved in &preserve {
@@ -125,6 +196,7 @@ impl TrimPlan {
                 preserve.push(Preserved {
                     branch: branch.clone(),
                     reason: format!("protected by a pattern `{}`", pattern),
+                    base: false,
                 });
             }
         }
@@ -154,6 +226,7 @@ impl TrimPlan {
                 preserve.push(Preserved {
                     branch: branch.clone(),
                     reason: "a non-heads remote".to_owned(),
+                    base: false,
                 });
             }
         }
@@ -179,6 +252,7 @@ impl TrimPlan {
                 preserve.push(Preserved {
                     branch: branch.clone(),
                     reason: format!("worktree at {}", path),
+                    base: false,
                 });
             }
         }
@@ -229,6 +303,7 @@ impl TrimPlan {
                 preserve.push(Preserved {
                     branch: branch.clone(),
                     reason: "filtered".to_owned(),
+                    base: false,
                 });
             }
         }
@@ -256,6 +331,7 @@ impl TrimPlan {
                 preserve.push(Preserved {
                     branch: branch.clone(),
                     reason: "HEAD".to_owned(),
+                    base: false,
                 });
             }
         }
@@ -683,7 +759,6 @@ impl<'a> ClassificationRequest for NonUpstreamBranchClassificationRequest<'a> {
 
 pub fn get_tracking_branches(
     git: &Git,
-    base_upstreams: &[RemoteTrackingBranch],
 ) -> Result<Vec<(LocalBranch, Option<RemoteTrackingBranch>)>> {
     let mut result = Vec::new();
     for branch in git.repo.branches(Some(BranchType::Local))? {
@@ -691,9 +766,6 @@ pub fn get_tracking_branches(
 
         match local.fetch_upstream(&git.repo, &git.config)? {
             RemoteTrackingBranchStatus::Exists(upstream) => {
-                if base_upstreams.contains(&upstream) {
-                    continue;
-                }
                 result.push((local, Some(upstream)));
             }
             RemoteTrackingBranchStatus::Gone(_) => result.push((local, None)),
@@ -707,17 +779,10 @@ pub fn get_tracking_branches(
 }
 
 /// Get `hub-cli` style direct fetched branches
-pub fn get_direct_fetch_branches(
-    git: &Git,
-    base_refs: &[String],
-) -> Result<Vec<(LocalBranch, RemoteBranch)>> {
+pub fn get_direct_fetch_branches(git: &Git) -> Result<Vec<(LocalBranch, RemoteBranch)>> {
     let mut result = Vec::new();
     for branch in git.repo.branches(Some(BranchType::Local))? {
         let local = LocalBranch::try_from(&branch?.0)?;
-
-        if base_refs.contains(&local.refname) {
-            continue;
-        }
 
         let remote = if let Some(remote) = config::get_remote_name(&git.config, &local)? {
             remote
@@ -746,19 +811,12 @@ pub fn get_direct_fetch_branches(
 }
 
 /// Get local branches that doesn't track any branch.
-pub fn get_non_tracking_local_branches(
-    git: &Git,
-    base_refs: &[String],
-) -> Result<Vec<LocalBranch>> {
+pub fn get_non_tracking_local_branches(git: &Git) -> Result<Vec<LocalBranch>> {
     let mut result = Vec::new();
     for branch in git.repo.branches(Some(BranchType::Local))? {
         let branch = LocalBranch::try_from(&branch?.0)?;
 
         if config::get_remote_name(&git.config, &branch)?.is_some() {
-            continue;
-        }
-
-        if base_refs.contains(&branch.refname) {
             continue;
         }
 
@@ -769,17 +827,10 @@ pub fn get_non_tracking_local_branches(
 }
 
 /// Get remote tracking branches that doesn't tracked by any branch.
-pub fn get_non_upstream_remote_tracking_branches(
-    git: &Git,
-    base_upstreams: &[RemoteTrackingBranch],
-) -> Result<Vec<RemoteTrackingBranch>> {
+pub fn get_non_upstream_remote_tracking_branches(git: &Git) -> Result<Vec<RemoteTrackingBranch>> {
     let mut upstreams = HashSet::new();
 
-    for base_upstream in base_upstreams {
-        upstreams.insert(base_upstream.clone());
-    }
-
-    let tracking_branches = get_tracking_branches(git, base_upstreams)?;
+    let tracking_branches = get_tracking_branches(git)?;
     for (_local, upstream) in tracking_branches {
         if let Some(upstream) = upstream {
             upstreams.insert(upstream);
