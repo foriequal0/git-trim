@@ -118,14 +118,18 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             continue;
         }
         if let Some(preserved) = plan.get_preserved_local(&branch) {
-            println!(
-                "    {} [{}, but: {}]",
-                branch_name,
-                preserved.branch.message_local(),
-                preserved.reason
-            );
+            if preserved.base && matches!(preserved.branch, ClassifiedBranch::MergedLocal(_)) {
+                println!("    {} [{}]", branch_name, preserved.reason);
+            } else {
+                println!(
+                    "    {} [{}, but: {}]",
+                    branch_name,
+                    preserved.branch.message_local(),
+                    preserved.reason
+                );
+            }
         } else {
-            println!("    {}", branch_name);
+            println!("    {} [skipped]", branch_name);
         }
     }
     println!("  remote references:");
@@ -147,14 +151,20 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             continue;
         }
         if let Some(preserved) = plan.get_preserved_upstream(&upstream) {
-            println!(
-                "    {} [{}, but: {}]",
-                shorthand,
-                preserved.branch.message_remote(),
-                preserved.reason
-            );
+            if preserved.base
+                && matches!(preserved.branch, ClassifiedBranch::MergedRemoteTracking(_))
+            {
+                println!("    {} [{}]", shorthand, preserved.reason);
+            } else {
+                println!(
+                    "    {} [{}, but: {}]",
+                    shorthand,
+                    preserved.branch.message_remote(),
+                    preserved.reason
+                );
+            }
         } else {
-            println!("    {}", shorthand);
+            println!("    {} [skipped]", shorthand);
         }
         printed_remotes.insert(remote_branch);
     }
