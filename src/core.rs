@@ -9,7 +9,9 @@ use log::*;
 use rayon::prelude::*;
 
 use crate::args::DeleteFilter;
-use crate::branch::{LocalBranch, RemoteBranch, RemoteTrackingBranch, RemoteTrackingBranchStatus};
+use crate::branch::{
+    LocalBranch, Refname, RemoteBranch, RemoteTrackingBranch, RemoteTrackingBranchStatus,
+};
 use crate::merge_tracker::MergeTracker;
 use crate::subprocess::{self, get_worktrees, RemoteHead};
 use crate::util::ForceSendSync;
@@ -83,6 +85,48 @@ impl TrimPlan {
                 branch: branch.clone(),
                 reason: reason.to_owned(),
             });
+        }
+
+        for preserved in &preserve {
+            self.to_delete.remove(&preserved.branch);
+        }
+        self.preserved.extend(preserve);
+
+        Ok(())
+    }
+
+    pub fn preserve_protected(
+        &mut self,
+        repo: &Repository,
+        preserved_patterns: &[&str],
+    ) -> Result<()> {
+        let mut preserve = Vec::new();
+        for branch in &self.to_delete {
+            let pattern =
+                match &branch {
+                    ClassifiedBranch::MergedLocal(local)
+                    | ClassifiedBranch::Stray(local)
+                    | ClassifiedBranch::MergedDirectFetch { local, .. }
+                    | ClassifiedBranch::DivergedDirectFetch { local, .. }
+                    | ClassifiedBranch::MergedNonTrackingLocal(local) => {
+                        get_protect_pattern(&repo, preserved_patterns, local)?
+                    }
+                    ClassifiedBranch::MergedRemoteTracking(upstream)
+                    | ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
+                        get_protect_pattern(&repo, preserved_patterns, upstream)?
+                    }
+                    ClassifiedBranch::DivergedRemoteTracking { local, upstream } => {
+                        get_protect_pattern(&repo, preserved_patterns, local)?
+                            .or(get_protect_pattern(&repo, preserved_patterns, upstream)?)
+                    }
+                };
+
+            if let Some(pattern) = pattern {
+                preserve.push(Preserved {
+                    branch: branch.clone(),
+                    reason: format!("protected by a pattern `{}`", pattern),
+                });
+            }
         }
 
         for preserved in &preserve {
@@ -240,6 +284,27 @@ impl TrimPlan {
         }
         None
     }
+}
+
+fn get_protect_pattern<'a, B: Refname>(
+    repo: &Repository,
+    protected_patterns: &[&'a str],
+    branch: &B,
+) -> Result<Option<&'a str>> {
+    let prefixes = &["", "refs/remotes/", "refs/heads/"];
+    let target_refname = branch.refname();
+    for protected_pattern in protected_patterns {
+        for prefix in prefixes {
+            for reference in repo.references_glob(&format!("{}{}", prefix, protected_pattern))? {
+                let reference = reference?;
+                let refname = reference.name().context("non utf-8 refname")?;
+                if target_refname == refname {
+                    return Ok(Some(protected_pattern));
+                }
+            }
+        }
+    }
+    Ok(None)
 }
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone)]

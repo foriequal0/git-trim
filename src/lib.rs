@@ -11,8 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Config as GitConfig, Error as GitError, ErrorCode, Repository};
-use glob::Pattern;
+use git2::{Config as GitConfig, Error as GitError, ErrorCode, Repository};
 use log::*;
 
 use crate::args::{DeleteFilter, ScanFilter};
@@ -45,7 +44,7 @@ impl TryFrom<Repository> for Git {
 
 pub struct PlanParam<'a> {
     pub bases: Vec<&'a str>,
-    pub protected_branches: HashSet<&'a str>,
+    pub protected_patterns: Vec<&'a str>,
     pub scan: ScanFilter,
     pub delete: DeleteFilter,
     pub detach: bool,
@@ -54,9 +53,7 @@ pub struct PlanParam<'a> {
 pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     let base_refs = normalize_refs(&git.repo, &param.bases)?;
     let base_upstreams = resolve_base_upstreams(&git.repo, &git.config, &base_refs)?;
-    let protected_refs = resolve_protected_refs(&git.repo, &git.config, &param.protected_branches)?;
     trace!("base_upstreams: {:#?}", base_upstreams);
-    trace!("protected_refs: {:#?}", protected_refs);
 
     let tracking_branches = get_tracking_branches(git, &base_upstreams)?;
     debug!("tracking_branches: {:#?}", tracking_branches);
@@ -143,7 +140,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     let base_and_upstream_refs =
         resolve_base_and_upstream_refs(&git.repo, &git.config, &base_refs)?;
     result.preserve(&base_and_upstream_refs, "base")?;
-    result.preserve(&protected_refs, "protected")?;
+    result.preserve_protected(&git.repo, &param.protected_patterns)?;
     result.preserve_non_heads_remotes(&git.repo)?;
     result.preserve_worktree(&git.repo)?;
     result.apply_delete_filter(&git.repo, &param.delete)?;
@@ -236,56 +233,6 @@ fn resolve_base_upstreams(
                 let refname = reference.name().context("non-utf8 reference name")?;
                 result.push(RemoteTrackingBranch::new(refname));
                 continue;
-            }
-        }
-    }
-    Ok(result)
-}
-
-/// protected branch patterns
-/// if there are following references:
-/// refs/heads/release-v1.x
-/// refs/remotes/origin/release-v1.x
-/// refs/remotes/upstream/release-v1.x
-/// and release-v1.x tracks upstream/release-v1.x
-///
-/// release-*
-/// -> refs/heads/release-v1.x,
-///    refs/remotes/upstream/release-v1.x,
-/// origin/release-*
-/// -> refs/remotes/origin/release-v1.x
-/// refs/heads/release-*
-/// -> refs/heads/release-v1.x
-/// refs/remotes/origin/release-*
-/// -> refs/remotes/origin/release-v1.x
-fn resolve_protected_refs(
-    repo: &Repository,
-    config: &GitConfig,
-    protected_branches: &HashSet<&str>,
-) -> Result<HashSet<String>> {
-    let mut result = HashSet::default();
-    for protected_branch in protected_branches {
-        for reference in repo.references_glob(protected_branch)? {
-            let reference = reference?;
-            let refname = reference.name().context("non utf-8 refname")?;
-            result.insert(refname.to_string());
-        }
-        for reference in repo.references_glob(&format!("refs/remotes/{}", protected_branch))? {
-            let reference = reference?;
-            let refname = reference.name().context("non utf-8 refname")?;
-            result.insert(refname.to_string());
-        }
-        for branch in repo.branches(Some(BranchType::Local))? {
-            let (branch, _) = branch?;
-            let branch_name = branch.name()?.context("non utf-8 branch name")?;
-            if Pattern::new(protected_branch)?.matches(branch_name) {
-                let branch = LocalBranch::try_from(&branch)?;
-                result.insert(branch.refname.to_string());
-                if let RemoteTrackingBranchStatus::Exists(upstream) =
-                    branch.fetch_upstream(repo, config)?
-                {
-                    result.insert(upstream.refname);
-                }
             }
         }
     }

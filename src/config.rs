@@ -17,7 +17,7 @@ type GitResult<T> = std::result::Result<T, git2::Error>;
 #[derive(Debug)]
 pub struct Config {
     pub bases: ConfigValue<HashSet<String>>,
-    pub protected: ConfigValue<HashSet<String>>,
+    pub protected: ConfigValue<Vec<String>>,
     pub update: ConfigValue<bool>,
     pub update_interval: ConfigValue<u64>,
     pub confirm: ConfigValue<bool>,
@@ -42,7 +42,7 @@ impl Config {
             .parses_and_collect::<HashSet<String>>()?;
         let protected = get_comma_separated_multi(config, "trim.protected")
             .with_explicit("cli", non_empty(args.protected.clone()))
-            .parses_and_collect::<HashSet<String>>()?;
+            .parses_and_collect::<Vec<String>>()?;
         let update = get(config, "trim.update")
             .with_explicit("cli", args.update())
             .with_default(true)

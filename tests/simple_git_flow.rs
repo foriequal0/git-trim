@@ -341,7 +341,7 @@ fn test_protected_feature_to_develop() -> Result<()> {
     let plan = get_trim_plan(
         &git,
         &PlanParam {
-            protected_branches: set! {"refs/heads/feature"},
+            protected_patterns: vec!["refs/heads/feature"],
             ..param()
         },
     )?;
@@ -378,7 +378,7 @@ fn test_protected_feature_to_master() -> Result<()> {
     let plan = get_trim_plan(
         &git,
         &PlanParam {
-            protected_branches: set! {"refs/heads/feature"},
+            protected_patterns: vec!["refs/heads/feature"],
             ..param()
         },
     )?;
@@ -410,7 +410,7 @@ fn test_rejected_protected_feature_to_develop() -> Result<()> {
     let plan = get_trim_plan(
         &git,
         &PlanParam {
-            protected_branches: set! {"refs/heads/feature"},
+            protected_patterns: vec!["refs/heads/feature"],
             ..param()
         },
     )?;
@@ -434,7 +434,7 @@ fn test_protected_branch_shouldnt_be_stray() -> Result<()> {
     let plan = get_trim_plan(
         &git,
         &PlanParam {
-            protected_branches: set! {"refs/heads/master", "refs/heads/develop"},
+            protected_patterns: vec!["refs/heads/master", "refs/heads/develop"],
             ..param()
         },
     )?;
