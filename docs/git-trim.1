@@ -39,14 +39,6 @@ Comma separated multiple glob patterns (e.g. `release\-*`, `feature/*`) of branc
 Prevents too frequent updates. Seconds between updates in seconds. 0 to disable. [default: 5] [config: trim.updateInterval]
 
 .TP
-\fB\-s\fR, \fB\-\-scan\fR=\fIscan\fR
-Comma separated values of `<scan range>[:<remote name>]`. Scan range is one of the `all, local, remote`. `:<remote name>` is necessary to a `<scan range>` when the scan range implies `remote`. You can use `*` as `<remote name>` to scan branches from all remotes. [default : `local`] [config: trim.scan]
-
-When `local` is specified, scans tracking local branches, tracking its upstreams, and all non\-tracking local branches. When `remote:<remote name>` is specified, scans non\-upstream remote tracking branches from `<remote name>`. `all` implies `local,remote`.
-
-You might usually want to use one of these: `\-\-scan local` alone or `\-\-scan all:origin` with `\-\-delete merged:origin,remote:origin` option.
-
-.TP
 \fB\-d\fR, \fB\-\-delete\fR=\fIdelete\fR
 Comma separated values of `<delete range>[:<remote name>]`. Delete range is one of the `merged, merged\-local, merged\-remote, stray, diverged, local, remote`. `:<remote name>` is necessary to a `<delete range>` when the delete range implies `merged\-remote`, `diverged` or `remote`. You can use `*` as `<remote name>` to delete a range of branches from all remotes. [default : `merged:origin`] [config: trim.delete]
 

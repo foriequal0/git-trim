@@ -89,10 +89,6 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
             delete: DeleteFilter::from_iter(vec![
                 DeleteRange::MergedLocal,
                 DeleteRange::MergedRemote(Scope::All),
-                DeleteRange::Stray,
-                DeleteRange::Diverged(Scope::All),
-                DeleteRange::Local,
-                DeleteRange::Remote(Scope::All),
             ]),
             ..param()
         },
