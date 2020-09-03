@@ -72,24 +72,12 @@ impl TrimPlan {
                 RemoteTrackingBranchStatus::Exists(upstream) => {
                     if let Some(pattern) = base_specs
                         .iter()
-                        .find_map(|spec| spec.local_pattern(upstream.refname()))
-                    {
-                        return Ok(Some(format!("tracks base `{}`'s upstream", pattern)));
-                    }
-                    if let Some(pattern) = base_specs
-                        .iter()
                         .find_map(|spec| spec.remote_pattern(upstream.refname()))
                     {
                         return Ok(Some(format!("tracks base `{}`", pattern)));
                     }
                 }
                 RemoteTrackingBranchStatus::Gone(upstream) => {
-                    if let Some(pattern) = base_specs
-                        .iter()
-                        .find_map(|spec| spec.local_pattern(&upstream))
-                    {
-                        return Ok(Some(format!("tracks base `{}`'s upstream", pattern)));
-                    }
                     if let Some(pattern) = base_specs
                         .iter()
                         .find_map(|spec| spec.remote_pattern(&upstream))
