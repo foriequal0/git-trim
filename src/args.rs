@@ -74,12 +74,11 @@ pub struct Args {
     pub scan: Vec<ScanRange>,
 
     /// Comma separated values of `<delete range>[:<remote name>]`.
-    /// Delete range is one of the `all, merged, merged-local, merged-remote, stray, diverged, local, remote`.
+    /// Delete range is one of the `merged, merged-local, merged-remote, stray, diverged, local, remote`.
     /// `:<remote name>` is necessary to a `<delete range>` when the delete range implies `merged-remote`, `diverged` or `remote`.
     /// You can use `*` as `<remote name>` to delete a range of branches from all remotes.
     /// [default : `merged:origin`] [config: trim.delete]
     ///
-    /// `all` implies `merged,stray,diverged,local,remote`.
     /// `merged` implies `merged-local,merged-remote`.
     ///
     /// When `local` is specified, deletes non-tracking merged local branches.
@@ -165,7 +164,6 @@ pub struct ScopeParseError {
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
 pub enum DeleteRange {
-    All(Scope),
     Merged(Scope),
     MergedLocal,
     MergedRemote(Scope),
@@ -191,7 +189,6 @@ impl FromStr for DeleteRange {
     fn from_str(arg: &str) -> Result<DeleteRange, Self::Err> {
         let some_pair: Vec<_> = arg.splitn(2, ':').map(str::trim).collect();
         match *some_pair.as_slice() {
-            ["all", remote] => Ok(DeleteRange::All(remote.parse()?)),
             ["merged", remote] => Ok(DeleteRange::Merged(remote.parse()?)),
             ["stray"] => Ok(DeleteRange::Stray),
             ["diverged", remote] => Ok(DeleteRange::Diverged(remote.parse()?)),
@@ -207,12 +204,6 @@ impl FromStr for DeleteRange {
 impl DeleteRange {
     fn to_delete_units(&self) -> Vec<DeleteUnit> {
         match self {
-            DeleteRange::All(scope) => vec![
-                DeleteUnit::MergedLocal,
-                DeleteUnit::MergedRemote(scope.clone()),
-                DeleteUnit::Stray,
-                DeleteUnit::Diverged(scope.clone()),
-            ],
             DeleteRange::Merged(scope) => vec![
                 DeleteUnit::MergedLocal,
                 DeleteUnit::MergedRemote(scope.clone()),
