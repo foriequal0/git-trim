@@ -8,7 +8,7 @@ use std::thread::spawn;
 use log::*;
 use tempfile::{tempdir, TempDir};
 
-use git_trim::args::{DeleteFilter, DeleteRange, ScanFilter, ScanRange, Scope};
+use git_trim::args::{DeleteFilter, DeleteRange, Scope};
 use git_trim::PlanParam;
 
 #[derive(Default)]
@@ -205,14 +205,11 @@ pub fn test_default_param() -> PlanParam<'static> {
     PlanParam {
         bases: vec!["master"],
         protected_patterns: Vec::new(),
-        scan: ScanFilter::from_iter(vec![ScanRange::Local]),
         delete: DeleteFilter::from_iter(vec![
             MergedLocal,
             MergedRemote(Scope::All),
             Stray,
             Diverged(Scope::All),
-            Local,
-            Remote(Scope::All),
         ]),
         detach: true,
     }

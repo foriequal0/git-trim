@@ -6,7 +6,7 @@ use std::iter::FromIterator;
 use anyhow::Result;
 use git2::Repository;
 
-use git_trim::args::{ScanFilter, ScanRange, Scope};
+use git_trim::args::{DeleteFilter, DeleteRange, Scope};
 use git_trim::{
     get_trim_plan, ClassifiedBranch, Git, LocalBranch, PlanParam, RemoteTrackingBranch,
 };
@@ -45,7 +45,14 @@ fn fixture() -> Fixture {
 
 fn param() -> PlanParam<'static> {
     PlanParam {
-        scan: ScanFilter::from_iter(vec![ScanRange::All(Scope::All)]),
+        delete: DeleteFilter::from_iter(vec![
+            DeleteRange::MergedLocal,
+            DeleteRange::MergedRemote(Scope::Scoped("origin".to_owned())),
+            DeleteRange::Stray,
+            DeleteRange::Diverged(Scope::Scoped("origin".to_owned())),
+            DeleteRange::Local,
+            DeleteRange::Remote(Scope::Scoped("origin".to_owned())),
+        ]),
         ..test_default_param()
     }
 }
