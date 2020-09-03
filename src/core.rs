@@ -265,44 +265,84 @@ impl TrimPlan {
         Ok(())
     }
 
-    pub fn apply_delete_filter(&mut self, repo: &Repository, filter: &DeleteFilter) -> Result<()> {
+    pub fn apply_delete_range_filter(
+        &mut self,
+        repo: &Repository,
+        filter: &DeleteFilter,
+    ) -> Result<()> {
         let mut preserve = Vec::new();
 
         for branch in &self.to_delete {
-            let delete = match branch {
-                ClassifiedBranch::MergedLocal(_) => filter.delete_merged_local(),
-                ClassifiedBranch::Stray(_) => filter.delete_stray(),
+            let range = match branch {
+                ClassifiedBranch::MergedLocal(_) => {
+                    if !filter.delete_merged_local() {
+                        Some("merged-local".to_owned())
+                    } else {
+                        None
+                    }
+                }
+                ClassifiedBranch::Stray(_) => {
+                    if !filter.delete_stray() {
+                        Some("stray".to_owned())
+                    } else {
+                        None
+                    }
+                }
                 ClassifiedBranch::MergedRemoteTracking(upstream) => {
                     let remote = upstream.to_remote_branch(repo)?;
-                    filter.delete_merged_remote(&remote.remote)
+                    if !filter.delete_merged_remote(&remote.remote) {
+                        Some(format!("merged-remote:{}", &remote.remote))
+                    } else {
+                        None
+                    }
                 }
                 ClassifiedBranch::DivergedRemoteTracking { upstream, .. } => {
                     let remote = upstream.to_remote_branch(repo)?;
-                    filter.delete_diverged(&remote.remote)
+                    if !filter.delete_diverged(&remote.remote) {
+                        Some(format!("diverged:{}", &remote.remote))
+                    } else {
+                        None
+                    }
                 }
 
                 ClassifiedBranch::MergedDirectFetch { remote, .. } => {
-                    filter.delete_merged_remote(&remote.remote)
+                    if !filter.delete_merged_remote(&remote.remote) {
+                        Some(format!("merged-remote:{}", &remote.remote))
+                    } else {
+                        None
+                    }
                 }
                 ClassifiedBranch::DivergedDirectFetch { remote, .. } => {
-                    filter.delete_diverged(&remote.remote)
+                    if !filter.delete_diverged(&remote.remote) {
+                        Some(format!("diverged:{}", &remote.remote))
+                    } else {
+                        None
+                    }
                 }
 
                 ClassifiedBranch::MergedNonTrackingLocal(_) => {
-                    filter.delete_merged_non_tracking_local()
+                    if !filter.delete_merged_non_tracking_local() {
+                        Some("local".to_owned())
+                    } else {
+                        None
+                    }
                 }
                 ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
                     let remote = upstream.to_remote_branch(repo)?;
-                    filter.delete_merged_non_upstream_remote_tracking(&remote.remote)
+                    if !filter.delete_merged_non_upstream_remote_tracking(&remote.remote) {
+                        Some(format!("remote:{}", &remote.remote))
+                    } else {
+                        None
+                    }
                 }
             };
 
-            trace!("Delete filter result: {:?} => {}", branch, delete);
+            trace!("Delete range result: {:?} => {:?}", branch, range);
 
-            if !delete {
+            if let Some(range) = range {
                 preserve.push(Preserved {
                     branch: branch.clone(),
-                    reason: "filtered".to_owned(),
+                    reason: format!("delete range `{}` was not given", range),
                     base: false,
                 });
             }

@@ -149,7 +149,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     result.preserve_protected(&git.repo, &param.protected_patterns)?;
     result.preserve_non_heads_remotes(&git.repo)?;
     result.preserve_worktree(&git.repo)?;
-    result.apply_delete_filter(&git.repo, &param.delete)?;
+    result.apply_delete_range_filter(&git.repo, &param.delete)?;
 
     if !param.detach {
         result.adjust_not_to_detach(&git.repo)?;
