@@ -204,7 +204,7 @@ pub fn test_default_param() -> PlanParam<'static> {
     use DeleteRange::*;
     PlanParam {
         bases: vec!["master"],
-        protected_branches: set! {},
+        protected_patterns: Vec::new(),
         scan: ScanFilter::from_iter(vec![ScanRange::Local]),
         delete: DeleteFilter::from_iter(vec![
             MergedLocal,

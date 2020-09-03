@@ -155,12 +155,12 @@ fn test_protected_multiple_comma_separated_values() -> Result<()> {
     assert_eq!(
         config.protected,
         ConfigValue::Explicit {
-            value: HashSet::from_iter(vec![
+            value: vec![
                 "a".to_owned(),
                 "b".to_owned(),
                 "c".to_owned(),
                 "d".to_owned(),
-            ]),
+            ],
             source: "trim.protected".to_string(),
         }
     );

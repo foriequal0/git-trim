@@ -56,7 +56,7 @@ fn main(args: Args) -> Result<()> {
         &git,
         &PlanParam {
             bases: config.bases.iter().map(String::as_str).collect(),
-            protected_branches: config.protected.iter().map(String::as_str).collect(),
+            protected_patterns: config.protected.iter().map(String::as_str).collect(),
             scan: config.scan.clone(),
             delete: config.delete.clone(),
             detach: *config.detach,
