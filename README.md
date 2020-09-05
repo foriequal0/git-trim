@@ -29,7 +29,6 @@ You might need to install `libssl-dev` and `pkg-config` packages if you build fr
 1. Don't forget to set an upstream for a branch that you want to trim automatically.
    `git push -u <remote> <branch>` will set an upstream for you on push.
 1. Run `git trim` if you need to trim branches especially after PR reviews. It'll automatically recognize merged or stray branches, and delete it.
-1. If you need more power, try `git trim --delete all`
 1. You can also `git trim --dry-run` when you don't trust me.
 
 #### Are you using git-flow?
@@ -114,7 +113,7 @@ Not because `--force` is dangerous. Just `gone` doesn't mean it is fully merged 
  I've spent about half of the code on scenario tests. I wanted to make sure that it doesn't delete unmerged contents accidentally in any case.
  * It supports github flow (master-feature tiered branch strategy), git flow (master-develop-feature tiered branch strategy),
  and simple workflow (with a remote repo and a local clone), and triangular workflow (with two remote repos and a local clone).
- * It is a merge styles agnostic. It can detect common merge styles such as merge with a merge commit, rebase/ff merge and squash merge.
+ * It is merge styles agnostic. It can detect common merge styles such as merge with a merge commit, rebase/ff merge and squash merge.
  * It can also inspect remote branches so it deletes them from remotes for you in case you've forgotten to.
  * Moreover, it runs in parallel. Otherwise, large repos with hundreds of stale branches would've taken a couple of minutes to inspect whether they are merged.
 
