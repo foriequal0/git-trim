@@ -183,15 +183,6 @@ impl<'a> BaseSpec<'a> {
         }
     }
 
-    fn local_pattern(&self, refname: &str) -> Option<&str> {
-        match self {
-            BaseSpec::Local {
-                pattern, upstream, ..
-            } if upstream.refname() == refname => Some(pattern),
-            _ => None,
-        }
-    }
-
     fn remote_pattern(&self, refname: &str) -> Option<&str> {
         match self {
             BaseSpec::Remote { pattern, remote } if remote.refname() == refname => Some(pattern),
