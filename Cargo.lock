@@ -240,7 +240,7 @@ dependencies = [
 
 [[package]]
 name = "git-trim"
-version = "0.4.0-alpha.4"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap-v3",
