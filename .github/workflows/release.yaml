@@ -31,8 +31,8 @@ jobs:
         VERSION="${{github.ref}}"
         VERSION="${VERSION#refs/tags/}"
         ARCHIVE="git-trim-${{matrix.os.short}}-$VERSION.tgz"
-        echo "::set-env name=VERSION::$VERSION"
-        echo "::set-env name=ARCHIVE::$ARCHIVE"
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "ARCHIVE=$ARCHIVE" >> $GITHUB_ENV
 
         rm -rf artifacts
         mkdir -p artifacts/git-trim
@@ -62,7 +62,7 @@ jobs:
     - run: |
         VERSION="${{github.ref}}"
         VERSION="${VERSION#refs/tags/}"
-        echo "::set-env name=VERSION::$VERSION"
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
     - uses: actions/download-artifact@v1
       with:
         name: git-trim-linux-${{env.VERSION}}
