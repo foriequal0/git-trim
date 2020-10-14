@@ -91,9 +91,7 @@ jobs:
       working-directory: target/debug
       run: |
         VERSION=$(./git-trim --version | cut -d ' ' -f 2)
-        ARCHIVE="git-trim-${{matrix.os.short}}-$VERSION.tgz"
-        echo "::set-env name=VERSION::$VERSION"
-        echo "::set-env name=ARCHIVE::$ARCHIVE"
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
 
         rm -rf artifacts
         mkdir -p artifacts
