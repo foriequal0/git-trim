@@ -34,7 +34,7 @@ fn main(args: Args) -> Result<()> {
     let config = Config::read(&git.repo, &git.config, &args)?;
     info!("config: {:?}", config);
     if config.bases.is_empty() {
-        return error_no_bases();
+        return error_no_bases(&git.repo, &config.bases);
     }
 
     let mut checker = None;
@@ -87,15 +87,66 @@ fn main(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn error_no_bases() -> Result<()> {
-    eprintln!(
-        "\
-No base branch is found! Try following any resolution:
- * `git remote set-head origin --auto` will sync `refs/remotes/origin/HEAD` automatically.
- * `git config trim.bases develop,master` will set base branches for git-trim for a repository.
- * `git config --global trim.bases develop,master` will set base branches for `git-trim` globally.
- * `git trim --bases develop,master` will temporarily set base branches for `git-trim`"
-    );
+fn error_no_bases(repo: &Repository, bases: &ConfigValue<HashSet<String>>) -> Result<()> {
+    fn eprint_bullet(s: &str) {
+        let width = textwrap::termwidth().max(40) - 4;
+        for (i, line) in textwrap::wrap_iter(s, width).enumerate() {
+            if i == 0 {
+                eprintln!(" * {}", line);
+            } else {
+                eprintln!("   {}", line);
+            }
+        }
+    }
+    const GENERAL_HELP: &[&str] = &[
+        "`git config trim.bases develop,master` for a repository.",
+        "`git config --global trim.bases develop,master` to set globally.",
+        "`git trim --bases develop,master` to set temporarily.",
+    ];
+    match bases {
+        ConfigValue::Explicit(_) => {
+            eprintln!(
+                "I found that you passed an empty value to the CLI option `--bases`. Don't do that."
+            );
+        }
+        ConfigValue::GitConfig(_) => {
+            eprintln!(
+                "I found that `git config trim.bases` is empty! Try any following commands to set valid bases:"
+            );
+            for help in GENERAL_HELP {
+                eprint_bullet(help);
+            }
+        }
+        ConfigValue::Implicit(_) => {
+            let remotes = repo.remotes()?;
+            let remotes: Vec<_> = remotes.iter().collect();
+            if remotes.len() == 1 {
+                let remote = remotes[0].expect("non utf-8 remote name");
+                eprintln!("I can't detect base branch! Try following any resolution:");
+                eprint_bullet(&format!(
+                    "\
+`git remote set-head {remote} --auto` will help `git-trim` to automatically detect the base branch.
+If you see `{remote}/HEAD set to <base branch>` in the output of the previous command, \
+then `git branch --set-upstream {remote}/<base branch> <base branch>` to set an upstream branch for <base branch> if exists.",
+                    remote = remote
+                ));
+            } else {
+                eprintln!("I can't detect base branch! Try following any resolution:");
+                eprint_bullet(
+                    "\
+`git remote set-head <remote> --auto` will help `git-trim` to automatically detect the base branch.
+Following command will sync all remotes for you:
+`for REMOTE in $(git remote); do git remote set-head \"$REMOTE\" --auto; done`
+Pick an appropriate one in mind if you see multiple `<remote>/HEAD set to <base branch>` in the output of the previous command.
+Then `git branch --set-upstream <remote>/<base branch> <base branch>` to set an upstream branch for <base branch> if exists.",
+                );
+            }
+            println!("You also can set bases manually with any of following commands:");
+            for help in GENERAL_HELP {
+                eprint_bullet(help);
+            }
+        }
+    }
 
     Err(anyhow::anyhow!("No base branch is found!"))
 }
