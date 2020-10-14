@@ -80,7 +80,9 @@ impl Config {
 }
 
 fn get_branches_tracks_remote_heads(repo: &Repository, config: &GitConfig) -> Result<Vec<String>> {
-    let mut result = Vec::new();
+    let mut local_bases = Vec::new();
+    let mut all_bases = Vec::new();
+
     for reference in repo.references_glob("refs/remotes/*/HEAD")? {
         let reference = reference?;
         // git symbolic-ref refs/remotes/*/HEAD
@@ -95,6 +97,7 @@ fn get_branches_tracks_remote_heads(repo: &Repository, config: &GitConfig) -> Re
             }
         };
         let refname = resolved.name().context("non utf-8 reference name")?;
+        all_bases.push(refname.to_owned());
 
         for branch in repo.branches(Some(BranchType::Local))? {
             let (branch, _) = branch?;
@@ -104,12 +107,17 @@ fn get_branches_tracks_remote_heads(repo: &Repository, config: &GitConfig) -> Re
                 branch.fetch_upstream(repo, config)?
             {
                 if upstream.refname == refname {
-                    result.push(branch.short_name().to_owned());
+                    local_bases.push(branch.short_name().to_owned());
                 }
             }
         }
     }
-    Ok(result)
+
+    if local_bases.is_empty() {
+        Ok(all_bases)
+    } else {
+        Ok(local_bases)
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
