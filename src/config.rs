@@ -36,34 +36,34 @@ impl Config {
         }
 
         let bases = get_comma_separated_multi(config, "trim.bases")
-            .with_explicit("cli", non_empty(args.bases.clone()))
+            .with_explicit(non_empty(args.bases.clone()))
             .with_default(get_branches_tracks_remote_heads(repo, config)?)
             .parses_and_collect::<HashSet<String>>()?;
         let protected = get_comma_separated_multi(config, "trim.protected")
-            .with_explicit("cli", non_empty(args.protected.clone()))
+            .with_explicit(non_empty(args.protected.clone()))
             .parses_and_collect::<Vec<String>>()?;
         let update = get(config, "trim.update")
-            .with_explicit("cli", args.update())
+            .with_explicit(args.update())
             .with_default(true)
             .read()?
             .expect("has default");
         let update_interval = get(config, "trim.updateInterval")
-            .with_explicit("cli", args.update_interval)
+            .with_explicit(args.update_interval)
             .with_default(5)
             .read()?
             .expect("has default");
         let confirm = get(config, "trim.confirm")
-            .with_explicit("cli", args.confirm())
+            .with_explicit(args.confirm())
             .with_default(true)
             .read()?
             .expect("has default");
         let detach = get(config, "trim.detach")
-            .with_explicit("cli", args.detach())
+            .with_explicit(args.detach())
             .with_default(true)
             .read()?
             .expect("has default");
         let delete = get_comma_separated_multi(config, "trim.delete")
-            .with_explicit("cli", non_empty(args.delete.clone()))
+            .with_explicit(non_empty(args.delete.clone()))
             .with_default(DeleteRange::merged_origin())
             .parses_and_collect::<DeleteFilter>()?;
 
@@ -122,20 +122,22 @@ fn get_branches_tracks_remote_heads(repo: &Repository, config: &GitConfig) -> Re
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ConfigValue<T> {
-    Explicit { value: T, source: String },
+    Explicit(T),
+    GitConfig(T),
     Implicit(T),
 }
 
 impl<T> ConfigValue<T> {
     pub fn unwrap(self) -> T {
         match self {
-            ConfigValue::Explicit { value: x, .. } | ConfigValue::Implicit(x) => x,
+            ConfigValue::Explicit(x) | ConfigValue::GitConfig(x) | ConfigValue::Implicit(x) => x,
         }
     }
 
     pub fn is_implicit(&self) -> bool {
         match self {
-            ConfigValue::Explicit { .. } => false,
+            ConfigValue::Explicit(_) => false,
+            ConfigValue::GitConfig(_) => false,
             ConfigValue::Implicit(_) => true,
         }
     }
@@ -146,7 +148,7 @@ impl<T> Deref for ConfigValue<T> {
 
     fn deref(&self) -> &Self::Target {
         match self {
-            ConfigValue::Explicit { value: x, .. } | ConfigValue::Implicit(x) => x,
+            ConfigValue::Explicit(x) | ConfigValue::GitConfig(x) | ConfigValue::Implicit(x) => x,
         }
     }
 }
@@ -154,7 +156,7 @@ impl<T> Deref for ConfigValue<T> {
 pub struct ConfigBuilder<'a, T> {
     config: &'a GitConfig,
     key: &'a str,
-    explicit: Option<(&'a str, T)>,
+    explicit: Option<T>,
     default: Option<T>,
     comma_separated: bool,
 }
@@ -183,10 +185,10 @@ pub fn get_comma_separated_multi<'a, T>(
 }
 
 impl<'a, T> ConfigBuilder<'a, T> {
-    fn with_explicit(self, source: &'a str, value: Option<T>) -> ConfigBuilder<'a, T> {
+    fn with_explicit(self, value: Option<T>) -> ConfigBuilder<'a, T> {
         if let Some(value) = value {
             ConfigBuilder {
-                explicit: Some((source, value)),
+                explicit: Some(value),
                 ..self
             }
         } else {
@@ -207,17 +209,11 @@ where
     T: ConfigValues,
 {
     pub fn read(self) -> GitResult<Option<ConfigValue<T>>> {
-        if let Some((source, value)) = self.explicit {
-            return Ok(Some(ConfigValue::Explicit {
-                value,
-                source: source.to_string(),
-            }));
+        if let Some(value) = self.explicit {
+            return Ok(Some(ConfigValue::Explicit(value)));
         }
         match T::get_config_value(self.config, self.key) {
-            Ok(value) => Ok(Some(ConfigValue::Explicit {
-                value,
-                source: self.key.to_string(),
-            })),
+            Ok(value) => Ok(Some(ConfigValue::GitConfig(value))),
             Err(err) if config_not_exist(&err) => {
                 if let Some(default) = self.default {
                     Ok(Some(ConfigValue::Implicit(default)))
@@ -238,11 +234,8 @@ impl<'a, T> ConfigBuilder<'a, T> {
         <T::Item as FromStr>::Err: std::error::Error + Send + Sync + 'static,
         U: FromIterator<<T as IntoIterator>::Item> + Default,
     {
-        if let Some((source, value)) = self.explicit {
-            return Ok(ConfigValue::Explicit {
-                value: value.into_iter().collect(),
-                source: source.to_string(),
-            });
+        if let Some(value) = self.explicit {
+            return Ok(ConfigValue::Explicit(value.into_iter().collect()));
         }
 
         let result = match Vec::<String>::get_config_value(self.config, self.key) {
@@ -251,8 +244,10 @@ impl<'a, T> ConfigBuilder<'a, T> {
                 if self.comma_separated {
                     for entry in entries {
                         for item in entry.split(',') {
-                            let value = <T::Item>::from_str(item)?;
-                            result.push(value);
+                            if !item.is_empty() {
+                                let value = <T::Item>::from_str(item)?;
+                                result.push(value);
+                            }
                         }
                     }
                 } else {
@@ -262,10 +257,7 @@ impl<'a, T> ConfigBuilder<'a, T> {
                     }
                 }
 
-                ConfigValue::Explicit {
-                    value: result.into_iter().collect(),
-                    source: self.key.to_string(),
-                }
+                ConfigValue::GitConfig(result.into_iter().collect())
             }
             Ok(_) => {
                 if let Some(default) = self.default {

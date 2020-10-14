@@ -66,10 +66,7 @@ fn test_bases_config_value() -> Result<()> {
 
     assert_eq!(
         config.bases,
-        ConfigValue::Explicit {
-            value: HashSet::from_iter(vec!["some-branch".to_owned(),]),
-            source: "trim.bases".to_string(),
-        }
+        ConfigValue::GitConfig(HashSet::from_iter(vec!["some-branch".to_owned(),])),
     );
     Ok(())
 }
@@ -97,10 +94,7 @@ fn test_bases_args_value() -> Result<()> {
 
     assert_eq!(
         config.bases,
-        ConfigValue::Explicit {
-            value: HashSet::from_iter(vec!["another-branch".to_owned(),]),
-            source: "cli".to_string(),
-        }
+        ConfigValue::Explicit(HashSet::from_iter(vec!["another-branch".to_owned(),])),
     );
     Ok(())
 }
@@ -124,15 +118,12 @@ fn test_bases_multiple_comma_separated_values() -> Result<()> {
 
     assert_eq!(
         config.bases,
-        ConfigValue::Explicit {
-            value: HashSet::from_iter(vec![
-                "a".to_owned(),
-                "b".to_owned(),
-                "c".to_owned(),
-                "d".to_owned(),
-            ]),
-            source: "trim.bases".to_string(),
-        }
+        ConfigValue::GitConfig(HashSet::from_iter(vec![
+            "a".to_owned(),
+            "b".to_owned(),
+            "c".to_owned(),
+            "d".to_owned(),
+        ])),
     );
     Ok(())
 }
@@ -154,15 +145,12 @@ fn test_protected_multiple_comma_separated_values() -> Result<()> {
 
     assert_eq!(
         config.protected,
-        ConfigValue::Explicit {
-            value: vec![
-                "a".to_owned(),
-                "b".to_owned(),
-                "c".to_owned(),
-                "d".to_owned(),
-            ],
-            source: "trim.protected".to_string(),
-        }
+        ConfigValue::GitConfig(vec![
+            "a".to_owned(),
+            "b".to_owned(),
+            "c".to_owned(),
+            "d".to_owned(),
+        ]),
     );
     Ok(())
 }
@@ -184,16 +172,13 @@ fn test_delete_filter_multiple_comma_separated_values() -> Result<()> {
 
     assert_eq!(
         config.delete,
-        ConfigValue::Explicit {
-            value: DeleteFilter::from_iter(vec![
-                DeleteUnit::MergedLocal,
-                DeleteUnit::Stray,
-                DeleteUnit::MergedRemote(Scope::Scoped("origin".to_owned())),
-                DeleteUnit::MergedRemote(Scope::Scoped("upstream".to_owned())),
-                DeleteUnit::Diverged(Scope::Scoped("upstream".to_owned())),
-            ]),
-            source: "trim.delete".to_string(),
-        }
+        ConfigValue::GitConfig(DeleteFilter::from_iter(vec![
+            DeleteUnit::MergedLocal,
+            DeleteUnit::Stray,
+            DeleteUnit::MergedRemote(Scope::Scoped("origin".to_owned())),
+            DeleteUnit::MergedRemote(Scope::Scoped("upstream".to_owned())),
+            DeleteUnit::Diverged(Scope::Scoped("upstream".to_owned())),
+        ])),
     );
     Ok(())
 }

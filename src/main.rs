@@ -238,7 +238,7 @@ fn should_update(git: &Git, interval: u64, config_update: ConfigValue<bool>) -> 
         return Ok(true);
     }
 
-    if matches!(config_update, ConfigValue::Explicit { value: true , .. }) {
+    if matches!(config_update, ConfigValue::Explicit(true)) {
         trace!("explicitly set --update. force update");
         return Ok(true);
     }
