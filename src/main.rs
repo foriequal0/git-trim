@@ -14,7 +14,7 @@ use git_trim::config::{self, get, Config, ConfigValue};
 use git_trim::{
     delete_local_branches, delete_remote_branches, get_trim_plan, ls_remote_head, remote_update,
     ClassifiedBranch, ForceSendSync, Git, LocalBranch, PlanParam, RemoteHead, RemoteTrackingBranch,
-    TrimPlan,
+    SkipSuggestion, TrimPlan,
 };
 
 #[paw::main]
@@ -174,8 +174,10 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
                     preserved.reason
                 );
             }
+        } else if let Some(suggestion) = plan.skipped.get(refname) {
+            println!("    {} *{}", branch_name, suggestion.kind());
         } else {
-            println!("    {} [skipped]", branch_name);
+            println!("    {}", branch_name);
         }
     }
     println!("  remote references:");
@@ -209,8 +211,10 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
                     preserved.reason
                 );
             }
+        } else if let Some(suggestion) = plan.skipped.get(refname) {
+            println!("    {} *{}", shorthand, suggestion.kind());
         } else {
-            println!("    {} [skipped]", shorthand);
+            println!("    {}", shorthand);
         }
         printed_remotes.insert(remote_branch);
     }
@@ -226,6 +230,72 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
                 );
             }
             _ => {}
+        }
+    }
+
+    if !plan.skipped.is_empty() {
+        println!("  Some branches are skipped. Consider following to scan them:");
+        let tracking = plan
+            .skipped
+            .values()
+            .any(|suggest| suggest == &SkipSuggestion::Tracking);
+        let tracking_remotes: Vec<_> = {
+            let mut tmp = Vec::new();
+            for suggest in plan.skipped.values() {
+                if let SkipSuggestion::TrackingRemote(r) = suggest {
+                    tmp.push(r);
+                }
+            }
+            tmp
+        };
+        if let [single] = tracking_remotes.as_slice() {
+            println!(
+                "    *{}: Add `--delete 'merged:{}' flag.",
+                SkipSuggestion::KIND_TRACKING,
+                single
+            );
+        } else if tracking_remotes.len() > 1 {
+            println!(
+                "    *{}: Add `--delete 'merged:*' flag.",
+                SkipSuggestion::KIND_TRACKING,
+            );
+        } else if tracking {
+            println!(
+                "    *{}: Add `--delete 'merged-local' flag.",
+                SkipSuggestion::KIND_TRACKING,
+            );
+        }
+        let non_tracking = plan
+            .skipped
+            .values()
+            .any(|suggest| suggest == &SkipSuggestion::NonTracking);
+        if non_tracking {
+            println!(
+                "    *{}: Set an upstream to make it a tracking branch or add `--delete 'local' flag.",
+                SkipSuggestion::KIND_NON_TRACKING,
+            );
+        }
+
+        let non_upstream_remotes: Vec<_> = {
+            let mut tmp = Vec::new();
+            for suggest in plan.skipped.values() {
+                if let SkipSuggestion::NonUpstream(r) = suggest {
+                    tmp.push(r);
+                }
+            }
+            tmp
+        };
+        if let [single] = non_upstream_remotes.as_slice() {
+            println!(
+                "    *{}: Make it upstream of a tracking branch or add `--delete 'remote:{}' flag.",
+                SkipSuggestion::KIND_NON_UPSTREAM,
+                single
+            );
+        } else if non_upstream_remotes.len() > 1 {
+            println!(
+                "    *{}: Make it upstream of a tracking branch or add `--delete 'remote:*' flag.",
+                SkipSuggestion::KIND_NON_UPSTREAM,
+            );
         }
     }
     println!();

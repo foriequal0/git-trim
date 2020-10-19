@@ -25,7 +25,7 @@ use crate::core::{
     DirectFetchClassificationRequest, NonTrackingBranchClassificationRequest,
     NonUpstreamBranchClassificationRequest, TrackingBranchClassificationRequest,
 };
-pub use crate::core::{ClassifiedBranch, TrimPlan};
+pub use crate::core::{ClassifiedBranch, SkipSuggestion, TrimPlan};
 use crate::merge_tracker::MergeTracker;
 pub use crate::subprocess::{ls_remote_head, remote_update, RemoteHead};
 pub use crate::util::ForceSendSync;
@@ -87,6 +87,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
 
     let merge_tracker = MergeTracker::with_base_upstreams(&git.repo, &git.config, &base_upstreams)?;
     let mut classifier = Classifier::new(git, &merge_tracker);
+    let mut skipped = HashMap::new();
 
     info!("Enqueue classification requests");
     if param.delete.scan_tracking() {
@@ -112,6 +113,21 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
                 );
             }
         }
+    } else {
+        for (local, upstream) in &tracking_branches {
+            if let Some(upstream) = upstream {
+                let remote = upstream.to_remote_branch(&git.repo)?.remote;
+                let suggestion = SkipSuggestion::TrackingRemote(remote);
+                skipped.insert(local.refname.clone(), suggestion.clone());
+                skipped.insert(upstream.refname.clone(), suggestion.clone());
+            } else {
+                skipped.insert(local.refname.clone(), SkipSuggestion::Tracking);
+            }
+        }
+
+        for (local, _) in &direct_fetch_branches {
+            skipped.insert(local.refname.clone(), SkipSuggestion::Tracking);
+        }
     }
 
     if param.delete.scan_non_tracking_local() {
@@ -119,6 +135,10 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
             for local in &non_tracking_branches {
                 classifier.queue_request(NonTrackingBranchClassificationRequest { base, local });
             }
+        }
+    } else {
+        for local in &non_tracking_branches {
+            skipped.insert(local.refname.clone(), SkipSuggestion::NonTracking);
         }
     }
 
@@ -130,6 +150,12 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
                     base,
                     remote: remote_tracking,
                 });
+            } else {
+                let remote = remote_tracking.to_remote_branch(&git.repo)?.remote;
+                skipped.insert(
+                    remote_tracking.refname.clone(),
+                    SkipSuggestion::NonUpstream(remote),
+                );
             }
         }
     }
@@ -137,6 +163,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     let classifications = classifier.classify()?;
 
     let mut result = TrimPlan {
+        skipped,
         to_delete: HashSet::new(),
         preserved: Vec::new(),
     };

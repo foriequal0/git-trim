@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::fmt::Debug;
 
@@ -17,8 +17,8 @@ use crate::subprocess::{self, get_worktrees, RemoteHead};
 use crate::util::ForceSendSync;
 use crate::{config, BaseSpec, Git};
 
-#[derive(Default)]
 pub struct TrimPlan {
+    pub skipped: HashMap<String, SkipSuggestion>,
     pub to_delete: HashSet<ClassifiedBranch>,
     pub preserved: Vec<Preserved>,
 }
@@ -387,6 +387,29 @@ impl TrimPlan {
             }
         }
         None
+    }
+}
+
+#[derive(Clone, Eq, PartialEq)]
+pub enum SkipSuggestion {
+    Tracking,
+    TrackingRemote(String),
+    NonTracking,
+    NonUpstream(String),
+}
+
+impl SkipSuggestion {
+    pub const KIND_TRACKING: i32 = 1;
+    pub const KIND_NON_TRACKING: i32 = 2;
+    pub const KIND_NON_UPSTREAM: i32 = 3;
+
+    pub fn kind(&self) -> i32 {
+        match self {
+            SkipSuggestion::Tracking => Self::KIND_TRACKING,
+            SkipSuggestion::TrackingRemote(_) => Self::KIND_TRACKING,
+            SkipSuggestion::NonTracking => Self::KIND_NON_TRACKING,
+            SkipSuggestion::NonUpstream(_) => Self::KIND_NON_UPSTREAM,
+        }
     }
 }
 
