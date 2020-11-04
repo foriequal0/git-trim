@@ -86,6 +86,8 @@ jobs:
         profile: minimal
     - run: cargo fetch --verbose
     - run: cargo build
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
     - name: Archive
       shell: bash
       working-directory: target/debug
