@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use std::iter::FromIterator;
 
 use anyhow::{Context, Result};
-use dialoguer::Confirmation;
+use dialoguer::Confirm;
 use git2::{BranchType, Repository};
 use log::*;
 
@@ -67,8 +67,8 @@ fn main(args: Args) -> Result<()> {
     if !args.dry_run
         && *config.confirm
         && any_branches_to_remove
-        && !Confirmation::new()
-            .with_text("Confirm?")
+        && !Confirm::new()
+            .with_prompt("Confirm?")
             .default(false)
             .interact()?
     {
