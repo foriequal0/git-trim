@@ -7,6 +7,7 @@ use crossbeam_channel::unbounded;
 use git2::{BranchType, Config, Repository};
 use log::*;
 use rayon::prelude::*;
+use serde::Serialize;
 
 use crate::args::DeleteFilter;
 use crate::branch::{
@@ -17,12 +18,14 @@ use crate::subprocess::{self, get_worktrees, RemoteHead};
 use crate::util::ForceSendSync;
 use crate::{config, BaseSpec, Git};
 
+#[derive(Serialize)]
 pub struct TrimPlan {
     pub skipped: HashMap<String, SkipSuggestion>,
     pub to_delete: HashSet<ClassifiedBranch>,
     pub preserved: Vec<Preserved>,
 }
 
+#[derive(Serialize)]
 pub struct Preserved {
     pub branch: ClassifiedBranch,
     pub reason: String,
@@ -390,7 +393,7 @@ impl TrimPlan {
     }
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Serialize)]
 pub enum SkipSuggestion {
     Tracking,
     TrackingRemote(String),
@@ -434,7 +437,7 @@ fn get_protect_pattern<'a, B: Refname>(
     Ok(None)
 }
 
-#[derive(Hash, Eq, PartialEq, Debug, Clone)]
+#[derive(Hash, Eq, PartialEq, Debug, Clone, Serialize)]
 pub enum ClassifiedBranch {
     MergedLocal(LocalBranch),
     Stray(LocalBranch),

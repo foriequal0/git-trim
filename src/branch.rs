@@ -3,6 +3,7 @@ use std::convert::TryFrom;
 use anyhow::{Context, Result};
 use git2::{Branch, Config, Direction, Reference, Repository};
 use log::*;
+use serde::Serialize;
 use thiserror::Error;
 
 use crate::config;
@@ -12,7 +13,7 @@ pub trait Refname {
     fn refname(&self) -> &str;
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash, Clone)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash, Clone, Serialize)]
 pub struct LocalBranch {
     pub refname: String,
 }
@@ -83,7 +84,7 @@ impl<'repo> TryFrom<&git2::Reference<'repo>> for LocalBranch {
     }
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash, Clone)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Debug, Hash, Clone, Serialize)]
 pub struct RemoteTrackingBranch {
     pub refname: String,
 }
@@ -181,7 +182,7 @@ pub enum RemoteTrackingBranchStatus {
     None,
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Hash, Debug, Serialize)]
 pub struct RemoteBranch {
     pub remote: String,
     pub refname: String,

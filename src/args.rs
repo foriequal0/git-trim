@@ -40,6 +40,10 @@ pub struct Args {
     #[clap(long, hidden(true))]
     pub update: bool,
 
+    /// Output for scripting. Options are "json" for full structured output or "local" or "remote" for a list of branches to be deleted.
+    #[clap(long)]
+    pub porcelain: Option<PorcelainFormat>,
+
     /// Prevents too frequent updates. Seconds between updates in seconds. 0 to disable.
     /// [default: 5] [config: trim.updateInterval]
     #[clap(long)]
@@ -125,6 +129,41 @@ fn exclusive_bool(
     } else {
         None
     }
+}
+
+/// Configuration of --porcelain format.
+#[derive(Debug)]
+pub enum PorcelainFormat {
+    /// List of to-be-deleted local branches
+    LocalBranches,
+    /// List of remote branches to be deleted.
+    RemoteBranches,
+    /// Full structured JSON output
+    JSON,
+}
+
+impl FromStr for PorcelainFormat {
+    type Err = PorcelainFormatParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim() {
+            "" => Err(PorcelainFormatParseError {
+                message: "Porcelain format is empty".to_owned(),
+            }),
+            "json" => Ok(PorcelainFormat::JSON),
+            "local" | "l" => Ok(PorcelainFormat::LocalBranches),
+            "remote" | "r" => Ok(PorcelainFormat::RemoteBranches),
+            unknown => Err(PorcelainFormatParseError {
+                message: format!("Unknown porcelain format: {}", unknown),
+            }),
+        }
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("{message}")]
+pub struct PorcelainFormatParseError {
+    message: String,
 }
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]

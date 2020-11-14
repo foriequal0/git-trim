@@ -3,6 +3,7 @@ mod branch;
 pub mod config;
 mod core;
 mod merge_tracker;
+pub mod porcelain_outputs;
 mod simple_glob;
 mod subprocess;
 mod util;

@@ -9,8 +9,9 @@ use dialoguer::Confirm;
 use git2::{BranchType, Repository};
 use log::*;
 
-use git_trim::args::Args;
+use git_trim::args::{Args, PorcelainFormat};
 use git_trim::config::{self, get, Config, ConfigValue};
+use git_trim::porcelain_outputs::{print_json, print_local, print_remote};
 use git_trim::{
     delete_local_branches, delete_remote_branches, get_trim_plan, ls_remote_head, remote_update,
     ClassifiedBranch, ForceSendSync, Git, LocalBranch, PlanParam, RemoteHead, RemoteTrackingBranch,
@@ -58,7 +59,23 @@ fn main(args: Args) -> Result<()> {
         },
     )?;
 
-    print_summary(&plan, &git.repo)?;
+    match args.porcelain {
+        None => {
+            print_summary(&plan, &git.repo)?;
+        }
+        Some(PorcelainFormat::LocalBranches) => {
+            print_local(&plan, &git.repo, &mut std::io::stdout())?;
+            return Ok(());
+        }
+        Some(PorcelainFormat::RemoteBranches) => {
+            print_remote(&plan, &git.repo, &mut std::io::stdout())?;
+            return Ok(());
+        }
+        Some(PorcelainFormat::JSON) => {
+            print_json(&plan, &git.repo, &mut std::io::stdout())?;
+            return Ok(());
+        }
+    }
 
     let locals = plan.locals_to_delete();
     let remotes = plan.remotes_to_delete(&git.repo)?;
