@@ -250,18 +250,18 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
         };
         if let [single] = tracking_remotes.as_slice() {
             println!(
-                "    *{}: Add `--delete 'merged:{}' flag.",
+                "    *{}: Add `--delete 'merged:{}'` flag.",
                 SkipSuggestion::KIND_TRACKING,
                 single
             );
         } else if tracking_remotes.len() > 1 {
             println!(
-                "    *{}: Add `--delete 'merged:*' flag.",
+                "    *{}: Add `--delete 'merged:*'` flag.",
                 SkipSuggestion::KIND_TRACKING,
             );
         } else if tracking {
             println!(
-                "    *{}: Add `--delete 'merged-local' flag.",
+                "    *{}: Add `--delete 'merged-local'` flag.",
                 SkipSuggestion::KIND_TRACKING,
             );
         }
@@ -271,7 +271,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             .any(|suggest| suggest == &SkipSuggestion::NonTracking);
         if non_tracking {
             println!(
-                "    *{}: Set an upstream to make it a tracking branch or add `--delete 'local' flag.",
+                "    *{}: Set an upstream to make it a tracking branch or add `--delete 'local'` flag.",
                 SkipSuggestion::KIND_NON_TRACKING,
             );
         }
@@ -287,13 +287,13 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
         };
         if let [single] = non_upstream_remotes.as_slice() {
             println!(
-                "    *{}: Make it upstream of a tracking branch or add `--delete 'remote:{}' flag.",
+                "    *{}: Make it upstream of a tracking branch or add `--delete 'remote:{}'` flag.",
                 SkipSuggestion::KIND_NON_UPSTREAM,
                 single
             );
         } else if non_upstream_remotes.len() > 1 {
             println!(
-                "    *{}: Make it upstream of a tracking branch or add `--delete 'remote:*' flag.",
+                "    *{}: Make it upstream of a tracking branch or add `--delete 'remote:*'` flag.",
                 SkipSuggestion::KIND_NON_UPSTREAM,
             );
         }
