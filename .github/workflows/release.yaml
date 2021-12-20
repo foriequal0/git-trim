@@ -18,7 +18,7 @@ jobs:
         - long: windows-latest
           short: win
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - uses: actions-rs/toolchain@v1.0.5
       with:
         profile: minimal
