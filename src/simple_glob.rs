@@ -26,8 +26,8 @@ pub fn expand_refspec(
             continue;
         }
         match side {
-            ExpansionSide::Right => return Ok(expand(left, right, &reference)),
-            ExpansionSide::Left => return Ok(expand(right, left, &reference)),
+            ExpansionSide::Right => return Ok(expand(left, right, reference)),
+            ExpansionSide::Left => return Ok(expand(right, left, reference)),
         };
     }
     Ok(None)
@@ -43,11 +43,7 @@ fn expand(src: &str, dest: &str, reference: &str) -> Option<String> {
         dest
     );
 
-    if let Some(matched) = simple_match(src, reference) {
-        Some(dest.replace("*", matched))
-    } else {
-        None
-    }
+    simple_match(src, reference).map(|matched| dest.replace('*', matched))
 }
 
 fn simple_match<'a>(pattern: &str, reference: &'a str) -> Option<&'a str> {

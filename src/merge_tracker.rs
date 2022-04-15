@@ -41,7 +41,7 @@ impl MergeTracker {
             tracker.track(repo, &merged_local)?;
         }
 
-        for merged_remote in subprocess::get_noff_merged_remotes(&repo, base_upstreams)? {
+        for merged_remote in subprocess::get_noff_merged_remotes(repo, base_upstreams)? {
             debug!("merged_remote: {:?}", merged_remote);
             tracker.track(repo, &merged_remote)?;
         }

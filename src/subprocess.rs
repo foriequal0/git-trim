@@ -108,7 +108,7 @@ pub fn get_noff_merged_locals(
                     continue;
                 }
             }
-            let reference = repo.find_reference(&refname)?;
+            let reference = repo.find_reference(refname)?;
             if reference.symbolic_target().is_some() {
                 continue;
             }
@@ -143,7 +143,7 @@ pub fn get_noff_merged_remotes(
             if base == &branch {
                 continue;
             }
-            let reference = repo.find_reference(&refname)?;
+            let reference = repo.find_reference(refname)?;
             if reference.symbolic_target().is_some() {
                 continue;
             }
@@ -209,10 +209,10 @@ pub fn get_worktrees(repo: &Repository) -> Result<HashMap<LocalBranch, String>> 
     let mut worktree = None;
     let mut branch = None;
     for line in git_output(repo, &["worktree", "list", "--porcelain"], Level::Trace)?.lines() {
-        if line.starts_with("worktree ") {
-            worktree = Some(line["worktree ".len()..].to_owned());
-        } else if line.starts_with("branch ") {
-            branch = Some(LocalBranch::new(&line["branch ".len()..]));
+        if let Some(stripped) = line.strip_prefix("worktree ") {
+            worktree = Some(stripped.to_owned());
+        } else if let Some(stripped) = line.strip_prefix("branch ") {
+            branch = Some(LocalBranch::new(stripped));
         } else if line.is_empty() {
             if let (Some(worktree), Some(branch)) = (worktree.take(), branch.take()) {
                 result.insert(branch, worktree);

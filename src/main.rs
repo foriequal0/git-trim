@@ -193,7 +193,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             .get()
             .shorthand()
             .context("non utf-8 remote ref name")?;
-        let upstream = RemoteTrackingBranch::new(&refname);
+        let upstream = RemoteTrackingBranch::new(refname);
         let remote_branch = upstream.to_remote_branch(repo)?;
         if remote_refs_to_delete.contains(&remote_branch) {
             continue;
@@ -224,7 +224,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             | ClassifiedBranch::DivergedDirectFetch { remote, .. } => {
                 println!(
                     "    {} [{}, but: {}]",
-                    remote.to_string(),
+                    remote,
                     preserved.branch.message_remote(),
                     preserved.reason,
                 );
@@ -329,7 +329,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             }
             ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
                 let remote = upstream.to_remote_branch(repo)?;
-                merged_remotes.push(format!("{} (non-upstream)", remote.to_string()));
+                merged_remotes.push(format!("{} (non-upstream)", remote));
             }
         }
     }

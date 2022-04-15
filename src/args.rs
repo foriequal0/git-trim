@@ -233,11 +233,13 @@ pub struct DeleteFilter(HashSet<DeleteUnit>);
 impl DeleteFilter {
     pub fn scan_tracking(&self) -> bool {
         self.0.iter().any(|unit| {
-            matches!(unit,
+            matches!(
+                unit,
                 DeleteUnit::MergedLocal
-                | DeleteUnit::MergedRemote(_)
-                | DeleteUnit::Stray
-                | DeleteUnit::Diverged(_))
+                    | DeleteUnit::MergedRemote(_)
+                    | DeleteUnit::Stray
+                    | DeleteUnit::Diverged(_)
+            )
         })
     }
 
@@ -357,6 +359,6 @@ impl FromIterator<DeleteRange> for DeleteFilter {
     where
         I: IntoIterator<Item = DeleteRange>,
     {
-        Self::from_iter(iter.into_iter().map(|x| x.to_delete_units()).flatten())
+        Self::from_iter(iter.into_iter().flat_map(|x| x.to_delete_units()))
     }
 }

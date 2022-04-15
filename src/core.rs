@@ -168,15 +168,15 @@ impl TrimPlan {
                     | ClassifiedBranch::MergedDirectFetch { local, .. }
                     | ClassifiedBranch::DivergedDirectFetch { local, .. }
                     | ClassifiedBranch::MergedNonTrackingLocal(local) => {
-                        get_protect_pattern(&repo, preserved_patterns, local)?
+                        get_protect_pattern(repo, preserved_patterns, local)?
                     }
                     ClassifiedBranch::MergedRemoteTracking(upstream)
                     | ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
-                        get_protect_pattern(&repo, preserved_patterns, upstream)?
+                        get_protect_pattern(repo, preserved_patterns, upstream)?
                     }
                     ClassifiedBranch::DivergedRemoteTracking { local, upstream } => {
-                        get_protect_pattern(&repo, preserved_patterns, local)?
-                            .or(get_protect_pattern(&repo, preserved_patterns, upstream)?)
+                        get_protect_pattern(repo, preserved_patterns, local)?
+                            .or(get_protect_pattern(repo, preserved_patterns, upstream)?)
                     }
                 };
 
@@ -920,7 +920,7 @@ pub fn get_remote_heads(git: &Git, branches: &[RemoteBranch]) -> Result<Vec<Remo
         .map({
             let git = ForceSendSync::new(git);
             move |remote_url| {
-                subprocess::ls_remote_heads(&git.repo, &remote_url)
+                subprocess::ls_remote_heads(&git.repo, remote_url)
                     .with_context(|| format!("remote_url={}", remote_url))
             }
         })
