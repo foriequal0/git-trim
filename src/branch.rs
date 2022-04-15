@@ -130,7 +130,7 @@ impl RemoteTrackingBranch {
     ) -> std::result::Result<RemoteBranch, RemoteBranchError> {
         for remote_name in repo.remotes()?.iter() {
             let remote_name = remote_name.context("non-utf8 remote name")?;
-            let remote = repo.find_remote(&remote_name)?;
+            let remote = repo.find_remote(remote_name)?;
             if let Some(expanded) = expand_refspec(
                 &remote,
                 &self.refname,
