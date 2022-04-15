@@ -359,6 +359,6 @@ impl FromIterator<DeleteRange> for DeleteFilter {
     where
         I: IntoIterator<Item = DeleteRange>,
     {
-        Self::from_iter(iter.into_iter().map(|x| x.to_delete_units()).flatten())
+        Self::from_iter(iter.into_iter().flat_map(|x| x.to_delete_units()))
     }
 }
