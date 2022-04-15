@@ -20,10 +20,10 @@ use git_trim::{
 #[paw::main]
 fn main(args: Args) -> Result<()> {
     env_logger::init();
-    info!("SEMVER: {}", env!("VERGEN_SEMVER"));
-    info!("SHA: {}", env!("VERGEN_SHA"));
-    info!("COMMIT_DATE: {}", env!("VERGEN_COMMIT_DATE"));
-    info!("TARGET_TRIPLE: {}", env!("VERGEN_TARGET_TRIPLE"));
+    info!("SEMVER: {}", env!("VERGEN_BUILD_SEMVER"));
+    info!("SHA: {}", env!("VERGEN_GIT_SHA"));
+    info!("COMMIT_DATE: {}", env!("VERGEN_GIT_COMMIT_TIMESTAMP"));
+    info!("TARGET_TRIPLE: {}", env!("VERGEN_CARGO_TARGET_TRIPLE"));
 
     let git = Git::try_from(Repository::open_from_env()?)?;
 
@@ -90,7 +90,7 @@ fn main(args: Args) -> Result<()> {
 fn error_no_bases(repo: &Repository, bases: &ConfigValue<HashSet<String>>) -> Result<()> {
     fn eprint_bullet(s: &str) {
         let width = textwrap::termwidth().max(40) - 4;
-        for (i, line) in textwrap::wrap_iter(s, width).enumerate() {
+        for (i, line) in textwrap::wrap(s, width).iter().enumerate() {
             if i == 0 {
                 eprintln!(" * {}", line);
             } else {
