@@ -608,6 +608,7 @@ struct ClassificationResponseWithId {
 
 #[derive(Debug)]
 pub struct ClassificationResponse {
+    #[allow(dead_code)]
     message: &'static str,
     pub result: Vec<ClassifiedBranch>,
 }
