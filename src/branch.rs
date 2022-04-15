@@ -75,7 +75,7 @@ impl<'repo> TryFrom<&git2::Reference<'repo>> for LocalBranch {
 
     fn try_from(reference: &Reference<'repo>) -> Result<Self> {
         if !reference.is_branch() {
-            anyhow::anyhow!("Reference {:?} is not a branch", reference.name());
+            anyhow::bail!("Reference {:?} is not a branch", reference.name());
         }
 
         let refname = reference.name().context("non-utf8 reference name")?;
@@ -167,7 +167,7 @@ impl<'repo> TryFrom<&git2::Reference<'repo>> for RemoteTrackingBranch {
 
     fn try_from(reference: &Reference<'repo>) -> Result<Self> {
         if !reference.is_remote() {
-            anyhow::anyhow!("Reference {:?} is not a branch", reference.name());
+            anyhow::bail!("Reference {:?} is not a branch", reference.name());
         }
 
         let refname = reference.name().context("non-utf8 reference name")?;
