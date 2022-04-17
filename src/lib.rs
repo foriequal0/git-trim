@@ -187,7 +187,7 @@ pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
 #[derive(Debug)]
 pub(crate) enum BaseSpec<'a> {
     Local {
-        #[allow(dead_code)]
+        #[allow(dead_code)] // used in `Debug`
         pattern: &'a str,
         local: LocalBranch,
         upstream: RemoteTrackingBranch,
