@@ -38,7 +38,7 @@ jobs:
     - uses: actions-rs/clippy-check@v1
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-        args: --all-features
+        args: --all-features -- -D warnings
 
   test:
     runs-on: ${{ matrix.os.long }}
@@ -83,6 +83,9 @@ jobs:
         rustup set profile minimal
         rustup show
     - run: cargo fetch --verbose
+    - run: cargo check
+      env:
+        RUSTFLAGS: -D warnings
     - run: cargo build
     - name: Archive
       shell: bash
