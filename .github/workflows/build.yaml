@@ -13,10 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1.0.5
-      with:
-        profile: minimal
-        components: rustfmt
+    - run: |
+        rustup set profile default
+        rustup show
     - uses: actions/setup-python@v1
       with:
         python-version: 3.8
@@ -32,10 +31,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
-    - uses: actions-rs/toolchain@v1.0.5
-      with:
-        profile: minimal
-        components: clippy
+    - run: |
+        rustup set profile default
+        rustup show
     - run: cargo fetch --verbose
     - uses: actions-rs/clippy-check@v1
       with:
@@ -56,9 +54,9 @@ jobs:
       fail-fast: false
     steps:
     - uses: actions/checkout@v1
-    - uses: actions-rs/toolchain@v1.0.5
-      with:
-        profile: minimal
+    - run: |
+        rustup set profile minimal
+        rustup show
     - run: cargo fetch --verbose
     - run: cargo build --tests
     - run: cargo test --all
@@ -81,9 +79,9 @@ jobs:
       fail-fast: false
     steps:
     - uses: actions/checkout@v1
-    - uses: actions-rs/toolchain@v1.0.5
-      with:
-        profile: minimal
+    - run: |
+        rustup set profile minimal
+        rustup show
     - run: cargo fetch --verbose
     - run: cargo build
     - name: Archive
@@ -112,9 +110,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
-    - uses: actions-rs/toolchain@v1.0.5
-      with:
-        profile: minimal
+    - run: |
+        rustup set profile minimal
+        rustup show
     - run: cargo fetch --verbose
     - run: ./build-man.sh build
     - run: ./build-man.sh run
