@@ -10,6 +10,11 @@ FLAGS
        -h, --help
               Prints help information
 
+       --help Print help information
+
+       --version
+              Print version information
+
        --no-update
               Do not update remotes [config: trim.update]
 
