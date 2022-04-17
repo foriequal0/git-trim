@@ -233,11 +233,13 @@ pub struct DeleteFilter(HashSet<DeleteUnit>);
 impl DeleteFilter {
     pub fn scan_tracking(&self) -> bool {
         self.0.iter().any(|unit| {
-            matches!(unit,
+            matches!(
+                unit,
                 DeleteUnit::MergedLocal
-                | DeleteUnit::MergedRemote(_)
-                | DeleteUnit::Stray
-                | DeleteUnit::Diverged(_))
+                    | DeleteUnit::MergedRemote(_)
+                    | DeleteUnit::Stray
+                    | DeleteUnit::Diverged(_)
+            )
         })
     }
 
