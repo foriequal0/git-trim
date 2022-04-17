@@ -19,9 +19,9 @@ jobs:
           short: win
     steps:
     - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1.0.5
-      with:
-        profile: minimal
+    - run: |
+        rustup set profile minimal
+        rustup show
     - run: cargo fetch --verbose
     - run: cargo build --release
     - name: Archive
@@ -115,9 +115,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
-    - uses: actions-rs/toolchain@v1.0.5
-      with:
-        profile: minimal
+    - run: |
+        rustup set profile minimal
+        rustup show
     - run: cargo fetch --verbose
     - name: Cargo publish
       run: |
