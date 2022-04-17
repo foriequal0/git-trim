@@ -8,7 +8,7 @@ repository = "https://github.com/foriequal0/git-trim"
 readme = "README.md"
 keywords = ["git", "branch", "prune", "trim"]
 categories = ["command-line-utilities", "development-tools"]
-edition = "2018"
+edition = "2021"
 build = "build.rs"
 default-run = "git-trim"
 
