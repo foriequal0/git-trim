@@ -6,10 +6,10 @@ use std::mem::discriminant;
 use std::process::exit;
 use std::str::FromStr;
 
-use clap::Clap;
+use clap::Parser;
 use thiserror::Error;
 
-#[derive(Clap, Default)]
+#[derive(Parser, Default)]
 #[clap(
     version,
     about = "Automatically trims your tracking branches whose upstream branches are merged or stray.",
@@ -25,19 +25,19 @@ pub struct Args {
     /// They might not be reflected correctly when the HEAD branch of your remote repository is changed.
     /// You can see the changed HEAD branch name with `git remote show <remote>`
     /// and apply it to your local repository with `git remote set-head <remote> --auto`.
-    #[clap(short, long, value_delimiter = ",", aliases=&["base"])]
+    #[clap(short, long, value_delimiter = ',', aliases=&["base"])]
     pub bases: Vec<String>,
 
     /// Comma separated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches that should never be deleted.
     /// [config: trim.protected]
-    #[clap(short, long, value_delimiter = ",")]
+    #[clap(short, long, value_delimiter = ',')]
     pub protected: Vec<String>,
 
     /// Do not update remotes
     /// [config: trim.update]
     #[clap(long)]
     pub no_update: bool,
-    #[clap(long, hidden(true))]
+    #[clap(long, hide(true))]
     pub update: bool,
 
     /// Prevents too frequent updates. Seconds between updates in seconds. 0 to disable.
@@ -49,14 +49,14 @@ pub struct Args {
     /// [config: trim.confirm]
     #[clap(long)]
     pub no_confirm: bool,
-    #[clap(long, hidden(true))]
+    #[clap(long, hide(true))]
     pub confirm: bool,
 
     /// Do not detach when HEAD is about to be deleted
     /// [config: trim.detach]
     #[clap(long)]
     pub no_detach: bool,
-    #[clap(long, hidden(true))]
+    #[clap(long, hide(true))]
     pub detach: bool,
 
     /// Comma separated values of `<delete range>[:<remote name>]`.
@@ -74,7 +74,7 @@ pub struct Args {
     /// `local` will delete non-tracking merged local branches.
     /// `remote:<remote>` will delete non-upstream merged remote tracking branches.
     /// Use with caution when you are using other than `merged`. It might lose changes, and even nuke repositories.
-    #[clap(short, long, value_delimiter = ",")]
+    #[clap(short, long, value_delimiter = ',')]
     pub delete: Vec<DeleteRange>,
 
     /// Do not delete branches, show what branches will be deleted.
@@ -93,16 +93,6 @@ impl Args {
 
     pub fn detach(&self) -> Option<bool> {
         exclusive_bool(("detach", self.detach), ("no-detach", self.no_detach))
-    }
-}
-
-impl paw::ParseArgs for Args {
-    /// Error type.
-    type Error = std::io::Error;
-
-    /// Try to parse an input to a type.
-    fn parse_args() -> Result<Self, Self::Error> {
-        Ok(Args::parse())
     }
 }
 

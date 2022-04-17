@@ -5,6 +5,7 @@ use std::convert::TryFrom;
 use std::iter::FromIterator;
 
 use anyhow::{Context, Result};
+use clap::Parser;
 use dialoguer::Confirm;
 use git2::{BranchType, Repository};
 use log::*;
@@ -17,8 +18,9 @@ use git_trim::{
     SkipSuggestion, TrimPlan,
 };
 
-#[paw::main]
-fn main(args: Args) -> Result<()> {
+fn main() -> Result<()> {
+    let args = Args::parse();
+
     env_logger::init();
     info!("SEMVER: {}", env!("VERGEN_BUILD_SEMVER"));
     info!("SHA: {}", env!("VERGEN_GIT_SHA"));
