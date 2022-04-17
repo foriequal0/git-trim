@@ -56,7 +56,7 @@ fn main() {
                     flag = flag.long(&format!("--{}", long));
                 }
                 if let Some(help) = help {
-                    flag = flag.help(&help);
+                    flag = flag.help(help);
                 }
                 flag
             });
@@ -70,7 +70,7 @@ fn main() {
                     opt = opt.long(&format!("--{}", long));
                 }
                 if let Some(help) = help {
-                    opt = opt.help(&help);
+                    opt = opt.help(help);
                 }
                 opt
             });
