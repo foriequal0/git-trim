@@ -9,14 +9,6 @@ git\-trim \- Automatically trims your tracking branches whose upstream branches 
 Prints help information
 
 .TP
-\fB\-\-help\fR
-Print help information
-
-.TP
-\fB\-\-version\fR
-Print version information
-
-.TP
 \fB\-\-no\-update\fR
 Do not update remotes [config: trim.update]
 
@@ -43,7 +35,7 @@ The default value is a branch that tracks `git symbolic\-ref refs/remotes/*/HEAD
 Comma separated multiple glob patterns (e.g. `release\-*`, `feature/*`) of branches that should never be deleted. [config: trim.protected]
 
 .TP
-\fB\-\-update\-interval\fR=\fIupdate\-interval\fR
+\fB\-\-update\-interval\fR=\fIupdate_interval\fR
 Prevents too frequent updates. Seconds between updates in seconds. 0 to disable. [default: 5] [config: trim.updateInterval]
 
 .TP
