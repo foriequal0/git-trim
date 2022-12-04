@@ -9,6 +9,7 @@ readme = "README.md"
 keywords = ["git", "branch", "prune", "trim"]
 categories = ["command-line-utilities", "development-tools"]
 edition = "2021"
+rust-version = "1.60"
 build = "build.rs"
 default-run = "git-trim"
 
