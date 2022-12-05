@@ -372,21 +372,15 @@ impl TrimPlan {
     }
 
     pub fn get_preserved_local(&self, target: &LocalBranch) -> Option<&Preserved> {
-        for preserved in &self.preserved {
-            if preserved.branch.local() == Some(target) {
-                return Some(preserved);
-            }
-        }
-        None
+        self.preserved
+            .iter()
+            .find(|&preserved| preserved.branch.local() == Some(target))
     }
 
     pub fn get_preserved_upstream(&self, target: &RemoteTrackingBranch) -> Option<&Preserved> {
-        for preserved in &self.preserved {
-            if preserved.branch.upstream() == Some(target) {
-                return Some(preserved);
-            }
-        }
-        None
+        self.preserved
+            .iter()
+            .find(|&preserved| preserved.branch.upstream() == Some(target))
     }
 }
 

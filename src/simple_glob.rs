@@ -52,7 +52,7 @@ fn simple_match<'a>(pattern: &str, reference: &'a str) -> Option<&'a str> {
         if let Some(star) = pattern.find('*') {
             let left = &pattern[..star];
             let right = &pattern[star + 1..];
-            if reference.starts_with(&left) && reference.ends_with(right) {
+            if reference.starts_with(left) && reference.ends_with(right) {
                 let matched = &reference[left.len()..reference.len() - right.len()];
                 return Some(matched);
             }

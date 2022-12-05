@@ -10,11 +10,6 @@ FLAGS
        -h, --help
               Prints help information
 
-       --help Print help information
-
-       --version
-              Print version information
-
        --no-update
               Do not update remotes [config: trim.update]
 
@@ -42,7 +37,7 @@ OPTIONS
               Comma separated multiple glob patterns (e.g. `release-*`, `feature/*`) of branches that should never be
               deleted. [config: trim.protected]
 
-       --update-interval=update-interval
+       --update-interval=update_interval
               Prevents too frequent updates. Seconds between updates in seconds. 0 to disable. [default: 5] [config:
               trim.updateInterval]
 

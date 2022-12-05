@@ -2,13 +2,14 @@
 name = "git-trim"
 description = "Automatically trims your tracking branches whose upstream branches are merged or stray"
 license = "MIT"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["SeongChan Lee <foriequal@gmail.com>"]
 repository = "https://github.com/foriequal0/git-trim"
 readme = "README.md"
 keywords = ["git", "branch", "prune", "trim"]
 categories = ["command-line-utilities", "development-tools"]
 edition = "2021"
+rust-version = "1.65"
 build = "build.rs"
 default-run = "git-trim"
 
@@ -22,20 +23,20 @@ required-features = ["build-man"]
 build-man = ["man"]
 
 [build-dependencies]
-vergen = "7.0.0"
+vergen = "7.4.3"
 
 [dependencies]
-dialoguer = "0.10.0"
-env_logger = "0.9.0"
-git2 = "0.14.2"
-log = "0.4.16"
+dialoguer = "0.10.2"
+env_logger = "0.10.0"
+git2 = "0.14.4"
+log = "0.4.17"
 paw = "1.0.0"
-clap = { version = "3.1.9", features = ["derive"] }
-anyhow = "1.0.56"
-rayon = "1.5.2"
-thiserror = "1.0.30"
-crossbeam-channel = "0.5.4"
-textwrap = { version = "0.15.0", features = ["terminal_size"] }
+clap = { version = "4.0.27", features = ["derive"] }
+anyhow = "1.0.66"
+rayon = "1.6.0"
+thiserror = "1.0.37"
+crossbeam-channel = "0.5.6"
+textwrap = { version = "0.16.0", features = ["terminal_size"] }
 
 man = { version = "0.3.0", optional = true }
 

@@ -14,7 +14,7 @@ fn main() {
     );
 
     if let Some(about) = command.get_about() {
-        page = page.about(about);
+        page = page.about(about.to_string());
     }
 
     for arg in command.get_arguments() {
@@ -23,7 +23,7 @@ fn main() {
             continue;
         }
 
-        let name = arg.get_id();
+        let name = arg.get_id().as_str();
         let short_help = arg.get_help();
         let long_help = arg.get_long_help();
         let help = match (short_help, long_help) {
@@ -33,7 +33,7 @@ fn main() {
         };
         let short = arg.get_short();
         let long = arg.get_long();
-        let flag = !arg.is_takes_value_set();
+        let flag = !arg.get_action().takes_values();
         if flag {
             page = page.flag({
                 let mut flag = Flag::new();
@@ -44,7 +44,7 @@ fn main() {
                     flag = flag.long(&format!("--{}", long));
                 }
                 if let Some(help) = help {
-                    flag = flag.help(help);
+                    flag = flag.help(&help.to_string());
                 }
                 flag
             });
@@ -58,7 +58,7 @@ fn main() {
                     opt = opt.long(&format!("--{}", long));
                 }
                 if let Some(help) = help {
-                    opt = opt.help(help);
+                    opt = opt.help(&help.to_string());
                 }
                 opt
             });
