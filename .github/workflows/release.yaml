@@ -18,7 +18,7 @@ jobs:
         - long: windows-latest
           short: win
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - run: |
         rustup set profile minimal
         rustup show
@@ -63,15 +63,15 @@ jobs:
         VERSION="${{github.ref}}"
         VERSION="${VERSION#refs/tags/}"
         echo "VERSION=$VERSION" >> $GITHUB_ENV
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v3
       with:
         name: git-trim-linux-${{env.VERSION}}
         path: ./
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v3
       with:
         name: git-trim-mac-${{env.VERSION}}
         path: ./
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v3
       with:
         name: git-trim-win-${{env.VERSION}}
         path: ./
@@ -114,7 +114,7 @@ jobs:
   cargo-publish:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v3
     - run: |
         rustup set profile minimal
         rustup show
