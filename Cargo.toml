@@ -23,12 +23,12 @@ required-features = ["build-man"]
 build-man = ["man"]
 
 [build-dependencies]
-vergen = "7.4.3"
+vergen = "7.4.4"
 
 [dependencies]
 dialoguer = "0.10.2"
 env_logger = "0.10.0"
-git2 = "0.14.4"
+git2 = "0.15.0"
 log = "0.4.17"
 paw = "1.0.0"
 clap = { version = "4.0.27", features = ["derive"] }
