@@ -23,8 +23,11 @@ fn main() -> Result<()> {
 
     env_logger::init();
     info!("SEMVER: {}", env!("VERGEN_BUILD_SEMVER"));
-    info!("SHA: {}", env!("VERGEN_GIT_SHA"));
-    info!("COMMIT_DATE: {}", env!("VERGEN_GIT_COMMIT_TIMESTAMP"));
+    info!("SHA: {:?}", option_env!("VERGEN_GIT_SHA"));
+    info!(
+        "COMMIT_DATE: {:?}",
+        option_env!("VERGEN_GIT_COMMIT_TIMESTAMP")
+    );
     info!("TARGET_TRIPLE: {}", env!("VERGEN_CARGO_TARGET_TRIPLE"));
 
     let git = Git::try_from(Repository::open_from_env()?)?;
