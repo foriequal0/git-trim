@@ -287,7 +287,8 @@ impl ConfigValues for String {
 impl ConfigValues for Vec<String> {
     fn get_config_value(config: &GitConfig, key: &str) -> Result<Self, git2::Error> {
         let mut result = Vec::new();
-        for entry in &config.entries(Some(key))? {
+        let mut entries = config.entries(Some(key))?;
+        while let Some(entry) = entries.next() {
             let entry = entry?;
             if let Some(value) = entry.value() {
                 result.push(value.to_owned());
