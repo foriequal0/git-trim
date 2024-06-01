@@ -104,9 +104,9 @@ fn error_no_bases(repo: &Repository, bases: &ConfigValue<HashSet<String>>) -> Re
         }
     }
     const GENERAL_HELP: &[&str] = &[
-        "`git config trim.bases develop,master` for a repository.",
-        "`git config --global trim.bases develop,master` to set globally.",
-        "`git trim --bases develop,master` to set temporarily.",
+        "`git config trim.bases develop,main` for a repository.",
+        "`git config --global trim.bases develop,main` to set globally.",
+        "`git trim --bases develop,main` to set temporarily.",
     ];
     match bases {
         ConfigValue::Explicit(_) => {

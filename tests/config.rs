@@ -45,7 +45,7 @@ fn test_bases_implicit_value() -> Result<()> {
 
     assert_eq!(
         config.bases,
-        ConfigValue::Implicit(HashSet::from_iter(vec!["master".to_owned()]))
+        ConfigValue::Implicit(HashSet::from_iter(vec!["main".to_owned()]))
     );
     Ok(())
 }

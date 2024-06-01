@@ -28,7 +28,7 @@ fn fixture() -> Fixture {
             echo "Hello World!" > README.md
             git add README.md
             git commit -m "Initial commit"
-            git push -u origin master
+            git push -u origin main
         EOF
 
         git clone origin contributer
@@ -75,9 +75,9 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
         local <<EOF
             git checkout --track contributer/feature
 
-            git checkout master
+            git checkout main
             git merge feature --no-ff
-            git push -u origin master
+            git push -u origin main
         EOF
         "#,
     )?;
@@ -112,9 +112,9 @@ fn test_accidential_track() -> Result<()> {
         local <<EOF
             git checkout --track contributer/feature
 
-            git checkout master
+            git checkout main
             git merge feature --no-ff
-            git push -u origin master
+            git push -u origin main
         EOF
         "#,
     )?;

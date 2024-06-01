@@ -48,7 +48,7 @@ fn test_noff() -> Result<()> {
         "local",
         r#"
         origin <<EOF
-            git checkout master
+            git checkout main
             git merge feature --no-ff
             git branch -D feature
         EOF
@@ -73,8 +73,8 @@ fn test_rebase() -> Result<()> {
         r#"
         origin <<EOF
             git checkout -b rebase-tmp feature
-            git rebase master
-            git checkout master
+            git rebase main
+            git checkout main
             git merge rebase-tmp --ff-only
             git branch -D rebase-tmp feature
         EOF
@@ -98,7 +98,7 @@ fn test_squash() -> Result<()> {
         "local",
         r#"
         origin <<EOF
-            git checkout master
+            git checkout main
             git merge feature --squash && git commit --no-edit
             git branch -D feature
         EOF
@@ -149,9 +149,9 @@ fn test_mixed() -> Result<()> {
             git push -u origin "$NAME"
         }
         local <<EOF
-            mk_test_branches master rebaseme 3
-            mk_test_branches master squashme 3
-            mk_test_branches master noffme 3
+            mk_test_branches main rebaseme 3
+            mk_test_branches main squashme 3
+            mk_test_branches main noffme 3
         EOF
         "#,
     );
@@ -160,19 +160,19 @@ fn test_mixed() -> Result<()> {
         r#"
         origin <<EOF
             # squash
-            git checkout master
+            git checkout main
             git merge squashme --squash && git commit --no-edit
             git branch -D squashme
 
             # rebaseme
             git checkout -b rebase-tmp rebaseme
-            git rebase master
-            git checkout master
+            git rebase main
+            git checkout main
             git merge rebase-tmp --ff-only
             git branch -D rebase-tmp rebaseme
 
             # noff
-            git checkout master
+            git checkout main
             git merge noffme --no-ff
             git branch -D noffme
         EOF

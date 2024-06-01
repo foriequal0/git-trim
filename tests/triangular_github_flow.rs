@@ -34,7 +34,7 @@ fn fixture() -> Fixture {
             git config push.default simple
             git remote add upstream ../upstream
             git fetch upstream
-            git branch -u upstream/master master
+            git branch -u upstream/main main
         EOF
         # prepare awesome patch
         local <<EOF

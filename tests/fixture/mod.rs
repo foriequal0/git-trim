@@ -203,7 +203,7 @@ macro_rules! set {
 pub fn test_default_param() -> PlanParam<'static> {
     use DeleteRange::*;
     PlanParam {
-        bases: vec!["master"],
+        bases: vec!["main"],
         protected_patterns: Vec::new(),
         delete: DeleteFilter::from_iter(vec![
             MergedLocal,

@@ -33,7 +33,7 @@ You might need to install `libssl-dev` and `pkg-config` packages if you build fr
 
 #### Are you using git-flow?
 
-Don't forget to `git config trim.bases develop,master`.
+Don't forget to `git config trim.bases develop,main`.
 
 ## Why have you made this? Show me how it works.
 
@@ -46,7 +46,7 @@ After some working with the repository, you'll execute `git fetch --prune` or `g
 However, you'll likely see the mess of local branches whose upstreams are already merged and deleted on the remote.
 Because `git fetch --prune` only deletes remote-tracking branches (or remote references, `refs/remotes/<remote>/<branch>`) but not local tracking branches (`refs/heads/<branch>`) for you.
 It is worse if remote branches that are merged but the maintainer forgot to delete them,
-the remote-tracking branches would not be deleted and so on even if you know that it is merged into the master.
+the remote-tracking branches would not be deleted and so on even if you know that it is merged into the main.
 
 ![before](images/0-before.png)
 
@@ -111,7 +111,7 @@ Not because `--force` is dangerous. Just `gone` doesn't mean it is fully merged 
 
  * It inspects the upstream of tracking branches whether they are 'fully' merged, not just whether they are gone.
  I've spent about half of the code on scenario tests. I wanted to make sure that it doesn't delete unmerged contents accidentally in any case.
- * It supports github flow (master-feature tiered branch strategy), git flow (master-develop-feature tiered branch strategy),
+ * It supports github flow (main-feature tiered branch strategy), git flow (main-develop-feature tiered branch strategy),
  and simple workflow (with a remote repo and a local clone), and triangular workflow (with two remote repos and a local clone).
  * It is merge styles agnostic. It can detect common merge styles such as merge with a merge commit, rebase/ff merge and squash merge.
  * It can also inspect remote branches so it deletes them from remotes for you in case you've forgotten to.
@@ -136,12 +136,12 @@ The term is borrowed from the git's remote tracking states.
 
 ### I'm even more lazy to type `git trim`
 
-Try this `post-merge` hook. It automatically calls `git trim --no-update` everytime you `git pull` on `master` or `develop`. `git config fetch.prune true` is recommended with this hook.
+Try this `post-merge` hook. It automatically calls `git trim --no-update` everytime you `git pull` on `main` or `develop`. `git config fetch.prune true` is recommended with this hook.
 ```shell
 #!/bin/bash
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 case "$HEAD_BRANCH" in
-    "master"|"develop") ;;
+    "main"|"develop") ;;
     *) exit ;;
 esac
 
