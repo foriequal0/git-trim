@@ -23,22 +23,23 @@ required-features = ["build-man"]
 build-man = ["man"]
 
 [build-dependencies]
-vergen = "7.4.4"
+vergen = { version = "8.0.0", features = ["build", "cargo", "git", "gitcl"] }
+anyhow = "1.0.86"
 
 [dependencies]
-dialoguer = "0.10.2"
-env_logger = "0.10.0"
-git2 = "0.15.0"
-log = "0.4.17"
+dialoguer = "0.11.0"
+env_logger = "0.11.3"
+git2 = "0.18.3"
+log = "0.4.21"
 paw = "1.0.0"
-clap = { version = "4.0.27", features = ["derive"] }
-anyhow = "1.0.66"
-rayon = "1.6.0"
-thiserror = "1.0.37"
-crossbeam-channel = "0.5.6"
-textwrap = { version = "0.16.0", features = ["terminal_size"] }
+clap = { version = "4.5.4", features = ["derive"] }
+anyhow = "1.0.86"
+rayon = "1.10.0"
+thiserror = "1.0.61"
+crossbeam-channel = "0.5.13"
+textwrap = { version = "0.16.1", features = ["terminal_size"] }
 
 man = { version = "0.3.0", optional = true }
 
 [dev-dependencies]
-tempfile = "3.3.0"
+tempfile = "3.10.1"

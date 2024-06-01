@@ -1,8 +1,11 @@
-use vergen::{vergen, Config};
+use anyhow::Context;
+use vergen::EmitBuilder;
 
-fn main() {
-    // Generate the 'cargo:' key output
-    let mut config = Config::default();
-    *config.git_mut().skip_if_error_mut() = true;
-    vergen(config).expect("Unable to generate the cargo keys!");
+fn main() -> anyhow::Result<()> {
+    EmitBuilder::builder()
+        .all_build()
+        .all_cargo()
+        .all_git()
+        .emit()
+        .context("Unable to generate the cargo keys!")
 }
