@@ -43,13 +43,13 @@ fn fixture() -> Fixture {
 fn test_accepted() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             git checkout master
             git merge feature
             git branch -d feature
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -95,12 +95,12 @@ fn test_accepted_but_edited() -> Result<()> {
 fn test_accepted_but_forgot_to_delete() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             git checkout master
             git merge feature
         EOF
-        "#,
+        ",
     )?;
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let plan = get_trim_plan(&git, &test_default_param())?;
@@ -146,11 +146,11 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
 fn test_rejected() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             git branch -D feature
         EOF
-    "#,
+    ",
     )?;
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let plan = get_trim_plan(&git, &test_default_param())?;
@@ -191,7 +191,7 @@ fn test_rejected_but_edited() -> Result<()> {
 
 #[test]
 fn test_rejected_but_forgot_to_delete() -> Result<()> {
-    let guard = fixture().prepare("local", r#""#)?;
+    let guard = fixture().prepare("local", r"")?;
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let plan = get_trim_plan(&git, &test_default_param())?;
     assert_eq!(plan.to_delete, set! {});

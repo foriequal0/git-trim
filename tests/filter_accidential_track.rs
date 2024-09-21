@@ -31,15 +31,15 @@ fn fixture() -> Fixture {
             git push -u origin master
         EOF
 
-        git clone origin contributer
-        within contributer <<EOF
-            git config user.name "Contributer Test"
+        git clone origin contributor
+        within contributor <<EOF
+            git config user.name "Contributor Test"
             git config user.email "contributer@test"
             git config remote.pushdefault origin
             git config push.default simple
         EOF
 
-        within contributer <<EOF
+        within contributor <<EOF
             git checkout -b feature
             touch awesome-patch
             git add awesome-patch
@@ -50,7 +50,7 @@ fn fixture() -> Fixture {
         EOF
 
         local <<EOF
-            git remote add contributer ../contributer
+            git remote add contributor ../contributor
             git remote update
         EOF
         "#,
@@ -68,10 +68,10 @@ fn param() -> PlanParam<'static> {
 }
 
 #[test]
-fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
+fn test_default_config_tries_to_delete_accidental_track() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         local <<EOF
             git checkout --track contributer/feature
 
@@ -79,7 +79,7 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
             git merge feature --no-ff
             git push -u origin master
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -105,10 +105,10 @@ fn test_default_config_tries_to_delete_accidential_track() -> Result<()> {
 }
 
 #[test]
-fn test_accidential_track() -> Result<()> {
+fn test_accidental_track() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         local <<EOF
             git checkout --track contributer/feature
 
@@ -116,7 +116,7 @@ fn test_accidential_track() -> Result<()> {
             git merge feature --no-ff
             git push -u origin master
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;

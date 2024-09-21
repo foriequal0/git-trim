@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use git2::{BranchType, Config as GitConfig, Error, ErrorClass, ErrorCode, Remote, Repository};
-use log::*;
+use log::{debug, warn};
 
 use crate::args::{Args, DeleteFilter, DeleteRange};
 use crate::branch::{LocalBranch, RemoteTrackingBranchStatus};
@@ -85,17 +85,16 @@ fn get_branches_tracks_remote_heads(repo: &Repository, config: &GitConfig) -> Re
 
     for reference in repo.references_glob("refs/remotes/*/HEAD")? {
         let reference = reference?;
+
         // git symbolic-ref refs/remotes/*/HEAD
-        let resolved = match reference.resolve() {
-            Ok(resolved) => resolved,
-            Err(_) => {
-                debug!(
-                    "Reference {:?} is expected to be an symbolic ref, but it isn't",
-                    reference.name()
-                );
-                continue;
-            }
+        let Ok(resolved) = reference.resolve() else {
+            debug!(
+                "Reference {:?} is expected to be an symbolic ref, but it isn't",
+                reference.name()
+            );
+            continue;
         };
+
         let refname = resolved.name().context("non utf-8 reference name")?;
         all_bases.push(refname.to_owned());
 
@@ -136,8 +135,7 @@ impl<T> ConfigValue<T> {
 
     pub fn is_implicit(&self) -> bool {
         match self {
-            ConfigValue::Explicit(_) => false,
-            ConfigValue::GitConfig(_) => false,
+            ConfigValue::GitConfig(_) | ConfigValue::Explicit(_) => false,
             ConfigValue::Implicit(_) => true,
         }
     }
@@ -161,6 +159,7 @@ pub struct ConfigBuilder<'a, T> {
     comma_separated: bool,
 }
 
+#[must_use]
 pub fn get<'a, T>(config: &'a GitConfig, key: &'a str) -> ConfigBuilder<'a, T> {
     ConfigBuilder {
         config,
@@ -171,6 +170,7 @@ pub fn get<'a, T>(config: &'a GitConfig, key: &'a str) -> ConfigBuilder<'a, T> {
     }
 }
 
+#[must_use]
 pub fn get_comma_separated_multi<'a, T>(
     config: &'a GitConfig,
     key: &'a str,
@@ -196,6 +196,7 @@ impl<'a, T> ConfigBuilder<'a, T> {
         }
     }
 
+    #[must_use]
     pub fn with_default(self, value: T) -> ConfigBuilder<'a, T> {
         ConfigBuilder {
             default: Some(value),
@@ -312,10 +313,12 @@ impl ConfigValues for bool {
 impl ConfigValues for u64 {
     fn get_config_value(config: &GitConfig, key: &str) -> Result<Self, git2::Error> {
         let value = config.get_i64(key)?;
+
         if value >= 0 {
-            return Ok(value as u64);
+            return Ok(u64::try_from(value).expect("config value is negative"));
         }
-        panic!("`git config {}` cannot be negative value", key);
+
+        panic!("`git config {key}` cannot be negative value");
     }
 }
 

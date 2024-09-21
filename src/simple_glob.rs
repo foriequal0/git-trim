@@ -2,7 +2,7 @@ use std::iter::Iterator;
 
 use anyhow::{Context, Result};
 use git2::{Direction, Remote};
-use log::*;
+use log::warn;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum ExpansionSide {
@@ -36,11 +36,10 @@ pub fn expand_refspec(
 fn expand(src: &str, dest: &str, reference: &str) -> Option<String> {
     let src_stars = src.chars().filter(|&c| c == '*').count();
     let dst_stars = dest.chars().filter(|&c| c == '*').count();
+
     assert!(
         src_stars <= 1 && src_stars == dst_stars,
-        "Unsupported refspec patterns: {}:{}",
-        src,
-        dest
+        "Unsupported refspec patterns: {src}:{dest}"
     );
 
     simple_match(src, reference).map(|matched| dest.replace('*', matched))
@@ -60,11 +59,11 @@ fn simple_match<'a>(pattern: &str, reference: &'a str) -> Option<&'a str> {
             return Some("");
         }
         return None;
-    } else {
-        warn!(
-            "Unsupported refspec patterns, too many asterisks: {}",
-            pattern
-        );
     }
+
+    warn!(
+        "Unsupported refspec patterns, too many asterisks: {}",
+        pattern
+    );
     None
 }

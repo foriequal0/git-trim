@@ -46,13 +46,13 @@ fn fixture() -> Fixture {
 fn test_noff() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             git checkout master
             git merge feature --no-ff
             git branch -D feature
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -70,7 +70,7 @@ fn test_noff() -> Result<()> {
 fn test_rebase() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             git checkout -b rebase-tmp feature
             git rebase master
@@ -78,7 +78,7 @@ fn test_rebase() -> Result<()> {
             git merge rebase-tmp --ff-only
             git branch -D rebase-tmp feature
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -96,13 +96,13 @@ fn test_rebase() -> Result<()> {
 fn test_squash() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             git checkout master
             git merge feature --squash && git commit --no-edit
             git branch -D feature
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -157,7 +157,7 @@ fn test_mixed() -> Result<()> {
     );
     let guard = fixture.prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             # squash
             git checkout master
@@ -176,7 +176,7 @@ fn test_mixed() -> Result<()> {
             git merge noffme --no-ff
             git branch -D noffme
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;

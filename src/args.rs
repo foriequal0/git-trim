@@ -16,6 +16,7 @@ use thiserror::Error;
     long_about = "Automatically trims your tracking branches whose upstream branches are merged or stray.
 `git-trim` is a missing companion to the `git fetch --prune` and a proper, safer, faster alternative to your `<bash oneliner HERE>`."
 )]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Args {
     /// Comma separated multiple names of branches.
     /// All the other branches are compared with the upstream branches of those branches.
@@ -83,14 +84,17 @@ pub struct Args {
 }
 
 impl Args {
+    #[must_use]
     pub fn update(&self) -> Option<bool> {
         exclusive_bool(("update", self.update), ("no-update", self.no_update))
     }
 
+    #[must_use]
     pub fn confirm(&self) -> Option<bool> {
         exclusive_bool(("confirm", self.confirm), ("no-confirm", self.no_confirm))
     }
 
+    #[must_use]
     pub fn detach(&self) -> Option<bool> {
         exclusive_bool(("detach", self.detach), ("no-detach", self.no_detach))
     }
@@ -101,10 +105,7 @@ fn exclusive_bool(
     (name_neg, value_neg): (&str, bool),
 ) -> Option<bool> {
     if value_pos && value_neg {
-        eprintln!(
-            "Error: Flag '{}' and '{}' cannot be used simultaneously",
-            name_pos, name_neg,
-        );
+        eprintln!("Error: Flag '{name_pos}' and '{name_neg}' cannot be used simultaneously",);
         exit(-1);
     }
 
@@ -200,8 +201,9 @@ impl DeleteRange {
         }
     }
 
+    #[must_use]
     pub fn merged_origin() -> Vec<Self> {
-        use DeleteRange::*;
+        use DeleteRange::{MergedLocal, MergedRemote};
         vec![
             MergedLocal,
             MergedRemote(Scope::Scoped("origin".to_string())),
@@ -221,6 +223,7 @@ pub enum DeleteParseError {
 pub struct DeleteFilter(HashSet<DeleteUnit>);
 
 impl DeleteFilter {
+    #[must_use]
     pub fn scan_tracking(&self) -> bool {
         self.0.iter().any(|unit| {
             matches!(
@@ -233,12 +236,14 @@ impl DeleteFilter {
         })
     }
 
+    #[must_use]
     pub fn scan_non_tracking_local(&self) -> bool {
         self.0.contains(&DeleteUnit::MergedNonTrackingLocal)
     }
 
+    #[must_use]
     pub fn scan_non_upstream_remote(&self, remote: &str) -> bool {
-        for unit in self.0.iter() {
+        for unit in &self.0 {
             match unit {
                 DeleteUnit::MergedNonUpstreamRemoteTracking(Scope::All) => return true,
                 DeleteUnit::MergedNonUpstreamRemoteTracking(Scope::Scoped(specific))
@@ -252,12 +257,14 @@ impl DeleteFilter {
         false
     }
 
+    #[must_use]
     pub fn delete_merged_local(&self) -> bool {
         self.0.contains(&DeleteUnit::MergedLocal)
     }
 
+    #[must_use]
     pub fn delete_merged_remote(&self, remote: &str) -> bool {
-        for unit in self.0.iter() {
+        for unit in &self.0 {
             match unit {
                 DeleteUnit::MergedRemote(Scope::All) => return true,
                 DeleteUnit::MergedRemote(Scope::Scoped(specific)) if specific == remote => {
@@ -269,12 +276,14 @@ impl DeleteFilter {
         false
     }
 
+    #[must_use]
     pub fn delete_stray(&self) -> bool {
         self.0.contains(&DeleteUnit::Stray)
     }
 
+    #[must_use]
     pub fn delete_diverged(&self, remote: &str) -> bool {
-        for unit in self.0.iter() {
+        for unit in &self.0 {
             match unit {
                 DeleteUnit::Diverged(Scope::All) => return true,
                 DeleteUnit::Diverged(Scope::Scoped(specific)) if specific == remote => return true,
@@ -284,12 +293,14 @@ impl DeleteFilter {
         false
     }
 
+    #[must_use]
     pub fn delete_merged_non_tracking_local(&self) -> bool {
         self.0.contains(&DeleteUnit::MergedNonTrackingLocal)
     }
 
+    #[must_use]
     pub fn delete_merged_non_upstream_remote_tracking(&self, remote: &str) -> bool {
-        for filter in self.0.iter() {
+        for filter in &self.0 {
             match filter {
                 DeleteUnit::MergedNonUpstreamRemoteTracking(Scope::All) => return true,
                 DeleteUnit::MergedNonUpstreamRemoteTracking(Scope::Scoped(specific))
@@ -309,11 +320,15 @@ impl FromIterator<DeleteUnit> for DeleteFilter {
     where
         I: IntoIterator<Item = DeleteUnit>,
     {
-        use DeleteUnit::*;
-        use Scope::*;
+        use DeleteUnit::{
+            Diverged, MergedLocal, MergedNonTrackingLocal, MergedNonUpstreamRemoteTracking,
+            MergedRemote, Stray,
+        };
+        use Scope::All;
 
         let mut result = HashSet::new();
-        for unit in iter.into_iter() {
+
+        for unit in iter {
             match unit {
                 MergedLocal | Stray | MergedNonTrackingLocal => {
                     result.insert(unit.clone());
@@ -349,6 +364,8 @@ impl FromIterator<DeleteRange> for DeleteFilter {
     where
         I: IntoIterator<Item = DeleteRange>,
     {
-        Self::from_iter(iter.into_iter().flat_map(|x| x.to_delete_units()))
+        iter.into_iter()
+            .flat_map(|x| x.to_delete_units())
+            .collect::<Self>()
     }
 }

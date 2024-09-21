@@ -2,7 +2,7 @@ use std::thread::JoinHandle;
 
 use anyhow::{Context, Result};
 use git2::Repository;
-use log::*;
+use log::debug;
 use rayon::prelude::*;
 
 use crate::{ls_remote_head, ForceSendSync, RemoteHead, RemoteTrackingBranch};
@@ -17,9 +17,9 @@ impl RemoteHeadChangeChecker {
             let repo = ForceSendSync::new(Repository::open_from_env()?);
             let remotes = {
                 let mut tmp = Vec::new();
-                for remote_name in repo.remotes()?.iter() {
+                for remote_name in &repo.remotes()? {
                     let remote_name = remote_name.context("non-utf8 remote name")?;
-                    tmp.push(remote_name.to_owned())
+                    tmp.push(remote_name.to_owned());
                 }
                 tmp
             };
@@ -36,23 +36,21 @@ impl RemoteHeadChangeChecker {
     pub fn check_and_notify(self, repo: &Repository) -> Result<()> {
         let fetched_remote_heads_raw = self.join_handle.join().unwrap()?;
         let mut fetched_remote_heads: Vec<RemoteHead> = Vec::new();
-        for remote_head in fetched_remote_heads_raw.into_iter() {
+        for remote_head in fetched_remote_heads_raw {
             fetched_remote_heads.push(remote_head);
         }
 
         let mut out_of_sync = Vec::new();
         for reference in repo.references_glob("refs/remotes/*/HEAD")? {
             let reference = reference?;
+
             // git symbolic-ref refs/remotes/*/HEAD
-            let resolved = match reference.resolve() {
-                Ok(resolved) => resolved,
-                Err(_) => {
-                    debug!(
-                        "Reference {:?} is expected to be an symbolic ref, but it isn't",
-                        reference.name()
-                    );
-                    continue;
-                }
+            let Ok(resolved) = reference.resolve() else {
+                debug!(
+                    "Reference {:?} is expected to be an symbolic ref, but it isn't",
+                    reference.name()
+                );
+                continue;
             };
             let refname = resolved.name().context("non utf-8 reference name")?;
 
@@ -66,7 +64,7 @@ impl RemoteHeadChangeChecker {
                     .iter()
                     .any(|x| x.remote == remote_head.remote && x.refname == remote_head.refname);
                 if !matches {
-                    out_of_sync.push((remote_head, fetched_remote_head))
+                    out_of_sync.push((remote_head, fetched_remote_head));
                 }
             }
         }

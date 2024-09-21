@@ -34,10 +34,10 @@ fn fixture() -> Fixture {
 fn test_bases_implicit_value() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         local <<EOF
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -54,11 +54,11 @@ fn test_bases_implicit_value() -> Result<()> {
 fn test_bases_config_value() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         local <<EOF
             git config trim.bases some-branch
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -75,11 +75,11 @@ fn test_bases_config_value() -> Result<()> {
 fn test_bases_args_value() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         local <<EOF
             git config trim.bases some-branch
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -105,12 +105,12 @@ fn test_bases_args_value() -> Result<()> {
 fn test_bases_multiple_comma_separated_values() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         local <<EOF
             git config --add trim.bases a,b
             git config --add trim.bases c,d
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -132,12 +132,12 @@ fn test_bases_multiple_comma_separated_values() -> Result<()> {
 fn test_protected_multiple_comma_separated_values() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         local <<EOF
             git config --add trim.protected a,b
             git config --add trim.protected c,d
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -159,12 +159,12 @@ fn test_protected_multiple_comma_separated_values() -> Result<()> {
 fn test_delete_filter_multiple_comma_separated_values() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         local <<EOF
             git config --add trim.delete merged:origin,merged:upstream
             git config --add trim.delete stray,diverged:upstream
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;

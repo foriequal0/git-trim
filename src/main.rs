@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use dialoguer::Confirm;
 use git2::{BranchType, Repository};
-use log::*;
+use log::{info, trace};
 
 use git_trim::args::Args;
 use git_trim::config::{self, get, Config, ConfigValue};
@@ -22,7 +22,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     env_logger::init();
-    info!("SEMVER: {}", env!("VERGEN_BUILD_SEMVER"));
+    info!("SEMVER: {}", env!("VERGEN_RUSTC_SEMVER"));
     info!("SHA: {:?}", option_env!("VERGEN_GIT_SHA"));
     info!(
         "COMMIT_DATE: {:?}",
@@ -44,12 +44,12 @@ fn main() -> Result<()> {
 
     let mut checker = None;
     if *config.update {
-        if should_update(&git, *config.update_interval, config.update)? {
+        if should_update(&git, *config.update_interval, &config.update)? {
             checker = Some(remote_head_change_checker::RemoteHeadChangeChecker::spawn()?);
             remote_update(&git.repo, args.dry_run)?;
             println!();
         } else {
-            println!("Repository is updated recently. Skip to update it")
+            println!("Repository is updated recently. Skip to update it");
         }
     }
 
@@ -97,9 +97,9 @@ fn error_no_bases(repo: &Repository, bases: &ConfigValue<HashSet<String>>) -> Re
         let width = textwrap::termwidth().max(40) - 4;
         for (i, line) in textwrap::wrap(s, width).iter().enumerate() {
             if i == 0 {
-                eprintln!(" * {}", line);
+                eprintln!(" * {line}");
             } else {
-                eprintln!("   {}", line);
+                eprintln!("   {line}");
             }
         }
     }
@@ -132,8 +132,7 @@ fn error_no_bases(repo: &Repository, bases: &ConfigValue<HashSet<String>>) -> Re
                     "\
 `git remote set-head {remote} --auto` will help `git-trim` to automatically detect the base branch.
 If you see `{remote}/HEAD set to <base branch>` in the output of the previous command, \
-then `git branch --set-upstream {remote}/<base branch> <base branch>` to set an upstream branch for <base branch> if exists.",
-                    remote = remote
+then `git branch --set-upstream {remote}/<base branch> <base branch>` to set an upstream branch for <base branch> if exists."
                 ));
             } else {
                 eprintln!("I can't detect base branch! Try following any resolution:");
@@ -156,18 +155,34 @@ Then `git branch --set-upstream <remote>/<base branch> <base branch>` to set an 
     Err(anyhow::anyhow!("No base branch is found!"))
 }
 
+fn print(label: &str, mut branches: Vec<String>) {
+    if branches.is_empty() {
+        return;
+    }
+    branches.sort();
+    println!("Delete {label}:");
+    for branch in branches {
+        println!("  - {branch}");
+    }
+}
+
+#[allow(clippy::too_many_lines)]
 pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
     println!("Branches that will remain:");
     println!("  local branches:");
+
     let local_branches_to_delete = HashSet::<_>::from_iter(plan.locals_to_delete());
+
     for local_branch in repo.branches(Some(BranchType::Local))? {
         let (branch, _) = local_branch?;
         let branch_name = branch.name()?.context("non utf-8 local branch name")?;
         let refname = branch.get().name().context("non utf-8 local refname")?;
         let branch = LocalBranch::new(refname);
+
         if local_branches_to_delete.contains(&branch) {
             continue;
         }
+
         if let Some(preserved) = plan.get_preserved_local(&branch) {
             if preserved.base && matches!(preserved.branch, ClassifiedBranch::MergedLocal(_)) {
                 println!("    {} [{}]", branch_name, preserved.reason);
@@ -182,12 +197,15 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
         } else if let Some(suggestion) = plan.skipped.get(refname) {
             println!("    {} *{}", branch_name, suggestion.kind());
         } else {
-            println!("    {}", branch_name);
+            println!("    {branch_name}");
         }
     }
+
     println!("  remote references:");
+
     let remote_refs_to_delete = HashSet::<_>::from_iter(plan.remotes_to_delete(repo)?);
     let mut printed_remotes = HashSet::new();
+
     for remote_ref in repo.branches(Some(BranchType::Remote))? {
         let (branch, _) = remote_ref?;
         if branch.get().symbolic_target_bytes().is_some() {
@@ -198,11 +216,14 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             .get()
             .shorthand()
             .context("non utf-8 remote ref name")?;
+
         let upstream = RemoteTrackingBranch::new(refname);
         let remote_branch = upstream.to_remote_branch(repo)?;
+
         if remote_refs_to_delete.contains(&remote_branch) {
             continue;
         }
+
         if let Some(preserved) = plan.get_preserved_upstream(&upstream) {
             if preserved.base
                 && matches!(preserved.branch, ClassifiedBranch::MergedRemoteTracking(_))
@@ -219,10 +240,12 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
         } else if let Some(suggestion) = plan.skipped.get(refname) {
             println!("    {} *{}", shorthand, suggestion.kind());
         } else {
-            println!("    {}", shorthand);
+            println!("    {shorthand}");
         }
+
         printed_remotes.insert(remote_branch);
     }
+
     for preserved in &plan.preserved {
         match &preserved.branch {
             ClassifiedBranch::MergedDirectFetch { remote, .. }
@@ -240,6 +263,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
 
     if !plan.skipped.is_empty() {
         println!("  Some branches are skipped. Consider following to scan them:");
+
         let tracking = plan
             .skipped
             .values()
@@ -253,6 +277,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             }
             tmp
         };
+
         if let [single] = tracking_remotes.as_slice() {
             println!(
                 "    *{}: Add `--delete 'merged:{}'` flag.",
@@ -270,10 +295,12 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
                 SkipSuggestion::KIND_TRACKING,
             );
         }
+
         let non_tracking = plan
             .skipped
             .values()
             .any(|suggest| suggest == &SkipSuggestion::NonTracking);
+
         if non_tracking {
             println!(
                 "    *{}: Set an upstream to make it a tracking branch or add `--delete 'local'` flag.",
@@ -290,6 +317,7 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
             }
             tmp
         };
+
         if let [single] = non_upstream_remotes.as_slice() {
             println!(
                 "    *{}: Make it upstream of a tracking branch or add `--delete 'remote:{}'` flag.",
@@ -309,57 +337,46 @@ pub fn print_summary(plan: &TrimPlan, repo: &Repository) -> Result<()> {
     let mut merged_remotes = Vec::new();
     let mut stray = Vec::new();
     let mut diverged_remotes = Vec::new();
+
     for branch in &plan.to_delete {
         match branch {
             ClassifiedBranch::MergedLocal(local) => {
-                merged_locals.push(local.short_name().to_owned())
+                merged_locals.push(local.short_name().to_owned());
             }
             ClassifiedBranch::Stray(local) => stray.push(local.short_name().to_owned()),
             ClassifiedBranch::MergedRemoteTracking(upstream) => {
                 let remote = upstream.to_remote_branch(repo)?;
-                merged_remotes.push(remote.to_string())
+                merged_remotes.push(remote.to_string());
             }
             ClassifiedBranch::DivergedRemoteTracking { local, upstream } => {
                 let remote = upstream.to_remote_branch(repo)?;
                 merged_locals.push(local.short_name().to_owned());
-                diverged_remotes.push(remote.to_string())
+                diverged_remotes.push(remote.to_string());
             }
             ClassifiedBranch::MergedDirectFetch { local, remote }
             | ClassifiedBranch::DivergedDirectFetch { local, remote } => {
                 merged_locals.push(local.short_name().to_owned());
-                diverged_remotes.push(remote.to_string())
+                diverged_remotes.push(remote.to_string());
             }
             ClassifiedBranch::MergedNonTrackingLocal(local) => {
                 merged_locals.push(format!("{} (non-tracking)", local.short_name()));
             }
             ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
                 let remote = upstream.to_remote_branch(repo)?;
-                merged_remotes.push(format!("{} (non-upstream)", remote));
+                merged_remotes.push(format!("{remote} (non-upstream)"));
             }
         }
     }
 
-    fn print(label: &str, mut branches: Vec<String>) -> Result<()> {
-        if branches.is_empty() {
-            return Ok(());
-        }
-        branches.sort();
-        println!("Delete {}:", label);
-        for branch in branches {
-            println!("  - {}", branch);
-        }
-        Ok(())
-    }
-
-    print("merged local branches", merged_locals)?;
-    print("merged remote refs", merged_remotes)?;
-    print("stray local branches", stray)?;
-    print("diverged remote refs", diverged_remotes)?;
+    print("merged local branches", merged_locals);
+    print("merged remote refs", merged_remotes);
+    print("stray local branches", stray);
+    print("diverged remote refs", diverged_remotes);
 
     Ok(())
 }
 
-fn should_update(git: &Git, interval: u64, config_update: ConfigValue<bool>) -> Result<bool> {
+fn should_update(git: &Git, interval: u64, config_update: &ConfigValue<bool>) -> Result<bool> {
     if interval == 0 {
         return Ok(true);
     }
@@ -384,30 +401,28 @@ fn should_update(git: &Git, interval: u64, config_update: ConfigValue<bool>) -> 
     }
 
     let metadata = std::fs::metadata(fetch_head)?;
-    let elapsed = match metadata.modified()?.elapsed() {
-        Ok(elapsed) => elapsed,
-        Err(_) => return Ok(true),
+    let Ok(elapsed) = metadata.modified()?.elapsed() else {
+        return Ok(true);
     };
 
     Ok(elapsed.as_secs() >= interval)
 }
 
 fn prompt_survey_on_push_upstream(git: &Git) -> Result<()> {
-    for remote_name in git.repo.remotes()?.iter() {
+    for remote_name in &git.repo.remotes()? {
         let remote_name = remote_name.context("non-utf8 remote name")?;
-        let key = format!("remote.{}.push", remote_name);
+        let key = format!("remote.{remote_name}.push");
         if get::<String>(&git.config, &key).read()?.is_some() {
             println!(
                 r#"
 
 Help wanted!
-I recognize that you've set a config `git config remote.{}.push`!
+I recognize that you've set a config `git config remote.{remote_name}.push`!
 I once (mis)used that config to classify branches, but I retracted it after realizing that I don't understand the config well.
 It would be very helpful to me if you share your use cases of the config to me.
 Here's the survey URL: https://github.com/foriequal0/git-trim/issues/134
 Thank you!
-                "#,
-                remote_name
+                "#
             );
             break;
         }

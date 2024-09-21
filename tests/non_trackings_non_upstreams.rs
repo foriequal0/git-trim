@@ -61,13 +61,13 @@ fn param() -> PlanParam<'static> {
 fn test_merged_non_tracking() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             git checkout master
             git merge feature
             git branch -d feature
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -85,7 +85,7 @@ fn test_merged_non_tracking() -> Result<()> {
 fn test_merged_non_upstream() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             git config core.bare true
         EOF
@@ -95,7 +95,7 @@ fn test_merged_non_upstream() -> Result<()> {
             git branch -D feature
             git push origin master
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
