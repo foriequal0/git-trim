@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use git2::{Config, ErrorClass, ErrorCode, Oid, Repository, Signature};
-use log::*;
+use log::{debug, info, trace};
 
 use crate::branch::{Refname, RemoteTrackingBranch};
 use crate::subprocess::{self, is_merged_by_rev_list};
@@ -58,7 +58,8 @@ impl MergeTracker {
             .peel_to_commit()?
             .id()
             .to_string();
-        let mut set = self.merged_set.lock().unwrap();
+
+        let mut set = self.merged_set.lock().expect("Unable to lock merged set");
         trace!("track: {}", oid);
         set.insert(oid);
         Ok(())
@@ -83,7 +84,11 @@ impl MergeTracker {
         // I know the locking is ugly. I'm trying to hold the lock as short as possible.
         // Operations against `repo` take long time up to several seconds when the disk is slow.
         {
-            let set = self.merged_set.lock().unwrap().clone();
+            let set = self
+                .merged_set
+                .lock()
+                .expect("Unable to lock merged_set")
+                .clone();
             if set.contains(&target_commit_id_string) {
                 debug!(
                     "tracked: {} ({})",
@@ -97,7 +102,7 @@ impl MergeTracker {
                 });
             }
 
-            for merged in set.iter() {
+            for merged in &set {
                 let merged_oid = Oid::from_str(merged)?;
                 //         B  A
                 //     *--*--*
@@ -108,7 +113,7 @@ impl MergeTracker {
                 // B is also merged into base.
                 let noff_merged = match repo.merge_base(merged_oid, target_commit_id) {
                     Ok(merge_base) if merge_base == target_commit_id => {
-                        let mut set = self.merged_set.lock().unwrap();
+                        let mut set = self.merged_set.lock().expect("Unable to lock merged_set");
                         set.insert(target_commit_id_string.clone());
                         true
                     }
@@ -116,7 +121,9 @@ impl MergeTracker {
                     Err(err) if merge_base_not_found(&err) => false,
                     Err(err) => return Err(err.into()),
                 };
+
                 debug!("noff merged: ({}) -> {}", branch.refname(), &merged[0..7]);
+
                 return Ok(MergeState {
                     merged: noff_merged,
                     commit: target_commit_id_string,
@@ -125,14 +132,12 @@ impl MergeTracker {
             }
         }
 
-        fn merge_base_not_found(err: &git2::Error) -> bool {
-            err.class() == ErrorClass::Merge && err.code() == ErrorCode::NotFound
-        }
-
         if is_merged_by_rev_list(repo, base, branch.refname())? {
-            let mut set = self.merged_set.lock().unwrap();
+            let mut set = self.merged_set.lock().expect("Unable to lock merged_set");
+
             set.insert(target_commit_id_string.clone());
             debug!("rebase merged: {} -> {}", branch.refname(), &base);
+
             return Ok(MergeState {
                 merged: true,
                 commit: target_commit_id_string,
@@ -145,7 +150,7 @@ impl MergeTracker {
                 let merge_base = merge_base.to_string();
                 let squash_merged = is_squash_merged(repo, &merge_base, base, branch.refname())?;
                 if squash_merged {
-                    let mut set = self.merged_set.lock().unwrap();
+                    let mut set = self.merged_set.lock().expect("Unable to lock merged_set");
                     set.insert(target_commit_id_string.clone());
                 }
                 squash_merged
@@ -165,7 +170,11 @@ impl MergeTracker {
     }
 }
 
-/// Source: https://stackoverflow.com/a/56026209
+fn merge_base_not_found(err: &git2::Error) -> bool {
+    err.class() == ErrorClass::Merge && err.code() == ErrorCode::NotFound
+}
+
+/// Source: <https://stackoverflow.com/a/56026209>
 fn is_squash_merged(
     repo: &Repository,
     merge_base: &str,
@@ -173,7 +182,7 @@ fn is_squash_merged(
     refname: &str,
 ) -> Result<bool> {
     let tree = repo
-        .revparse_single(&format!("{}^{{tree}}", refname))?
+        .revparse_single(&format!("{refname}^{{tree}}"))?
         .peel_to_tree()?;
     let tmp_sig = Signature::now("git-trim", "git-trim@squash.merge.test.local")?;
     let dangling_commit = repo.commit(

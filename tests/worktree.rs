@@ -46,7 +46,7 @@ fn fixture() -> Fixture {
 
 #[test]
 fn test_bases_implicit_value() -> Result<()> {
-    let guard = fixture().prepare("local", r#""#)?;
+    let guard = fixture().prepare("local", r"")?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
     let plan = get_trim_plan(&git, &test_default_param())?;

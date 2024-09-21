@@ -25,7 +25,7 @@ impl Fixture {
     fn append_fixture(&self, log_level: &str, appended: &str) -> Fixture {
         let mut fixture = String::new();
         writeln!(fixture, "{}", self.fixture).unwrap();
-        writeln!(fixture, "echo ::set-level::{} >&2", log_level).unwrap();
+        writeln!(fixture, "echo ::set-level::{log_level} >&2").unwrap();
         writeln!(fixture, "{}", textwrap::dedent(appended)).unwrap();
         Fixture {
             fixture,
@@ -66,14 +66,12 @@ impl Fixture {
         println!("{:?}", tempdir.path());
         let mut command = Command::new("bash");
         command
-            .args(&["--noprofile", "--norc", "-xeo", "pipefail"])
+            .args(["--noprofile", "--norc", "-xeo", "pipefail"])
             .current_dir(tempdir.path())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        if !cfg!(windows) {
-            command.env_clear();
-        } else {
+        if cfg!(windows) {
             // If I don't touch any env, Rust just calls `CreateProcessW` with "bash"
             // However, Windows finds the binary from "C:\windows\system32" first [1]
             // and "bash.exe" is there if WSL is installed to the System.
@@ -83,6 +81,8 @@ impl Fixture {
             // [1] https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw
             // [2] https://github.com/rust-lang/rust/issues/37519
             command.env("ASDF", "QWER");
+        } else {
+            command.env_clear();
         }
         let mut bash = command.spawn()?;
 
@@ -114,15 +114,15 @@ impl Fixture {
                     match line {
                         Ok(line) if line.starts_with('+') && level.is_none() => {}
                         Ok(line) if line.starts_with('+') => {
-                            log!(target: "stderr", level.unwrap(), "{}", line)
+                            log!(target: "stderr", level.unwrap(), "{}", line);
                         }
                         Ok(line) if line.starts_with("::set-level::") => {
                             if line.starts_with("::set-level::none") {
-                                level = None
+                                level = None;
                             } else if line.starts_with("::set-level::trace") {
-                                level = Some(Level::Trace)
+                                level = Some(Level::Trace);
                             } else if line.starts_with("::set-level::debug") {
-                                level = Some(Level::Debug)
+                                level = Some(Level::Debug);
                             }
                             if let Some(level) = level {
                                 log!(target: "stderr-set-level", level, "{}", line);
@@ -149,7 +149,7 @@ impl Fixture {
     }
 }
 
-#[must_use]
+#[allow(clippy::module_name_repetitions)]
 pub struct FixtureGuard {
     tempdir: TempDir,
     working_directory: String,
@@ -164,7 +164,7 @@ impl FixtureGuard {
 pub fn rc() -> Fixture {
     Fixture::new()
         .append_fixture_none(
-            r#"
+            r"
             shopt -s expand_aliases
             within() {
                 pushd $1 > /dev/null
@@ -174,17 +174,17 @@ pub fn rc() -> Fixture {
             alias upstream='within upstream'
             alias origin='within origin'
             alias local='within local'
-            "#,
+            ",
         )
         .append_epilogue(
-            r#"
+            r"
             local <<EOF
                 pwd
                 git remote update --prune
                 git branch -vv --all
                 git log --oneline --oneline --decorate --graph --all
             EOF
-            "#,
+            ",
         )
 }
 
@@ -217,10 +217,9 @@ pub fn test_default_param() -> PlanParam<'static> {
 
 #[test]
 #[ignore]
-fn test() -> std::io::Result<()> {
+fn test() {
     let _guard = Fixture::new()
         .append_epilogue("echo 'epilogue'")
         .append_fixture("debug", "echo 'fixture'")
         .prepare("", "");
-    Ok(())
 }

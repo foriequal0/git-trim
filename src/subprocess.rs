@@ -3,7 +3,7 @@ use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
 use git2::{Config, Reference, Repository};
-use log::*;
+use log::{info, log, trace, Level};
 
 use crate::branch::{LocalBranch, RemoteBranch, RemoteTrackingBranch, RemoteTrackingBranchStatus};
 
@@ -15,10 +15,11 @@ fn git(repo: &Repository, args: &[&str], level: log::Level) -> Result<()> {
     let mut cd_args = vec!["-C", workdir];
     cd_args.extend_from_slice(args);
     let exit_status = Command::new("git").args(cd_args).status()?;
-    if !exit_status.success() {
-        Err(std::io::Error::from_raw_os_error(exit_status.code().unwrap_or(-1)).into())
-    } else {
+
+    if exit_status.success() {
         Ok(())
+    } else {
+        Err(std::io::Error::from_raw_os_error(exit_status.code().unwrap_or(-1)).into())
     }
 }
 
@@ -46,18 +47,18 @@ fn git_output(repo: &Repository, args: &[&str], level: log::Level) -> Result<Str
 }
 
 pub fn remote_update(repo: &Repository, dry_run: bool) -> Result<()> {
-    if !dry_run {
-        git(repo, &["remote", "update", "--prune"], Level::Info)
-    } else {
+    if dry_run {
         info!("> git remote update --prune (dry-run)");
         Ok(())
+    } else {
+        git(repo, &["remote", "update", "--prune"], Level::Info)
     }
 }
 
 /// Get whether there any commits are not in the `base` from the `commit`
 /// `git rev-list --cherry-pick --right-only --no-merges -n1 <base>..<commit>`
 pub fn is_merged_by_rev_list(repo: &Repository, base: &str, commit: &str) -> Result<bool> {
-    let range = format!("{}...{}", base, commit);
+    let range = format!("{base}...{commit}");
     // Is there any revs that are not applied to the base in the branch?
     let output = git_output(
         repo,
@@ -186,9 +187,12 @@ pub fn ls_remote_head(repo: &Repository, remote_name: &str) -> Result<RemoteHead
                 line["ref: ".len()..line.len() - "HEAD".len()]
                     .trim()
                     .to_owned(),
-            )
+            );
         } else {
-            commit = line.split_whitespace().next().map(|x| x.to_owned());
+            commit = line
+                .split_whitespace()
+                .next()
+                .map(std::borrow::ToOwned::to_owned);
         }
     }
     if let (Some(refname), Some(commit)) = (refname, commit) {
@@ -232,14 +236,12 @@ pub fn get_worktrees(repo: &Repository) -> Result<HashMap<LocalBranch, String>> 
     Ok(result)
 }
 
-pub fn checkout(repo: &Repository, head: Reference, dry_run: bool) -> Result<()> {
+pub fn checkout(repo: &Repository, head: &Reference, dry_run: bool) -> Result<()> {
     let head_refname = head.name().context("non-utf8 head ref name")?;
-    if !dry_run {
-        git(repo, &["checkout", head_refname], Level::Info)
-    } else {
+    if dry_run {
         info!("> git checkout {} (dry-run)", head_refname);
 
-        println!("Note: switching to '{}' (dry run)", head_refname);
+        println!("Note: switching to '{head_refname}' (dry run)");
         println!("You are in 'detached HED' state... blah blah...");
         let commit = head.peel_to_commit()?;
         let message = commit.message().context("non-utf8 head ref name")?;
@@ -249,6 +251,8 @@ pub fn checkout(repo: &Repository, head: Reference, dry_run: bool) -> Result<()>
             message.lines().next().unwrap_or_default()
         );
         Ok(())
+    } else {
+        git(repo, &["checkout", head_refname], Level::Info)
     }
 }
 
@@ -261,16 +265,16 @@ pub fn branch_delete(repo: &Repository, branches: &[&LocalBranch], dry_run: bool
         let branch_name = reference.shorthand().context("non utf-8 branch name")?;
         branch_names.push(branch_name.to_owned());
     }
-    args.extend(branch_names.iter().map(|x| x.as_str()));
+    args.extend(branch_names.iter().map(std::string::String::as_str));
 
-    if !dry_run {
-        git(repo, &args, Level::Info)
-    } else {
+    if dry_run {
         info!("> git {} (dry-run)", args.join(" "));
         for branch_name in branch_names {
-            println!("Delete branch {} (dry run).", branch_name);
+            println!("Delete branch {branch_name} (dry run).");
         }
         Ok(())
+    } else {
+        git(repo, &args, Level::Info)
     }
 }
 

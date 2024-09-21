@@ -1,8 +1,16 @@
-use vergen::{vergen, Config};
+use std::error::Error;
 
-fn main() {
-    // Generate the 'cargo:' key output
-    let mut config = Config::default();
-    *config.git_mut().skip_if_error_mut() = true;
-    vergen(config).expect("Unable to generate the cargo keys!");
+use vergen_git2::{CargoBuilder, Emitter, Git2Builder, RustcBuilder};
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let git2 = Git2Builder::default().sha(true).commit_date(true).build()?;
+    let cargo = CargoBuilder::default().target_triple(true).build()?;
+    let rustc = RustcBuilder::default().semver(true).build()?;
+
+    Emitter::default()
+        .add_instructions(&git2)?
+        .add_instructions(&cargo)?
+        .add_instructions(&rustc)?
+        .emit()?;
+    Ok(())
 }

@@ -423,11 +423,11 @@ fn test_rejected_protected_feature_to_develop() -> Result<()> {
 fn test_protected_branch_shouldnt_be_stray() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             git branch -D develop
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;

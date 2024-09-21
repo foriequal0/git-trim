@@ -52,7 +52,7 @@ fn fixture() -> Fixture {
 fn test_accepted() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             git push upstream feature:refs/pull/1/head
         EOF
@@ -63,7 +63,7 @@ fn test_accepted() -> Result<()> {
         origin <<EOF
             git branch -D feature
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -115,14 +115,14 @@ fn test_accepted_but_edited() -> Result<()> {
 fn test_accepted_but_forgot_to_delete() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             git push upstream feature:refs/pull/1/head
         EOF
         upstream <<EOF
             git merge refs/pull/1/head
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -172,12 +172,12 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
 fn test_rejected() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             git push upstream feature:refs/pull/1/head
             git branch -D feature
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
@@ -223,11 +223,11 @@ fn test_rejected_but_edited() -> Result<()> {
 fn test_rejected_but_forgot_to_delete() -> Result<()> {
     let guard = fixture().prepare(
         "local",
-        r#"
+        r"
         origin <<EOF
             git push upstream feature:refs/pull/1/head
         EOF
-        "#,
+        ",
     )?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;

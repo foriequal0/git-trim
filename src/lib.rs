@@ -1,3 +1,17 @@
+#![deny(clippy::all, clippy::pedantic, clippy::unwrap_used)]
+#![allow(
+    clippy::module_name_repetitions,
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+
+    // Ignore clippy for the generated file from shadow-rs.
+    // https://github.com/baoyachi/shadow-rs/issues/151
+    clippy::non_ascii_literal,
+    clippy::print_stdout,
+    clippy::needless_raw_strings,
+    clippy::needless_raw_string_hashes
+)]
+
 pub mod args;
 mod branch;
 pub mod config;
@@ -12,7 +26,7 @@ use std::convert::TryFrom;
 
 use anyhow::{Context, Result};
 use git2::{Config as GitConfig, Error as GitError, ErrorCode, Repository};
-use log::*;
+use log::{debug, info, trace};
 
 use crate::args::DeleteFilter;
 use crate::branch::RemoteTrackingBranchStatus;
@@ -51,6 +65,7 @@ pub struct PlanParam<'a> {
     pub detach: bool,
 }
 
+#[allow(clippy::too_many_lines)]
 pub fn get_trim_plan(git: &Git, param: &PlanParam) -> Result<TrimPlan> {
     let bases = resolve_bases(&git.repo, &git.config, &param.bases)?;
     let base_upstreams: Vec<_> = bases
@@ -241,14 +256,14 @@ pub(crate) fn resolve_bases<'a>(
                     pattern: base,
                     local,
                     upstream,
-                })
+                });
             }
         } else {
             let remote = RemoteTrackingBranch::try_from(&reference)?;
             result.push(BaseSpec::Remote {
                 pattern: base,
                 remote,
-            })
+            });
         }
     }
 
@@ -277,7 +292,7 @@ pub fn delete_local_branches(
     };
 
     if let Some(head) = detach_to {
-        subprocess::checkout(repo, head, dry_run)?;
+        subprocess::checkout(repo, &head, dry_run)?;
     }
     subprocess::branch_delete(repo, branches, dry_run)?;
 
@@ -299,7 +314,7 @@ pub fn delete_remote_branches(
             .or_insert_with(Vec::new);
         entry.push(remote_branch);
     }
-    for (remote_name, remote_refnames) in per_remote.iter() {
+    for (remote_name, remote_refnames) in &per_remote {
         subprocess::push_delete(repo, remote_name, remote_refnames, dry_run)?;
     }
     Ok(())

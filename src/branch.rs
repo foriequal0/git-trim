@@ -2,7 +2,6 @@ use std::convert::TryFrom;
 
 use anyhow::{Context, Result};
 use git2::{Branch, Config, Direction, Reference, Repository};
-use log::*;
 use thiserror::Error;
 
 use crate::config;
@@ -18,6 +17,7 @@ pub struct LocalBranch {
 }
 
 impl LocalBranch {
+    #[must_use]
     pub fn new(refname: &str) -> Self {
         assert!(refname.starts_with("refs/heads/"));
         Self {
@@ -25,6 +25,7 @@ impl LocalBranch {
         }
     }
 
+    #[must_use]
     pub fn short_name(&self) -> &str {
         &self.refname["refs/heads/".len()..]
     }
@@ -34,11 +35,10 @@ impl LocalBranch {
         repo: &Repository,
         config: &Config,
     ) -> Result<RemoteTrackingBranchStatus> {
-        let remote_name = if let Some(remote_name) = config::get_remote_name(config, self)? {
-            remote_name
-        } else {
+        let Some(remote_name) = config::get_remote_name(config, self)? else {
             return Ok(RemoteTrackingBranchStatus::None);
         };
+
         let merge: String = if let Some(merge) = config::get_merge(config, self)? {
             merge
         } else {
@@ -89,6 +89,7 @@ pub struct RemoteTrackingBranch {
 }
 
 impl RemoteTrackingBranch {
+    #[must_use]
     pub fn new(refname: &str) -> RemoteTrackingBranch {
         assert!(refname.starts_with("refs/remotes/"));
         RemoteTrackingBranch {
@@ -102,14 +103,13 @@ impl RemoteTrackingBranch {
     ) -> Result<RemoteTrackingBranchStatus> {
         let remote = config::get_remote(repo, &remote_branch.remote)?;
         if let Some(remote) = remote {
-            let refname = if let Some(expanded) = expand_refspec(
+            let Some(refname) = expand_refspec(
                 &remote,
                 &remote_branch.refname,
                 Direction::Fetch,
                 ExpansionSide::Right,
-            )? {
-                expanded
-            } else {
+            )?
+            else {
                 return Ok(RemoteTrackingBranchStatus::None);
             };
 
@@ -117,9 +117,9 @@ impl RemoteTrackingBranch {
                 return Ok(RemoteTrackingBranchStatus::Exists(
                     RemoteTrackingBranch::new(&refname),
                 ));
-            } else {
-                return Ok(RemoteTrackingBranchStatus::Gone(refname));
             }
+
+            return Ok(RemoteTrackingBranchStatus::Gone(refname));
         }
         Ok(RemoteTrackingBranchStatus::None)
     }
@@ -128,7 +128,7 @@ impl RemoteTrackingBranch {
         &self,
         repo: &Repository,
     ) -> std::result::Result<RemoteBranch, RemoteBranchError> {
-        for remote_name in repo.remotes()?.iter() {
+        for remote_name in &repo.remotes()? {
             let remote_name = remote_name.context("non-utf8 remote name")?;
             let remote = repo.find_remote(remote_name)?;
             if let Some(expanded) = expand_refspec(
