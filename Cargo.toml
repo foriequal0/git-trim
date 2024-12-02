@@ -26,11 +26,10 @@ build-man = ["man"]
 vergen = "7.4.4"
 
 [dependencies]
-dialoguer = "0.10.2"
-env_logger = "0.10.0"
+dialoguer = "0.11.0"
+env_logger = "0.11.5"
 git2 = "0.15.0"
 log = "0.4.17"
-paw = "1.0.0"
 clap = { version = "4.0.27", features = ["derive"] }
 anyhow = "1.0.66"
 rayon = "1.6.0"
