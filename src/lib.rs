@@ -198,7 +198,7 @@ pub(crate) enum BaseSpec<'a> {
     },
 }
 
-impl<'a> BaseSpec<'a> {
+impl BaseSpec<'_> {
     fn is_local(&self, branch: &LocalBranch) -> bool {
         matches!(self, BaseSpec::Local { local, .. } if local == branch)
     }
