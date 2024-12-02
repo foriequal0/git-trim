@@ -631,7 +631,7 @@ pub struct TrackingBranchClassificationRequest<'a> {
     pub upstream: Option<&'a RemoteTrackingBranch>,
 }
 
-impl<'a> ClassificationRequest for TrackingBranchClassificationRequest<'a> {
+impl ClassificationRequest for TrackingBranchClassificationRequest<'_> {
     fn classify(
         &self,
         git: ForceSendSync<&Git>,
@@ -751,7 +751,7 @@ pub struct NonTrackingBranchClassificationRequest<'a> {
     pub local: &'a LocalBranch,
 }
 
-impl<'a> ClassificationRequest for NonTrackingBranchClassificationRequest<'a> {
+impl ClassificationRequest for NonTrackingBranchClassificationRequest<'_> {
     fn classify(
         &self,
         git: ForceSendSync<&Git>,
@@ -779,7 +779,7 @@ pub struct NonUpstreamBranchClassificationRequest<'a> {
     pub remote: &'a RemoteTrackingBranch,
 }
 
-impl<'a> ClassificationRequest for NonUpstreamBranchClassificationRequest<'a> {
+impl ClassificationRequest for NonUpstreamBranchClassificationRequest<'_> {
     fn classify(
         &self,
         git: ForceSendSync<&Git>,
