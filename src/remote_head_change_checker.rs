@@ -96,9 +96,9 @@ impl RemoteHeadChangeChecker {
         }
         eprintln!(
             r#"Or you can set base branches manually:
- * `git config trim.bases develop,master` will set base branches for git-trim for a repository.
- * `git config --global trim.bases develop,master` will set base branches for `git-trim` globally.
- * `git trim --bases develop,master` will temporarily set base branches for `git-trim`"#
+ * `git config trim.bases develop,main` will set base branches for git-trim for a repository.
+ * `git config --global trim.bases develop,main` will set base branches for `git-trim` globally.
+ * `git trim --bases develop,main` will temporarily set base branches for `git-trim`"#
         );
 
         Ok(())

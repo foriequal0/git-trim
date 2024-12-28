@@ -63,7 +63,7 @@ fn test_merged_non_tracking() -> Result<()> {
         "local",
         r#"
         origin <<EOF
-            git checkout master
+            git checkout main
             git merge feature
             git branch -d feature
         EOF
@@ -90,10 +90,10 @@ fn test_merged_non_upstream() -> Result<()> {
             git config core.bare true
         EOF
         local <<EOF
-            git checkout master
+            git checkout main
             git merge feature
             git branch -D feature
-            git push origin master
+            git push origin main
         EOF
         "#,
     )?;

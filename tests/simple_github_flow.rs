@@ -45,7 +45,7 @@ fn test_accepted() -> Result<()> {
         "local",
         r#"
         origin <<EOF
-            git checkout master
+            git checkout main
             git merge feature
             git branch -d feature
         EOF
@@ -69,7 +69,7 @@ fn test_accepted_but_edited() -> Result<()> {
         "local",
         r#"
         origin <<EOF
-            git checkout master
+            git checkout main
             git merge feature
             git branch -d feature
         EOF
@@ -97,7 +97,7 @@ fn test_accepted_but_forgot_to_delete() -> Result<()> {
         "local",
         r#"
         origin <<EOF
-            git checkout master
+            git checkout main
             git merge feature
         EOF
         "#,
@@ -120,7 +120,7 @@ fn test_accepted_but_forgot_to_delete_and_edited() -> Result<()> {
         "local",
         r#"
         origin <<EOF
-            git checkout master
+            git checkout main
             git merge feature
         EOF
         local <<EOF

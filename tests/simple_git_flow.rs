@@ -22,7 +22,7 @@ fn fixture() -> Fixture {
             git add README.md
             git commit -m "Initial commit"
 
-            git branch develop master
+            git branch develop main
         EOF
         git clone origin local
         local <<EOF
@@ -39,7 +39,7 @@ fn fixture() -> Fixture {
 
 fn param() -> PlanParam<'static> {
     PlanParam {
-        bases: vec!["develop", "master"], // Need to set bases manually for git flow
+        bases: vec!["develop", "main"], // Need to set bases manually for git flow
         ..test_default_param()
     }
 }
@@ -111,7 +111,7 @@ fn test_feature_to_develop_but_forgot_to_delete() -> Result<()> {
 }
 
 #[test]
-fn test_develop_to_master() -> Result<()> {
+fn test_develop_to_main() -> Result<()> {
     let guard = fixture().prepare(
         "local",
         r#"
@@ -128,7 +128,7 @@ fn test_develop_to_master() -> Result<()> {
             git merge feature
             git branch -d feature
 
-            git checkout master
+            git checkout main
             git merge develop
         EOF
         "#,
@@ -147,7 +147,7 @@ fn test_develop_to_master() -> Result<()> {
 }
 
 #[test]
-fn test_develop_to_master_but_forgot_to_delete() -> Result<()> {
+fn test_develop_to_main_but_forgot_to_delete() -> Result<()> {
     let guard = fixture().prepare(
         "local",
         r#"
@@ -163,7 +163,7 @@ fn test_develop_to_master_but_forgot_to_delete() -> Result<()> {
             git checkout develop
             git merge feature
 
-            git checkout master
+            git checkout main
             git merge develop
         EOF
         "#,
@@ -183,13 +183,13 @@ fn test_develop_to_master_but_forgot_to_delete() -> Result<()> {
 }
 
 #[test]
-fn test_hotfix_to_master() -> Result<()> {
+fn test_hotfix_to_main() -> Result<()> {
     let guard = fixture().prepare(
         "local",
         r#"
         # prepare awesome patch
         local <<EOF
-            git checkout master
+            git checkout main
             git checkout -b hotfix
             touch hotfix
             git add hotfix
@@ -198,7 +198,7 @@ fn test_hotfix_to_master() -> Result<()> {
         EOF
 
         origin <<EOF
-            git checkout master
+            git checkout main
             git merge hotfix
             git branch -D hotfix
         EOF
@@ -218,13 +218,13 @@ fn test_hotfix_to_master() -> Result<()> {
 }
 
 #[test]
-fn test_hotfix_to_master_forgot_to_delete() -> Result<()> {
+fn test_hotfix_to_main_forgot_to_delete() -> Result<()> {
     let guard = fixture().prepare(
         "local",
         r#"
         # prepare awesome patch
         local <<EOF
-            git checkout master
+            git checkout main
             git checkout -b hotfix
             touch hotfix
             git add hotfix
@@ -233,7 +233,7 @@ fn test_hotfix_to_master_forgot_to_delete() -> Result<()> {
         EOF
 
         origin <<EOF
-            git checkout master
+            git checkout main
             git merge hotfix
         EOF
         "#,
@@ -284,13 +284,13 @@ fn test_rejected_feature_to_develop() -> Result<()> {
 }
 
 #[test]
-fn test_rejected_hotfix_to_master() -> Result<()> {
+fn test_rejected_hotfix_to_main() -> Result<()> {
     let guard = fixture().prepare(
         "local",
         r#"
         # prepare awesome patch
         local <<EOF
-            git checkout master
+            git checkout main
             git checkout -b hotfix
             touch hotfix
             git add hotfix
@@ -351,7 +351,7 @@ fn test_protected_feature_to_develop() -> Result<()> {
 }
 
 #[test]
-fn test_protected_feature_to_master() -> Result<()> {
+fn test_protected_feature_to_main() -> Result<()> {
     let guard = fixture().prepare(
         "local",
         r#"
@@ -368,8 +368,8 @@ fn test_protected_feature_to_master() -> Result<()> {
             git merge feature
             git branch -d feature
 
-            git checkout master
-            git merge master
+            git checkout main
+            git merge main
         EOF
         "#,
     )?;
@@ -434,7 +434,7 @@ fn test_protected_branch_shouldnt_be_stray() -> Result<()> {
     let plan = get_trim_plan(
         &git,
         &PlanParam {
-            protected_patterns: vec!["refs/heads/master", "refs/heads/develop"],
+            protected_patterns: vec!["refs/heads/main", "refs/heads/develop"],
             ..param()
         },
     )?;

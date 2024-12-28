@@ -34,7 +34,7 @@ fn fixture() -> Fixture {
             git config push.default simple
             git remote add upstream ../upstream
             git fetch upstream
-            git branch -u upstream/master master
+            git branch -u upstream/main main
         EOF
         origin <<EOF
             git checkout -b feature
@@ -81,7 +81,7 @@ fn test_accepted() -> Result<()> {
         EOF
         # clicked delete branch button
         origin <<EOF
-            git checkout master
+            git checkout main
             git branch -D feature
         EOF
         "#,
@@ -152,7 +152,7 @@ fn test_modified_and_accepted() -> Result<()> {
         EOF
         # click delete button
         origin <<EOF
-            git checkout master
+            git checkout main
             git branch -D feature
         EOF
         "#,
@@ -220,7 +220,7 @@ fn test_rejected() -> Result<()> {
         EOF
         # clicked delete branch button
         origin <<EOF
-            git checkout master
+            git checkout main
             git branch -D feature
         EOF
         "#,
