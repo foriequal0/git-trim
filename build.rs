@@ -1,8 +1,11 @@
-use vergen::{vergen, Config};
+use vergen_gix::{BuildBuilder, CargoBuilder, Emitter, GixBuilder, RustcBuilder, SysinfoBuilder};
 
-fn main() {
-    // Generate the 'cargo:' key output
-    let mut config = Config::default();
-    *config.git_mut().skip_if_error_mut() = true;
-    vergen(config).expect("Unable to generate the cargo keys!");
+fn main() -> anyhow::Result<()> {
+    Emitter::default()
+        .add_instructions(&BuildBuilder::all_build()?)?
+        .add_instructions(&CargoBuilder::all_cargo()?)?
+        .add_instructions(&GixBuilder::all_git()?)?
+        .add_instructions(&RustcBuilder::all_rustc()?)?
+        .add_instructions(&SysinfoBuilder::all_sysinfo()?)?
+        .emit()
 }
