@@ -22,12 +22,14 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     env_logger::init();
-    info!("SEMVER: {}", env!("VERGEN_BUILD_SEMVER"));
-    info!("SHA: {:?}", option_env!("VERGEN_GIT_SHA"));
-    info!(
-        "COMMIT_DATE: {:?}",
-        option_env!("VERGEN_GIT_COMMIT_TIMESTAMP")
-    );
+    if let Some(version) = option_env!("VERGEN_GIT_DESCRIBE") {
+        info!("VERSION: {version}");
+    } else {
+        info!("VERSION: {}", env!("CARGO_PKG_VERSION"));
+    }
+    if let Some(commit_date) = option_env!("VERGEN_GIT_COMMIT_TIMESTAMP") {
+        info!("COMMIT_DATE: {commit_date}");
+    }
     info!("TARGET_TRIPLE: {}", env!("VERGEN_CARGO_TARGET_TRIPLE"));
 
     let git = Git::try_from(Repository::open_from_env()?)?;
