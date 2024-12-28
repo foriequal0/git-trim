@@ -204,7 +204,7 @@ impl<'a, T> ConfigBuilder<'a, T> {
     }
 }
 
-impl<'a, T> ConfigBuilder<'a, T>
+impl<T> ConfigBuilder<'_, T>
 where
     T: ConfigValues,
 {
@@ -226,7 +226,7 @@ where
     }
 }
 
-impl<'a, T> ConfigBuilder<'a, T> {
+impl<T> ConfigBuilder<'_, T> {
     fn parses_and_collect<U>(self) -> Result<ConfigValue<U>>
     where
         T: IntoIterator,

@@ -174,6 +174,11 @@ pub fn rc() -> Fixture {
             alias upstream='within upstream'
             alias origin='within origin'
             alias local='within local'
+
+            # TODO: Temporarily fix to pass tests on macOS
+            git() {
+               command git -c init.defaultBranch=master "$@"
+            }
             "#,
         )
         .append_epilogue(
