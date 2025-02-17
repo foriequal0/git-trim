@@ -12,11 +12,11 @@ jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - run: |
         rustup set profile default
         rustup show
-    - uses: actions/setup-python@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: 3.11
     - name: Install pre-commit
@@ -30,7 +30,7 @@ jobs:
   clippy:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - run: |
         rustup set profile default
         rustup show
@@ -53,7 +53,7 @@ jobs:
           short: win
       fail-fast: false
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - run: |
         rustup set profile minimal
         rustup show
@@ -78,7 +78,7 @@ jobs:
           short: win
       fail-fast: false
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - run: |
         rustup set profile minimal
         rustup show
@@ -104,7 +104,7 @@ jobs:
             shasum -a 256 'git-trim' | tee artifacts/sha256sums
         fi
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: git-trim-${{matrix.os.short}}-${{env.VERSION}}
         path: target/debug/artifacts/
@@ -112,7 +112,7 @@ jobs:
   docs-are-up-to-date:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - run: |
         rustup set profile minimal
         rustup show
