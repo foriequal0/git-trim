@@ -45,7 +45,7 @@ fn fixture() -> Fixture {
 }
 
 #[test]
-fn test_bases_implicit_value() -> Result<()> {
+fn test_worktree_checkouts_should_be_preserved() -> Result<()> {
     let guard = fixture().prepare("local", r#""#)?;
 
     let git = Git::try_from(Repository::open(guard.working_directory())?)?;
