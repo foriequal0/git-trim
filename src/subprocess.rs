@@ -283,7 +283,7 @@ pub fn push_delete(
     assert!(remote_branches
         .iter()
         .all(|branch| branch.remote == remote_name));
-    let mut command = vec!["push", "--delete"];
+    let mut command = vec!["push", "--delete", "--no-verify"];
     if dry_run {
         command.push("--dry-run");
     }
