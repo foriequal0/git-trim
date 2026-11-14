@@ -2,7 +2,6 @@ use std::convert::TryFrom;
 
 use anyhow::{Context, Result};
 use git2::{Branch, Config, Direction, Reference, Repository};
-use log::*;
 use thiserror::Error;
 
 use crate::config;
