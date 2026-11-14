@@ -24,7 +24,7 @@ build-man = ["man"]
 
 [build-dependencies]
 anyhow = "1.0.95"
-vergen-gix = { version = "1.0.0", features = ["build", "cargo", "rustc", "si"] }
+vergen-gix = { version = "10.0.3", features = ["build", "cargo", "rustc", "si"] }
 
 [dependencies]
 anyhow = "1.0.95"
