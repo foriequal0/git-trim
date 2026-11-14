@@ -128,7 +128,10 @@ fn error_no_bases(repo: &Repository, bases: &ConfigValue<HashSet<String>>) -> Re
             let remotes = repo.remotes()?;
             let remotes: Vec<_> = remotes.iter().collect();
             if remotes.len() == 1 {
-                let remote = remotes[0].expect("non utf-8 remote name");
+                let remote = remotes[0]
+                    .as_ref()
+                    .expect("non utf-8 remote name")
+                    .expect("remote name not exist");
                 eprintln!("I can't detect base branch! Try following any resolution:");
                 eprint_bullet(&format!(
                     "\
@@ -396,7 +399,9 @@ fn should_update(git: &Git, interval: u64, config_update: ConfigValue<bool>) -> 
 
 fn prompt_survey_on_push_upstream(git: &Git) -> Result<()> {
     for remote_name in git.repo.remotes()?.iter() {
-        let remote_name = remote_name.context("non-utf8 remote name")?;
+        let remote_name = remote_name
+            .context("non-utf8 remote name")?
+            .context("remote name not exist")?;
         let key = format!("remote.{}.push", remote_name);
         if get::<String>(&git.config, &key).read()?.is_some() {
             println!(
