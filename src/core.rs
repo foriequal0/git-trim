@@ -279,7 +279,7 @@ impl TrimPlan {
                 ClassifiedBranch::MergedRemoteTracking(upstream) => {
                     let remote = upstream.to_remote_branch(repo)?;
                     if !filter.delete_merged_remote(&remote.remote) {
-                        Some(format!("merged-remote:{}", &remote.remote))
+                        Some(format!("merged-remote:{}", remote.remote))
                     } else {
                         None
                     }
@@ -287,7 +287,7 @@ impl TrimPlan {
                 ClassifiedBranch::DivergedRemoteTracking { upstream, .. } => {
                     let remote = upstream.to_remote_branch(repo)?;
                     if !filter.delete_diverged(&remote.remote) {
-                        Some(format!("diverged:{}", &remote.remote))
+                        Some(format!("diverged:{}", remote.remote))
                     } else {
                         None
                     }
@@ -295,14 +295,14 @@ impl TrimPlan {
 
                 ClassifiedBranch::MergedDirectFetch { remote, .. } => {
                     if !filter.delete_merged_remote(&remote.remote) {
-                        Some(format!("merged-remote:{}", &remote.remote))
+                        Some(format!("merged-remote:{}", remote.remote))
                     } else {
                         None
                     }
                 }
                 ClassifiedBranch::DivergedDirectFetch { remote, .. } => {
                     if !filter.delete_diverged(&remote.remote) {
-                        Some(format!("diverged:{}", &remote.remote))
+                        Some(format!("diverged:{}", remote.remote))
                     } else {
                         None
                     }
@@ -318,7 +318,7 @@ impl TrimPlan {
                 ClassifiedBranch::MergedNonUpstreamRemoteTracking(upstream) => {
                     let remote = upstream.to_remote_branch(repo)?;
                     if !filter.delete_merged_non_upstream_remote_tracking(&remote.remote) {
-                        Some(format!("remote:{}", &remote.remote))
+                        Some(format!("remote:{}", remote.remote))
                     } else {
                         None
                     }
