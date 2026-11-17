@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-    - v*
+      - v*
 
 jobs:
   upload-artifacts:
@@ -11,114 +11,114 @@ jobs:
     strategy:
       matrix:
         os:
-        - long: ubuntu-latest
-          short: linux
-        - long: macOS-latest
-          short: mac
-        - long: windows-latest
-          short: win
+          - long: ubuntu-latest
+            short: linux
+          - long: macOS-latest
+            short: mac
+          - long: windows-latest
+            short: win
     steps:
-    - uses: actions/checkout@v4
-    - run: |
-        rustup set profile minimal
-        rustup show
-    - run: cargo fetch --verbose
-    - run: cargo build --release
-    - name: Archive
-      shell: bash
-      working-directory: target/release
-      run: |
-        VERSION="${{github.ref}}"
-        VERSION="${VERSION#refs/tags/}"
-        ARCHIVE="git-trim-${{matrix.os.short}}-$VERSION.tgz"
-        echo "VERSION=$VERSION" >> $GITHUB_ENV
-        echo "ARCHIVE=$ARCHIVE" >> $GITHUB_ENV
+      - uses: actions/checkout@v7
+      - run: |
+          rustup set profile minimal
+          rustup show
+      - run: cargo fetch --verbose
+      - run: cargo build --release
+      - name: Archive
+        shell: bash
+        working-directory: target/release
+        run: |
+          VERSION="${{github.ref}}"
+          VERSION="${VERSION#refs/tags/}"
+          ARCHIVE="git-trim-${{matrix.os.short}}-$VERSION.tgz"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "ARCHIVE=$ARCHIVE" >> $GITHUB_ENV
 
-        rm -rf artifacts
-        mkdir -p artifacts/git-trim
-        cp 'git-trim' artifacts/git-trim/
-        echo '${{github.sha}} ${{github.ref}}' | tee artifacts/git-trim/git-ref
+          rm -rf artifacts
+          mkdir -p artifacts/git-trim
+          cp 'git-trim' artifacts/git-trim/
+          echo '${{github.sha}} ${{github.ref}}' | tee artifacts/git-trim/git-ref
 
-        if command -v sha256sum; then
-            sha256sum 'git-trim' | tee artifacts/git-trim/sha256sums
-        else
-            shasum -a 256 'git-trim' | tee artifacts/git-trim/sha256sums
-        fi
+          if command -v sha256sum; then
+              sha256sum 'git-trim' | tee artifacts/git-trim/sha256sums
+          else
+              shasum -a 256 'git-trim' | tee artifacts/git-trim/sha256sums
+          fi
 
-        cd artifacts
-        tar cvzf "$ARCHIVE" git-trim
-    - uses: actions/upload-artifact@v1
-      with:
-        name: git-trim-${{matrix.os.short}}-${{env.VERSION}}
-        path: target/release/artifacts/${{env.ARCHIVE}}
+          cd artifacts
+          tar cvzf "$ARCHIVE" git-trim
+      - uses: actions/upload-artifact@v1
+        with:
+          name: git-trim-${{matrix.os.short}}-${{env.VERSION}}
+          path: target/release/artifacts/${{env.ARCHIVE}}
 
   github-release:
     needs:
-    - upload-artifacts
+      - upload-artifacts
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-    - run: |
-        VERSION="${{github.ref}}"
-        VERSION="${VERSION#refs/tags/}"
-        echo "VERSION=$VERSION" >> $GITHUB_ENV
-    - uses: actions/download-artifact@v4
-      with:
-        name: git-trim-linux-${{env.VERSION}}
-        path: ./
-    - uses: actions/download-artifact@v4
-      with:
-        name: git-trim-mac-${{env.VERSION}}
-        path: ./
-    - uses: actions/download-artifact@v4
-      with:
-        name: git-trim-win-${{env.VERSION}}
-        path: ./
+      - run: |
+          VERSION="${{github.ref}}"
+          VERSION="${VERSION#refs/tags/}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+      - uses: actions/download-artifact@v4
+        with:
+          name: git-trim-linux-${{env.VERSION}}
+          path: ./
+      - uses: actions/download-artifact@v4
+        with:
+          name: git-trim-mac-${{env.VERSION}}
+          path: ./
+      - uses: actions/download-artifact@v4
+        with:
+          name: git-trim-win-${{env.VERSION}}
+          path: ./
 
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: true
-        prerelease: true
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: true
+          prerelease: true
 
-    - name: Upload Release Asset - linux
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-        asset_path: ./git-trim-linux-${{env.VERSION}}.tgz
-        asset_name: git-trim-linux-${{env.VERSION}}.tgz
-        asset_content_type: application/gzip
+      - name: Upload Release Asset - linux
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+          asset_path: ./git-trim-linux-${{env.VERSION}}.tgz
+          asset_name: git-trim-linux-${{env.VERSION}}.tgz
+          asset_content_type: application/gzip
 
-    - name: Upload Release Asset - mac
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./git-trim-mac-${{env.VERSION}}.tgz
-        asset_name: git-trim-mac-${{env.VERSION}}.tgz
-        asset_content_type: application/gzip
+      - name: Upload Release Asset - mac
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./git-trim-mac-${{env.VERSION}}.tgz
+          asset_name: git-trim-mac-${{env.VERSION}}.tgz
+          asset_content_type: application/gzip
 
-    - name: Upload Release Asset - win
-      uses: actions/upload-release-asset@v1
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./git-trim-win-${{env.VERSION}}.tgz
-        asset_name: git-trim-win-${{env.VERSION}}.tgz
-        asset_content_type: application/gzip
+      - name: Upload Release Asset - win
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./git-trim-win-${{env.VERSION}}.tgz
+          asset_name: git-trim-win-${{env.VERSION}}.tgz
+          asset_content_type: application/gzip
 
   cargo-publish:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - run: |
-        rustup set profile minimal
-        rustup show
-    - run: cargo fetch --verbose
-    - name: Cargo publish
-      run: |
-        cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
+      - uses: actions/checkout@v7
+      - run: |
+          rustup set profile minimal
+          rustup show
+      - run: cargo fetch --verbose
+      - name: Cargo publish
+        run: |
+          cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
