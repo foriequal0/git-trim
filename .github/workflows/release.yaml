@@ -44,7 +44,7 @@ jobs:
 
           cd artifacts
           tar cvzf "$ARCHIVE" git-trim
-      - uses: actions/upload-artifact@v1
+      - uses: actions/upload-artifact@v7
         with:
           name: git-trim-${{matrix.os.short}}-${{env.VERSION}}
           path: target/release/artifacts/${{env.ARCHIVE}}
@@ -60,15 +60,15 @@ jobs:
           VERSION="${{github.ref}}"
           VERSION="${VERSION#refs/tags/}"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: git-trim-linux-${{env.VERSION}}
           path: ./
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: git-trim-mac-${{env.VERSION}}
           path: ./
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: git-trim-win-${{env.VERSION}}
           path: ./
