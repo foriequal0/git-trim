@@ -1,17 +1,17 @@
 repos:
-- repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v2.4.0
-  hooks:
-  - id: trailing-whitespace
-  - id: end-of-file-fixer
-    exclude: ^docs/.* # exclude generated docs
-  - id: check-yaml
-  - id: check-toml
-- repo: local
-  hooks:
-  - id: fmt
-    name: fmt
-    description: Format files with rustfmt.
-    entry: cargo fmt --
-    language: system
-    types: [rust]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+        exclude: ^docs/.* # exclude generated docs
+      - id: check-yaml
+      - id: check-toml
+  - repo: local
+    hooks:
+      - id: fmt
+        name: fmt
+        description: Format files with rustfmt.
+        entry: cargo fmt --
+        language: system
+        types: [ rust ]
