@@ -34,7 +34,7 @@ fn fixture() -> Fixture {
 }
 
 #[test]
-fn test_bases_implicit_value() -> Result<()> {
+fn test_orphan_should_not_crash() -> Result<()> {
     let guard = fixture().prepare(
         "local",
         r#"

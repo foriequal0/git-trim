@@ -1,15 +1,14 @@
-use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::iter::FromIterator;
 use std::ops::Deref;
 use std::str::FromStr;
 
 use anyhow::{Context, Result};
-use git2::{BranchType, Config as GitConfig, Error, ErrorClass, ErrorCode, Remote, Repository};
+use git2::{Config as GitConfig, Error, ErrorClass, ErrorCode, Remote, Repository};
 use log::*;
 
 use crate::args::{Args, DeleteFilter, DeleteRange};
-use crate::branch::{LocalBranch, RemoteTrackingBranchStatus};
+use crate::branch::LocalBranch;
 use std::collections::HashSet;
 
 type GitResult<T> = std::result::Result<T, git2::Error>;
@@ -37,7 +36,7 @@ impl Config {
 
         let bases = get_comma_separated_multi(config, "trim.bases")
             .with_explicit(non_empty(args.bases.clone()))
-            .with_default(get_branches_tracks_remote_heads(repo, config)?)
+            .with_default(get_all_remote_heads(repo)?)
             .parses_and_collect::<HashSet<String>>()?;
         let protected = get_comma_separated_multi(config, "trim.protected")
             .with_explicit(non_empty(args.protected.clone()))
@@ -79,9 +78,8 @@ impl Config {
     }
 }
 
-fn get_branches_tracks_remote_heads(repo: &Repository, config: &GitConfig) -> Result<Vec<String>> {
-    let mut local_bases = Vec::new();
-    let mut all_bases = Vec::new();
+fn get_all_remote_heads(repo: &Repository) -> Result<Vec<String>> {
+    let mut bases = Vec::new();
 
     for reference in repo.references_glob("refs/remotes/*/HEAD")? {
         let reference = reference?;
@@ -97,27 +95,10 @@ fn get_branches_tracks_remote_heads(repo: &Repository, config: &GitConfig) -> Re
             }
         };
         let refname = resolved.name().context("non utf-8 reference name")?;
-        all_bases.push(refname.to_owned());
-
-        for branch in repo.branches(Some(BranchType::Local))? {
-            let (branch, _) = branch?;
-            let branch = LocalBranch::try_from(&branch)?;
-
-            if let RemoteTrackingBranchStatus::Exists(upstream) =
-                branch.fetch_upstream(repo, config)?
-            {
-                if upstream.refname == refname {
-                    local_bases.push(branch.short_name().to_owned());
-                }
-            }
-        }
+        bases.push(refname.to_owned());
     }
 
-    if local_bases.is_empty() {
-        Ok(all_bases)
-    } else {
-        Ok(local_bases)
-    }
+    Ok(bases)
 }
 
 #[derive(Debug, Eq, PartialEq)]
