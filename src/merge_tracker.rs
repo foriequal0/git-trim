@@ -132,7 +132,7 @@ impl MergeTracker {
         if is_merged_by_rev_list(repo, base, branch.refname())? {
             let mut set = self.merged_set.lock().unwrap();
             set.insert(target_commit_id_string.clone());
-            debug!("rebase merged: {} -> {}", branch.refname(), &base);
+            debug!("rebase merged: {} -> {}", branch.refname(), base);
             return Ok(MergeState {
                 merged: true,
                 commit: target_commit_id_string,
@@ -155,7 +155,7 @@ impl MergeTracker {
         };
 
         if squash_merged {
-            debug!("squash merged: {} -> {}", branch.refname(), &base);
+            debug!("squash merged: {} -> {}", branch.refname(), base);
         }
         Ok(MergeState {
             merged: squash_merged,

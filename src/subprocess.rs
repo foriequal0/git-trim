@@ -109,7 +109,7 @@ pub fn get_noff_merged_locals(
                 }
             }
             let reference = repo.find_reference(refname)?;
-            if reference.symbolic_target().is_some() {
+            if reference.symbolic_target().is_ok() {
                 continue;
             }
             result.insert(branch);
@@ -144,7 +144,7 @@ pub fn get_noff_merged_remotes(
                 continue;
             }
             let reference = repo.find_reference(refname)?;
-            if reference.symbolic_target().is_some() {
+            if reference.symbolic_target().is_ok() {
                 continue;
             }
             result.insert(branch);

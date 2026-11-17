@@ -1,7 +1,7 @@
 use std::fmt::Write;
 use std::io::{BufRead, BufReader, Error, Write as _};
 use std::iter::FromIterator;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread::spawn;
 
@@ -64,26 +64,33 @@ impl Fixture {
 
         let tempdir = tempdir()?;
         println!("{:?}", tempdir.path());
-        let mut command = Command::new("bash");
+        let program = if cfg!(windows) {
+            // Windows finds the binary from "C:\windows\system32" first [1]
+            // and "bash.exe" is there if WSL is installed to the System.
+            // However, when there is no WSL distro, it just spits an error message.
+            // [1] https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw
+            let mut bash = None;
+            let path = std::env::var_os("PATH").expect("'PATH' is not set");
+            for path in std::env::split_paths(&path) {
+                let exe = path.join("bash.exe");
+                if exe.exists() {
+                    bash = Some(exe);
+                    break;
+                }
+            }
+
+            bash.expect("bash.exe not found in %PATH%")
+        } else {
+            Path::new("bash").to_path_buf()
+        };
+
+        let mut command = Command::new(program);
         command
             .args(&["--noprofile", "--norc", "-xeo", "pipefail"])
             .current_dir(tempdir.path())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        if !cfg!(windows) {
-            command.env_clear();
-        } else {
-            // If I don't touch any env, Rust just calls `CreateProcessW` with "bash"
-            // However, Windows finds the binary from "C:\windows\system32" first [1]
-            // and "bash.exe" is there if WSL is installed to the System.
-            // However, when there is no WSL distro (ex: GitHub Actions), it just raise an error.
-            // When I touch any of env, Rust finds the binary from `%PATH%` [2]
-            // It is weird and unreliable hack, but I DONT WANT WSL BASH AND IT WORKS FOR NOW.
-            // [1] https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw
-            // [2] https://github.com/rust-lang/rust/issues/37519
-            command.env("ASDF", "QWER");
-        }
         let mut bash = command.spawn()?;
 
         let mut stdin = bash.stdin.take().unwrap();

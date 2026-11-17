@@ -1,4 +1,4 @@
-GIT-TRIM(1)                                    General Commands Manual                                    GIT-TRIM(1)
+GIT-TRIM(1)                                     General Commands Manual                                     GIT-TRIM(1)
 
 NAME
        git-trim - Automatically trims your tracking branches whose upstream branches are merged or stray.
@@ -50,12 +50,12 @@ OPTIONS
               `merged` implies `merged-local,merged-remote`.
 
               `merged-local` will delete merged tracking local branches. `merged-remote:<remote>` will delete merged
-              upstream branches from `<remote>`. `stray` will delete tracking local branches, which is not merged,
-              but the upstream is gone. `diverged:<remote>` will delete merged tracking local branches, and their
-              upstreams from `<remote>` even if the upstreams are not merged and diverged from local ones. `local`
-              will delete non-tracking merged local branches. `remote:<remote>` will delete non-upstream merged
-              remote tracking branches. Use with caution when you are using other than `merged`. It might lose
-              changes, and even nuke repositories.
+              upstream branches from `<remote>`. `stray` will delete tracking local branches, which is not merged, but
+              the upstream is gone. `diverged:<remote>` will delete merged tracking local branches, and their upstreams
+              from `<remote>` even if the upstreams are not merged and diverged from local ones. `local` will delete
+              non-tracking merged local branches. `remote:<remote>` will delete non-upstream merged remote tracking
+              branches. Use with caution when you are using other than `merged`. It might lose changes, and even nuke
+              repositories.
 
 EXIT STATUS
        0      Successful program execution.
@@ -64,4 +64,4 @@ EXIT STATUS
 
        101    The program panicked.
 
-                                                                                                          GIT-TRIM(1)
+                                                                                                            GIT-TRIM(1)

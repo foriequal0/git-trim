@@ -18,7 +18,9 @@ impl RemoteHeadChangeChecker {
             let remotes = {
                 let mut tmp = Vec::new();
                 for remote_name in repo.remotes()?.iter() {
-                    let remote_name = remote_name.context("non-utf8 remote name")?;
+                    let remote_name = remote_name
+                        .context("non-utf8 remote name")?
+                        .context("remote name not exist")?;
                     tmp.push(remote_name.to_owned())
                 }
                 tmp

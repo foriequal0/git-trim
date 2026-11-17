@@ -290,13 +290,13 @@ impl ConfigValues for Vec<String> {
         let mut entries = config.entries(Some(key))?;
         while let Some(entry) = entries.next() {
             let entry = entry?;
-            if let Some(value) = entry.value() {
-                result.push(value.to_owned());
-            } else {
-                warn!(
-                    "non utf-8 config entry {}",
-                    String::from_utf8_lossy(entry.name_bytes())
-                );
+            match entry.value() {
+                Ok(value) => {
+                    result.push(value.to_owned());
+                }
+                Err(err) => {
+                    warn!("error while reading config entry: {}", err);
+                }
             }
         }
         Ok(result)
