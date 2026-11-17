@@ -19,9 +19,6 @@ jobs:
             short: win
     steps:
       - uses: actions/checkout@v7
-      - run: |
-          rustup set profile minimal
-          rustup show
       - run: cargo fetch --verbose
       - run: cargo build --release
       - name: Archive
@@ -115,9 +112,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - run: |
-          rustup set profile minimal
-          rustup show
       - run: cargo fetch --verbose
       - name: Cargo publish
         run: |
